@@ -4,24 +4,63 @@ import { createServer } from "node:http";
 import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { connect as netConnect } from "node:net";
 import { homedir } from "node:os";
-import { extname, join, normalize, resolve } from "node:path";
+import path, { extname, join, normalize, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { connect as tlsConnect } from "node:tls";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 
-const root = resolve(new URL(".", import.meta.url).pathname.slice(1));
+/*
+========================================
+CORREÇÃO RENDER / LINUX
+========================================
+*/
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const root = __dirname;
+
+/*
+========================================
+CONFIGURAÇÕES
+========================================
+*/
+
 loadEnvFile(resolve(root, ".env"));
+
 const budgetsDir = resolve(root, "Orcamentos");
 const reportsDir = resolve(root, "Relatorios");
 const databasePath = resolve(root, "consultapp.sqlite");
 const smtpConfigPath = resolve(root, "smtp-config.json");
-const pythonExe = process.env.PYTHON || join(homedir(), ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "python", "python.exe");
+
+const pythonExe =
+  process.env.PYTHON ||
+  join(
+    homedir(),
+    ".cache",
+    "codex-runtimes",
+    "codex-primary-runtime",
+    "dependencies",
+    "python",
+    "python.exe"
+  );
+
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
+
 const serverVersion = "v186";
+
 const postgresConnectionString = databaseConnectionString();
-const databaseBackend = String(process.env.DB_BACKEND || (postgresConnectionString ? "postgres" : "sqlite")).toLowerCase();
-const sqliteDb = databaseBackend === "sqlite" ? new DatabaseSync(databasePath) : null;
+
+const databaseBackend = String(
+  process.env.DB_BACKEND ||
+  (postgresConnectionString ? "postgres" : "sqlite")
+).toLowerCase();
+
+const sqliteDb =
+  databaseBackend === "sqlite"
+    ? new DatabaseSync(databasePath)
+    : null;
+
 let postgresPool = null;
 
 if (sqliteDb) {
