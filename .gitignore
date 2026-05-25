@@ -1,0 +1,7 @@
+smtp-config.json
+node_modules/
+.tools/
+node-v*-win-x64.zip
+.env
+.env.*
+!.env.postgres.example

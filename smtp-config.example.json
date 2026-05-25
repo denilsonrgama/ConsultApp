@@ -1,0 +1,9 @@
+{
+  "host": "smtp.gmail.com",
+  "port": 587,
+  "secure": false,
+  "user": "seu-email@gmail.com",
+  "pass": "sua-senha-de-app",
+  "from": "seu-email@gmail.com",
+  "fromName": "Consult - Segurança e Medicina do Trabalho"
+}

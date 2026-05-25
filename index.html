@@ -1,0 +1,76 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#165a72">
+    <title>ConsultApp</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" href="assets/consult-icon.png">
+    <link rel="apple-touch-icon" href="assets/consult-icon-192.png">
+    <link rel="stylesheet" href="src/styles/app.css?v=186">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">C</span>
+          <div>
+            <strong>ConsultApp</strong>
+            <small>Or&ccedil;amentos e servi&ccedil;os</small>
+          </div>
+        </div>
+        <div class="sidebar-user" id="sidebar-user" hidden>
+          <span id="current-user-name"></span>
+          <button type="button" id="logout-app">Sair</button>
+        </div>
+        <nav aria-label="Principal">
+          <button class="nav-button is-active" data-view="dashboard">Dashboard</button>
+          <button class="nav-button" data-view="clientes">Clientes</button>
+          <button class="nav-button" data-view="servicos">Servi&ccedil;os</button>
+          <button class="nav-button" data-view="financeiro">Financeiro</button>
+          <div class="nav-submenu" aria-label="Submenu Financeiro">
+            <button class="nav-button nav-sub-button" data-view="orcamentos">Or&ccedil;amentos</button>
+            <button class="nav-button nav-sub-button" data-view="relatorios">Relat&oacute;rios</button>
+          </div>
+          <button class="nav-button admin-only" data-view="usuarios" hidden>Usu&aacute;rios</button>
+        </nav>
+        <section class="sidebar-tools" aria-label="Atalhos r&aacute;pidos">
+          <h2>Atalhos r&aacute;pidos</h2>
+          <div class="sidebar-actions">
+            <button type="button" data-sidebar-new="clientes">+ Cliente</button>
+            <button type="button" data-sidebar-new="servicos">+ Servi&ccedil;o</button>
+            <button type="button" data-sidebar-new="orcamentos">+ Or&ccedil;amento</button>
+            <button type="button" id="install-app" hidden>Instalar app</button>
+          </div>
+          <div class="sidebar-summary">
+            <div><span id="side-label-one">Em an&aacute;lise</span><strong id="side-value-one">0</strong></div>
+            <div><span id="side-label-two">Total</span><strong id="side-value-two">R$ 0,00</strong></div>
+            <div><span id="side-label-three">&Uacute;ltimo</span><strong id="side-value-three">-</strong></div>
+          </div>
+        </section>
+      </aside>
+
+      <main class="content">
+        <section class="view is-active" id="dashboard-view"></section>
+        <section class="view" id="clientes-view"></section>
+        <section class="view" id="servicos-view"></section>
+        <section class="view" id="orcamentos-view"></section>
+        <section class="view" id="financeiro-view"></section>
+        <section class="view" id="relatorios-view"></section>
+        <section class="view" id="usuarios-view"></section>
+        <section class="print-area" id="print-area" aria-hidden="true"></section>
+      </main>
+    </div>
+
+    <template id="empty-state-template">
+      <div class="empty-state">
+        <h2>Nenhum registro encontrado</h2>
+        <p>Use o formul&aacute;rio acima para cadastrar o primeiro item.</p>
+      </div>
+    </template>
+
+    <script src="src/data/seed.js?v=138"></script>
+    <script src="src/app.js?v=186"></script>
+  </body>
+</html>

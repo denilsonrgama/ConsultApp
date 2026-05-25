@@ -1,0 +1,23 @@
+{
+  "name": "ConsultApp",
+  "short_name": "ConsultApp",
+  "description": "Sistema de clientes, serviços e orçamentos migrado do Excel.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6f8f8",
+  "theme_color": "#165a72",
+  "icons": [
+    {
+      "src": "assets/consult-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/consult-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
