@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" href="assets/consult-icon.png">
     <link rel="apple-touch-icon" href="assets/consult-icon-192.png">
-    <link rel="stylesheet" href="src/styles/app.css?v=186">
+    <link rel="stylesheet" href="src/styles/app.css?v=187">
   </head>
   <body>
     <div class="app-shell">
@@ -34,6 +34,7 @@
             <button class="nav-button nav-sub-button" data-view="relatorios">Relat&oacute;rios</button>
           </div>
           <button class="nav-button admin-only" data-view="usuarios" hidden>Usu&aacute;rios</button>
+          <button class="nav-button admin-only" data-view="auditoria" hidden>Auditoria</button>
         </nav>
         <section class="sidebar-tools" aria-label="Atalhos r&aacute;pidos">
           <h2>Atalhos r&aacute;pidos</h2>
@@ -59,6 +60,7 @@
         <section class="view" id="financeiro-view"></section>
         <section class="view" id="relatorios-view"></section>
         <section class="view" id="usuarios-view"></section>
+        <section class="view" id="auditoria-view"></section>
         <section class="print-area" id="print-area" aria-hidden="true"></section>
       </main>
     </div>
@@ -71,6 +73,6 @@
     </template>
 
     <script src="src/data/seed.js?v=138"></script>
-    <script src="src/app.js?v=186"></script>
+    <script src="src/app.js?v=187"></script>
   </body>
 </html>

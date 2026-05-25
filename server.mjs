@@ -47,7 +47,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v186";
+const serverVersion = "v187";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -265,6 +265,7 @@ const PERMISSION_KEYS = [
   "usuarios.view",
   "usuarios.create",
   "usuarios.edit",
+  "auditoria.view",
   "data.write",
 ];
 
@@ -508,6 +509,51 @@ async function logAudit(request, user, audit = {}) {
     INSERT INTO auditoria_logs (usuario_id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(row.usuarioId, row.usuario, row.perfil, row.acao, row.modulo, row.entidadeTipo, row.entidadeId, JSON.stringify(row.detalhes), row.ip, row.userAgent);
+}
+
+async function listAuditLogs(filters = {}) {
+  const limit = Math.min(Math.max(Number(filters.limit || 100), 10), 500);
+  const where = [];
+  const params = [];
+  const addFilter = (sql, value) => {
+    params.push(value);
+    where.push(sql.replace("?", postgresPool ? `$${params.length}` : "?"));
+  };
+
+  if (filters.usuario) addFilter("lower(usuario) LIKE lower(?)", `%${String(filters.usuario).trim()}%`);
+  if (filters.acao) addFilter("lower(acao) LIKE lower(?)", `%${String(filters.acao).trim()}%`);
+  if (filters.modulo) addFilter("modulo = ?", String(filters.modulo).trim());
+  if (filters.dataInicio) addFilter("created_at >= ?", String(filters.dataInicio));
+  if (filters.dataFim) addFilter("created_at < ?", `${String(filters.dataFim)} 23:59:59`);
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  if (postgresPool) {
+    params.push(limit);
+    const result = await postgresPool.query(`
+      SELECT id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent, created_at
+      FROM auditoria_logs
+      ${whereSql}
+      ORDER BY created_at DESC, id DESC
+      LIMIT $${params.length}
+    `, params);
+    return result.rows.map((row) => ({
+      ...row,
+      detalhes: row.detalhes || {},
+      created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    }));
+  }
+
+  params.push(limit);
+  return sqliteDb.prepare(`
+    SELECT id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent, created_at
+    FROM auditoria_logs
+    ${whereSql}
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+  `).all(...params).map((row) => ({
+    ...row,
+    detalhes: JSON.parse(row.detalhes || "{}"),
+  }));
 }
 
 function validateUserPayload(payload, isUpdate = false) {
@@ -1633,6 +1679,32 @@ createServer(async (request, response) => {
     if (!await requirePermission(request, response, "usuarios.view")) return;
     try {
       sendJson(response, 200, { ok: true, usuarios: await listUsers() });
+    } catch (error) {
+      sendJson(response, 500, { ok: false, error: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/auditoria") {
+    const authUser = await requirePermission(request, response, "auditoria.view");
+    if (!authUser) return;
+    try {
+      const logs = await listAuditLogs({
+        usuario: url.searchParams.get("usuario") || "",
+        acao: url.searchParams.get("acao") || "",
+        modulo: url.searchParams.get("modulo") || "",
+        dataInicio: url.searchParams.get("dataInicio") || "",
+        dataFim: url.searchParams.get("dataFim") || "",
+        limit: url.searchParams.get("limit") || 100,
+      });
+      await logAudit(request, authUser, {
+        acao: "auditoria.consultar",
+        modulo: "auditoria",
+        entidadeTipo: "auditoria_logs",
+        entidadeId: "",
+        detalhes: { quantidade: logs.length },
+      }).catch(() => {});
+      sendJson(response, 200, { ok: true, logs });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: error.message });
     }

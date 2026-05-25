@@ -14,6 +14,7 @@ let addingBudgetItem = false;
 let pendingSave = null;
 let currentUser = null;
 let usuarios = [];
+let auditoriaLogs = [];
 let editingUsuarioId = null;
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -29,6 +30,7 @@ const titles = {
   financeiro: "Financeiro",
   relatorios: "Relatórios",
   usuarios: "Usuários",
+  auditoria: "Auditoria",
 };
 
 const PERMISSIONS = [
@@ -53,6 +55,7 @@ const PERMISSIONS = [
   { key: "usuarios.view", label: "Ver usuários", group: "Usuários" },
   { key: "usuarios.create", label: "Criar usuários", group: "Usuários" },
   { key: "usuarios.edit", label: "Alterar usuários", group: "Usuários" },
+  { key: "auditoria.view", label: "Ver auditoria", group: "Auditoria" },
   { key: "data.write", label: "Gravar alterações no banco", group: "Sistema" },
 ];
 
@@ -504,6 +507,13 @@ function formatDate(value) {
   return day && month && year ? `${day}/${month}/${year}` : value;
 }
 
+function formatDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("pt-BR");
+}
+
 function formatDateFile(value) {
   if (!value) return "";
   const [year, month, day] = String(value).split("-");
@@ -641,6 +651,7 @@ function viewPermission(view) {
     financeiro: "financeiro.view",
     relatorios: "relatorios.view",
     usuarios: "usuarios.view",
+    auditoria: "auditoria.view",
   }[view] || "";
 }
 
@@ -682,6 +693,7 @@ function render() {
   renderFinanceiro();
   renderRelatorios();
   if (canManageUsers()) renderUsuarios();
+  if (hasPermission("auditoria.view")) renderAuditoria();
 }
 
 function renderCurrentView(view) {
@@ -708,6 +720,10 @@ function renderCurrentView(view) {
   }
   if (view === "usuarios") {
     renderUsuarios();
+    return;
+  }
+  if (view === "auditoria") {
+    renderAuditoria();
   }
 }
 
@@ -811,6 +827,14 @@ function sidebarSummaryForView(view) {
       { label: "Relatórios", value: "3" },
       { label: "Base estatística", value: String(statisticalBudgets.length) },
       { label: "Aprovados", value: String(approved) },
+    ];
+  }
+
+  if (view === "auditoria") {
+    return [
+      { label: "Logs carregados", value: String(auditoriaLogs.length) },
+      { label: "Usuários", value: String(new Set(auditoriaLogs.map((log) => log.usuario).filter(Boolean)).size) },
+      { label: "Módulos", value: String(new Set(auditoriaLogs.map((log) => log.modulo).filter(Boolean)).size) },
     ];
   }
 
@@ -980,6 +1004,101 @@ async function loadUsuarios() {
   if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível carregar usuários.");
   usuarios = result.usuarios || [];
   return usuarios;
+}
+
+async function loadAuditoria(filters = {}) {
+  if (!hasPermission("auditoria.view")) return [];
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  const response = await fetch(`/api/auditoria?${params.toString()}`);
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível carregar auditoria.");
+  auditoriaLogs = result.logs || [];
+  return auditoriaLogs;
+}
+
+function renderAuditoria() {
+  const view = document.getElementById("auditoria-view");
+  if (!view || !hasPermission("auditoria.view")) return;
+  view.innerHTML = `
+    ${pageBanner()}
+    <section class="panel auditoria-panel">
+      <div class="toolbar">
+        <div>
+          <h2>Auditoria</h2>
+          <p>Rastreie ações executadas pelos usuários no sistema.</p>
+        </div>
+      </div>
+      <form class="audit-filter-grid" id="auditoria-filter-form">
+        <label>Usuário<input name="usuario" placeholder="Usuário"></label>
+        <label>Ação<input name="acao" placeholder="Ex.: orçamento, login"></label>
+        <label>Módulo<select name="modulo"><option value="">Todos</option>${options(["seguranca", "usuarios", "clientes", "servicos", "orcamentos", "relatorios", "auditoria", "sistema"], "")}</select></label>
+        <label>Data inicial<input name="dataInicio" type="date"></label>
+        <label>Data final<input name="dataFim" type="date"></label>
+        <label>Limite<select name="limit">${options(["50", "100", "200", "500"], "100")}</select></label>
+        <div class="form-actions budget-form-actions">
+          <button class="primary-button" type="submit">Consultar</button>
+          <button class="ghost-button" type="button" id="clear-audit-filters">Limpar</button>
+        </div>
+      </form>
+      <div id="auditoria-list">${auditTable(auditoriaLogs)}</div>
+    </section>
+  `;
+  document.getElementById("auditoria-filter-form").addEventListener("submit", handleAuditFilter);
+  document.getElementById("clear-audit-filters").addEventListener("click", async () => {
+    await refreshAuditoriaView();
+  });
+  if (!auditoriaLogs.length) refreshAuditoriaView();
+}
+
+async function handleAuditFilter(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const filters = Object.fromEntries(new FormData(form));
+  try {
+    await loadAuditoria(filters);
+    document.getElementById("auditoria-list").innerHTML = auditTable(auditoriaLogs);
+    renderSidebarPanel();
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível consultar auditoria.");
+  }
+}
+
+async function refreshAuditoriaView() {
+  try {
+    await loadAuditoria({ limit: 100 });
+    renderAuditoria();
+    renderSidebarPanel();
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível carregar auditoria.");
+  }
+}
+
+function auditTable(logs) {
+  if (!logs.length) return emptyState();
+  return `
+    <div class="table-wrap audit-table-wrap">
+      <table>
+        <thead><tr><th>Data</th><th>Usuário</th><th>Perfil</th><th>Ação</th><th>Módulo</th><th>Item</th><th>Detalhes</th><th>IP</th></tr></thead>
+        <tbody>
+          ${logs.map((log) => `
+            <tr>
+              <td>${escapeHtml(formatDateTime(log.created_at))}</td>
+              <td><strong>${escapeHtml(log.usuario || "-")}</strong></td>
+              <td>${escapeHtml(log.perfil || "-")}</td>
+              <td>${escapeHtml(log.acao || "-")}</td>
+              <td>${escapeHtml(log.modulo || "-")}</td>
+              <td>${escapeHtml([log.entidade_tipo, log.entidade_id].filter(Boolean).join(": ") || "-")}</td>
+              <td><code>${escapeHtml(JSON.stringify(log.detalhes || {}))}</code></td>
+              <td>${escapeHtml(log.ip || "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderUsuarios() {

@@ -1218,6 +1218,32 @@ th {
   padding: 0 6px;
 }
 
+.auditoria-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.audit-filter-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.audit-filter-grid .form-actions {
+  grid-column: 1 / -1;
+}
+
+.audit-table-wrap {
+  max-height: 520px;
+}
+
+.audit-table-wrap code {
+  color: #52656c;
+  font-size: 11px;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .report-panel {
   align-content: start;
 }
