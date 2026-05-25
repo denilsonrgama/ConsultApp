@@ -8,6 +8,7 @@
     "migrate:relational": "node scripts/migrate_app_state_to_relational.mjs"
   },
   "dependencies": {
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "puppeteer": "^25.0.4"
   }
 }

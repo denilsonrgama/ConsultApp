@@ -47,7 +47,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v187";
+const serverVersion = "v188";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1295,6 +1295,65 @@ function printHtmlToPdf(html, target) {
   }
 }
 
+function renderChromiumPath() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    process.env.CHROMIUM_PATH,
+    chromiumPath(),
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+  ];
+  return candidates.filter(Boolean).find((candidate) => existsSync(candidate)) || "";
+}
+
+async function printHtmlToPdfPortable(html, target) {
+  const browserExe = renderChromiumPath();
+  if (browserExe) {
+    const tempDir = mkdtempSync(join(root, ".pdf-temp-"));
+    const htmlPath = join(tempDir, "documento.html");
+    try {
+      writeFileSync(htmlPath, html, "utf-8");
+      const result = spawnSync(browserExe, [
+        "--headless=new",
+        "--disable-gpu",
+        "--disable-extensions",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--allow-file-access-from-files",
+        "--no-pdf-header-footer",
+        "--print-to-pdf-no-header",
+        `--print-to-pdf=${target}`,
+        pathToFileURL(htmlPath).href,
+      ], { encoding: "utf-8" });
+
+      if (result.status !== 0 || !existsSync(target)) {
+        throw new Error(result.stderr || "Falha ao converter o PDF.");
+      }
+      return;
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  let browser;
+  try {
+    const puppeteer = await import("puppeteer");
+    browser = await puppeteer.default.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.pdf({ path: target, printBackground: true, preferCSSPageSize: true });
+  } catch (error) {
+    throw new Error(`Chrome/Chromium nao encontrado para gerar o PDF. Detalhe: ${error.message}`);
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+}
+
 const crcTable = new Uint32Array(256).map((_, index) => {
   let value = index;
   for (let bit = 0; bit < 8; bit += 1) {
@@ -1852,7 +1911,7 @@ createServer(async (request, response) => {
       }
 
       if (payload.html) {
-        printHtmlToPdf(String(payload.html), target);
+        await printHtmlToPdfPortable(String(payload.html), target);
       } else {
         const generatorPayload = { ...payload, output: target };
         const result = spawnSync(pythonExe, [join(root, "scripts", "generate_budget_pdf.py")], {
@@ -1905,7 +1964,7 @@ createServer(async (request, response) => {
         return;
       }
 
-      printHtmlToPdf(html, target);
+      await printHtmlToPdfPortable(html, target);
       await logAudit(request, authUser, {
         acao: "relatorio.gerar_pdf",
         modulo: "relatorios",
