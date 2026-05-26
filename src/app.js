@@ -3066,8 +3066,13 @@ async function exportReportPdf(type) {
       throw new Error(result.error || "Não foi possível gerar o relatório.");
     }
 
-    alert(`Relatório salvo em:\n${result.path}`);
-    window.open(result.url, "_blank", "noopener");
+    const reportUrl = result.publicUrl || new URL(result.url, location.href).href;
+    hideProcessingMessage();
+    showFloatingMessage("Relatório gerado. Abrindo PDF...", "success");
+    const opened = window.open(reportUrl, "_blank", "noopener");
+    if (!opened) {
+      location.href = reportUrl;
+    }
   } catch (error) {
     alert(error.message || "Não foi possível gerar o relatório em PDF.");
   } finally {

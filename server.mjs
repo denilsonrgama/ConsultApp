@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v194";
+const serverVersion = "v195";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -2113,7 +2113,8 @@ createServer(async (request, response) => {
         detalhes: { armazenamento: "banco", tamanho: pdfBuffer.length, path: target },
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ ok: true, fileName, path: target, url: `/relatorios/${encodeURIComponent(fileName)}` }));
+      const savedUrl = `/relatorios/${encodeURIComponent(fileName)}`;
+      response.end(JSON.stringify({ ok: true, fileName, path: target, url: savedUrl, publicUrl: publicFileUrl(savedUrl) }));
     } catch (error) {
       response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: false, error: error.message }));
