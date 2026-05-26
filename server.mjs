@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v215";
+const serverVersion = "v216";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1474,39 +1474,13 @@ function installPuppeteerChrome() {
 }
 
 async function printHtmlToPdfPortable(html, target) {
-  const browserExe = renderChromiumPath();
-  if (browserExe) {
-    const tempDir = mkdtempSync(join(root, ".pdf-temp-"));
-    const htmlPath = join(tempDir, "documento.html");
-    try {
-      writeFileSync(htmlPath, html, "utf-8");
-      const result = spawnSync(browserExe, [
-        "--headless=new",
-        "--disable-gpu",
-        "--disable-extensions",
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--allow-file-access-from-files",
-        "--no-pdf-header-footer",
-        "--print-to-pdf-no-header",
-        `--print-to-pdf=${target}`,
-        pathToFileURL(htmlPath).href,
-      ], { encoding: "utf-8" });
-
-      if (result.status !== 0 || !existsSync(target)) {
-        throw new Error(result.stderr || "Falha ao converter o PDF.");
-      }
-      return;
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-  }
-
   let browser;
   try {
     const puppeteer = await import("puppeteer");
+    const executablePath = renderChromiumPath();
     const launchOptions = {
       headless: "new",
+      executablePath: executablePath || undefined,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     };
 
@@ -1520,9 +1494,24 @@ async function printHtmlToPdfPortable(html, target) {
     const page = await browser.newPage();
     page.setDefaultTimeout(120000);
     page.setDefaultNavigationTimeout(120000);
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 120000 });
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
+    await page.setViewport({ width: 1280, height: 1800, deviceScaleFactor: 1 });
+    await page.emulateMediaType("print");
+    await page.setContent(html, { waitUntil: ["domcontentloaded", "networkidle0"], timeout: 120000 });
+    await page.evaluate(async () => {
+      if (document.fonts?.ready) await document.fonts.ready;
+      await Promise.all([...document.images].map((image) => {
+        if (image.complete && image.naturalWidth > 0) return Promise.resolve();
+        return new Promise((resolve) => {
+          image.addEventListener("load", resolve, { once: true });
+          image.addEventListener("error", resolve, { once: true });
+        });
+      }));
+    });
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 300));
     await page.pdf({ path: target, printBackground: true, preferCSSPageSize: true, timeout: 120000 });
+    if (!existsSync(target) || statSync(target).size < 1024) {
+      throw new Error("PDF gerado vazio ou inválido.");
+    }
   } catch (error) {
     throw new Error(`Falha ao gerar o PDF no servidor. Detalhe: ${error.message}`);
   } finally {

@@ -3222,8 +3222,9 @@ async function printBudget(numero) {
       }
     }
 
+    await waitForPrintAreaAssets();
     requestAnimationFrame(() => {
-      setTimeout(() => window.print(), 50);
+      setTimeout(() => window.print(), 150);
     });
   }
 }
@@ -4070,6 +4071,19 @@ function blobToDataUrl(blob) {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+async function waitForPrintAreaAssets() {
+  const printArea = document.getElementById("print-area");
+  if (!printArea) return;
+  const images = [...printArea.querySelectorAll("img")];
+  await Promise.all(images.map((image) => {
+    if (image.complete && image.naturalWidth > 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", resolve, { once: true });
+    });
+  }));
 }
 
 function renderPrintBudget(numero) {
