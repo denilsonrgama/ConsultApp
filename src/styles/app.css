@@ -1354,14 +1354,30 @@ th {
 
 .report-filter-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
 }
 
+.report-filter-grid label {
+  min-width: 0;
+}
+
+.report-filter-grid input,
+.report-filter-grid select {
+  width: 100%;
+}
+
 .report-filter-grid .form-actions {
-  align-self: end;
+  align-items: center;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
   flex-wrap: nowrap;
+}
+
+.report-filter-grid .form-actions button,
+.report-export-actions button {
+  min-width: 86px;
 }
 
 .permissions-panel {

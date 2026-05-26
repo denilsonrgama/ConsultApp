@@ -1053,8 +1053,8 @@ function renderRelatorios() {
         <label>Status do serviço
           <select name="servicoStatus">
             <option value="TODOS"${selectedAttr(reportFilters.servicoStatus, "TODOS")}>Todos</option>
-            <option value="ATIVO"${selectedAttr(reportFilters.servicoStatus, "ATIVO")}>Ativos</option>
-            <option value="INATIVO"${selectedAttr(reportFilters.servicoStatus, "INATIVO")}>Inativos</option>
+            <option value="ATIVO"${selectedAttr(reportFilters.servicoStatus, "ATIVO")}>Ativo</option>
+            <option value="INATIVO"${selectedAttr(reportFilters.servicoStatus, "INATIVO")}>Inativo</option>
           </select>
         </label>
         <div class="form-actions">
@@ -1123,12 +1123,13 @@ function clearReportFilters() {
 function filteredReportBudgets() {
   const applyServiceFilter = reportFilters.servicoStatus && reportFilters.servicoStatus !== "TODOS";
   const allowedServiceCodes = applyServiceFilter ? filteredReportServiceCodes() : null;
+  const selectedBudgetStatus = normalizeOrcamentoStatus(reportFilters.status || "");
   return state.orcamentos.reduce((budgets, orcamento) => {
     const clienteAtivo = isOrcamentoClienteAtivo(orcamento);
     if (reportFilters.clienteStatus === "ATIVO" && !clienteAtivo) return budgets;
     if (reportFilters.clienteStatus === "INATIVO" && clienteAtivo) return budgets;
 
-    if (reportFilters.status && normalizeOrcamentoStatus(orcamento.status) !== reportFilters.status) return budgets;
+    if (selectedBudgetStatus && normalizeOrcamentoStatus(orcamento.status) !== selectedBudgetStatus) return budgets;
     if (reportFilters.dataInicio && String(orcamento.data || "") < reportFilters.dataInicio) return budgets;
     if (reportFilters.dataFim && String(orcamento.data || "") > reportFilters.dataFim) return budgets;
 
