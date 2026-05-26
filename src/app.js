@@ -1892,6 +1892,33 @@ function showFloatingMessage(message, tone = "warning") {
   }, 4500);
 }
 
+function showProcessingMessage(message = "Solicitação sendo processada. Aguarde...") {
+  let overlay = document.getElementById("processing-message");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "processing-message";
+    overlay.className = "processing-message";
+    overlay.innerHTML = `
+      <div class="processing-dialog" role="status" aria-live="polite">
+        <span class="processing-spinner" aria-hidden="true"></span>
+        <div>
+          <strong></strong>
+          <small>Esta operação pode levar alguns instantes.</small>
+        </div>
+      </div>
+    `;
+    document.body.append(overlay);
+  }
+
+  overlay.querySelector("strong").textContent = message;
+  overlay.classList.add("is-visible");
+  return () => hideProcessingMessage();
+}
+
+function hideProcessingMessage() {
+  document.getElementById("processing-message")?.classList.remove("is-visible");
+}
+
 function cnpjStatusClass(value) {
   const status = String(value || "").toUpperCase();
   return ["BAIXADA", "INATIVA", "INAPTA", "SUSPENSA"].some((item) => status.includes(item)) ? "status-alert-field" : "";
@@ -2802,6 +2829,7 @@ async function shareBudget(numero) {
 }
 
 async function sendBudgetEmail(payload) {
+  const closeProcessing = showProcessingMessage("Enviando e-mail com o orçamento...");
   try {
     const response = await fetch("/api/orcamentos/enviar-email", {
       method: "POST",
@@ -2815,6 +2843,8 @@ async function sendBudgetEmail(payload) {
     showFloatingMessage("E-mail enviado com o PDF anexado.", "success");
   } catch (error) {
     showFloatingMessage(error.message || "Não foi possível enviar o e-mail. Verifique a configuração SMTP.");
+  } finally {
+    closeProcessing();
   }
 }
 
@@ -2963,6 +2993,7 @@ async function saveBudgetAsPrinted(numero, options = {}) {
     })),
   };
 
+  const closeProcessing = showProcessingMessage("Gerando PDF do orçamento...");
   try {
     const response = await fetch("/api/orcamentos/salvar-pdf", {
       method: "POST",
@@ -2985,6 +3016,8 @@ async function saveBudgetAsPrinted(numero, options = {}) {
   } catch (error) {
     alert(error.message || "Não foi possível salvar o orçamento. Verifique se o servidor de homologação está rodando atualizado.");
     return false;
+  } finally {
+    closeProcessing();
   }
 }
 
@@ -2996,6 +3029,7 @@ async function exportReportPdf(type) {
   const report = buildReportDefinition(type);
   if (!report) return;
 
+  const closeProcessing = showProcessingMessage("Gerando relatório em PDF...");
   try {
     const response = await fetch("/api/relatorios/salvar-pdf", {
       method: "POST",
@@ -3019,6 +3053,8 @@ async function exportReportPdf(type) {
     window.open(result.url, "_blank", "noopener");
   } catch (error) {
     alert(error.message || "Não foi possível gerar o relatório em PDF.");
+  } finally {
+    closeProcessing();
   }
 }
 
@@ -3083,6 +3119,7 @@ async function exportReportExcel(type) {
   const report = buildReportDefinition(type);
   if (!report) return;
 
+  const closeProcessing = showProcessingMessage("Exportando relatório para Excel...");
   try {
     const response = await fetch("/api/relatorios/salvar-xlsx", {
       method: "POST",
@@ -3111,6 +3148,8 @@ async function exportReportExcel(type) {
     showFloatingMessage("Relatório exportado para Excel.", "success");
   } catch (error) {
     alert(error.message || "Não foi possível gerar o relatório em Excel.");
+  } finally {
+    closeProcessing();
   }
 }
 
