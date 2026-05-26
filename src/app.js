@@ -1011,7 +1011,7 @@ function renderRelatorios() {
         </div>
       ` : '<p class="muted">Acesso somente leitura. Exportação disponível apenas para perfis autorizados.</p>'}
     </section>
-    <div class="stats-grid">
+    <div class="stats-grid report-stats-grid">
       ${stat("Orçamentos considerados", statisticalBudgets.length)}
       ${stat("Valor considerado", currency.format(totalStatistical))}
       ${stat("Valor aprovado", currency.format(totalApproved))}
@@ -1459,10 +1459,11 @@ function servicosPorValor() {
   return sortedChartData(totals, 6);
 }
 
-function orcamentosPorStatus() {
+function orcamentosPorStatus(options = {}) {
+  const budgets = options.includeRejected ? state.orcamentos : orcamentosEstatisticos();
   const totals = new Map();
-  orcamentosEstatisticos().forEach((orcamento) => {
-    const label = orcamento.status || "Sem status";
+  budgets.forEach((orcamento) => {
+    const label = normalizeOrcamentoStatus(orcamento.status || "Sem status");
     totals.set(label, (totals.get(label) || 0) + totalOrcamento(orcamento));
   });
   return sortedChartData(totals, 6);
@@ -2935,7 +2936,7 @@ function financeiroTable(budgets) {
 }
 
 function statusReportTable() {
-  const rows = orcamentosPorStatus();
+  const rows = orcamentosPorStatus({ includeRejected: true });
   if (!rows.length) return emptyState();
   return chartDataTable(rows, "Status");
 }

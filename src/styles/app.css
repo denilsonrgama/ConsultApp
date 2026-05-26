@@ -1014,6 +1014,21 @@ a.small-button {
   font-size: 1.8rem;
 }
 
+#relatorios-view .report-stats-grid .stat-card {
+  padding: 12px;
+}
+
+#relatorios-view .report-stats-grid .stat-card small {
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+#relatorios-view .report-stats-grid .stat-card strong {
+  overflow-wrap: anywhere;
+  font-size: 1.28rem;
+  line-height: 1.08;
+}
+
 .form-grid {
   display: grid;
   gap: 12px;

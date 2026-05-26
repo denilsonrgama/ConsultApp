@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v205";
+const serverVersion = "v206";
 
 const postgresConnectionString = databaseConnectionString();
 
