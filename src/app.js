@@ -2263,19 +2263,20 @@ function renderOrcamentos() {
       </section>
       <section class="panel orcamento-form-panel">
         <h2>${editingOrcamentoNumero ? "Alterar orçamento" : "Novo orçamento"}</h2>
-        <form class="orcamento-form-grid" id="orcamento-form">
+        <form class="orcamento-form-grid${approvedLocked ? " approved-budget-locked" : ""}" id="orcamento-form">
+          ${approvedLocked ? '<p class="approved-lock-notice">Orçamento aprovado: campos bloqueados. Apenas o status pode ser alterado com senha e permissão.</p>' : ""}
           <label>Número<input name="numero" type="number" min="15000" step="1" readonly required value="${fieldValue(numeroValue)}"></label>
           <button class="ghost-button" type="button" id="show-budget-client-search"${editingOrcamento.clienteDocumento || !editable ? " hidden" : ""}>Buscar cliente</button>
           <div class="budget-client-search hidden" id="budget-client-search">
             <label>Digite CPF/CNPJ ou nome<input id="orcamento-cliente-search" placeholder="Digite nome, CPF ou CNPJ"></label>
             <div id="budget-client-results"></div>
           </div>
-          <label>Cliente<input id="orcamento-cliente-display" readonly value="${fieldValue(editingOrcamento.clienteDocumento ? clienteNome(editingOrcamento.clienteDocumento) : "")}"></label>
+          <label>Cliente<input id="orcamento-cliente-display" readonly${approvedLocked ? " disabled" : ""} value="${fieldValue(editingOrcamento.clienteDocumento ? clienteNome(editingOrcamento.clienteDocumento) : "")}"></label>
           <input type="hidden" name="clienteDocumento" value="${fieldValue(editingOrcamento.clienteDocumento)}" required>
-          <label>Data<input name="data" type="date" required value="${fieldValue(dataValue)}"></label>
+          <label>Data<input name="data" type="date" required${approvedLocked ? " disabled" : ""} value="${fieldValue(dataValue)}"></label>
           <label>Status<select name="status"><option value=""${selectedAttr(statusValue, "")}>Selecione</option>${options(["EM ANÁLISE", "APROVADO", "REPROVADO"], statusValue)}</select></label>
           <div class="budget-items" id="budget-items"></div>
-          <label>Observações<textarea name="observacoes">${fieldValue(editingOrcamento.observacoes)}</textarea></label>
+          <label>Observações<textarea name="observacoes"${approvedLocked ? " disabled" : ""}>${fieldValue(editingOrcamento.observacoes)}</textarea></label>
           <div class="total-box"><span>Total</span><strong id="budget-total">R$ 0,00</strong></div>
           ${editable ? `
             <div class="form-actions budget-form-actions">
@@ -2539,20 +2540,22 @@ async function addOrcamento(event) {
     return;
   }
   const data = Object.fromEntries(new FormData(event.currentTarget));
-  const numero = Number(data.numero);
+  const currentOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero));
+  const numero = Number(data.numero || currentOrcamento?.numero);
   if (!Number.isInteger(numero) || numero <= 0) {
     alert("Informe um número de orçamento válido.");
     return;
   }
 
-  const clienteSelecionado = state.clientes.find((cliente) => cliente.documento === data.clienteDocumento);
+  const clienteDocumento = data.clienteDocumento || currentOrcamento?.clienteDocumento || "";
+  const clienteSelecionado = state.clientes.find((cliente) => cliente.documento === clienteDocumento);
   const nomeClienteSelecionado = String(
     clienteSelecionado?.nome
       || clienteSelecionado?.razaoSocial
       || clienteSelecionado?.nomeFantasia
       || "",
   ).trim();
-  if (!data.clienteDocumento || !clienteSelecionado || !nomeClienteSelecionado) {
+  if (!clienteDocumento || !clienteSelecionado || !nomeClienteSelecionado) {
     alert("Selecione um cliente com nome cadastrado antes de salvar o orçamento.");
     showBudgetClientSearch();
     return;
@@ -2564,7 +2567,6 @@ async function addOrcamento(event) {
     return;
   }
 
-  const currentOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero));
   if (currentOrcamento && isOrcamentoAprovado(currentOrcamento)) {
     const newStatus = normalizeOrcamentoStatus(data.status || currentOrcamento.status);
     if (newStatus === normalizeOrcamentoStatus(currentOrcamento.status)) {

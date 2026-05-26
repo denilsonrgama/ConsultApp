@@ -499,6 +499,34 @@ h2 {
   background: rgba(20, 45, 55, 0.45);
 }
 
+.approved-lock-notice {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e0b400;
+  border-radius: 8px;
+  background: #fff3b0;
+  color: #8a1f1f;
+  font-weight: 800;
+}
+
+.approved-budget-locked input:disabled,
+.approved-budget-locked textarea:disabled,
+.approved-budget-locked select:disabled,
+.approved-budget-locked button:disabled {
+  border-color: #cbd4d7;
+  background: #edf1f2;
+  color: #7a878b;
+  opacity: 1;
+}
+
+.approved-budget-locked [name="status"] {
+  border-color: #e0b400;
+  background: #fff8cf;
+  color: #8a1f1f;
+  font-weight: 800;
+}
+
 .choice-dialog {
   display: grid;
   gap: 14px;
