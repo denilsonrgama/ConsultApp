@@ -684,8 +684,17 @@ function servicoNome(codigo) {
   return state.servicos.find((servico) => servico.codigo === String(codigo))?.nome || codigo || "Serviço";
 }
 
+function normalizeServicoStatus(status) {
+  const clean = String(status || "ATIVO")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+  return clean.includes("INAT") ? "INATIVO" : "ATIVO";
+}
+
 function isServicoAtivo(servico) {
-  return String(servico?.status || "").toUpperCase() === "ATIVO";
+  return normalizeServicoStatus(servico?.status) === "ATIVO";
 }
 
 function servicoByCodigo(codigo) {
@@ -2497,7 +2506,7 @@ function renderServicoList() {
                 <td>${escapeHtml(servico.codigo)}</td>
                 <td><strong>${escapeHtml(servico.nome)}</strong><br><span class="muted">${escapeHtml(servico.frequencia)}</span></td>
                 <td>${escapeHtml(servico.tipo)}</td>
-                <td><span class="badge ${servico.status === "INATIVO" ? "danger" : ""}">${escapeHtml(servico.status)}</span></td>
+                <td><span class="badge ${normalizeServicoStatus(servico.status) === "INATIVO" ? "danger" : ""}">${escapeHtml(normalizeServicoStatus(servico.status))}</span></td>
                 <td>${currency.format(Number(servico.valor || 0))}</td>
                 <td>${canEditModule("servicos") || canDeleteFromModule("servicos") ? `
                   <div class="row-actions">
@@ -4008,7 +4017,7 @@ function buildReportDefinition(type, options = {}) {
           return [
             servico.codigo || "",
             servico.nome || "",
-            servico.status || "",
+            normalizeServicoStatus(servico.status),
             currency.format(Number(servico.valor || 0)),
             total.menorUnitario === null ? "-" : currency.format(total.menorUnitario),
             total.maiorUnitario === null ? "-" : currency.format(total.maiorUnitario),

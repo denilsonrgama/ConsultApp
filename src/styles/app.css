@@ -1357,7 +1357,7 @@ th {
 
 .report-filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(190px, 260px);
   gap: 12px;
   align-items: end;
 }
@@ -1373,10 +1373,11 @@ th {
 
 .report-filter-grid .form-actions {
   align-items: center;
-  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: flex-start;
   flex-wrap: nowrap;
-  padding-top: 2px;
 }
 
 .report-filter-grid .form-actions button,
