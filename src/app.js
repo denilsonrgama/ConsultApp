@@ -66,6 +66,7 @@ const PERMISSIONS = [
   { key: "relatorios.view", label: "Ver relatórios", group: "Relatórios" },
   { key: "relatorios.export", label: "Exportar relatórios", group: "Relatórios" },
   { key: "arquivos.view", label: "Ver arquivos", group: "Arquivos" },
+  { key: "arquivos.delete", label: "Excluir arquivos", group: "Arquivos" },
   { key: "usuarios.view", label: "Ver usuários", group: "Usuários" },
   { key: "usuarios.create", label: "Criar usuários", group: "Usuários" },
   { key: "usuarios.edit", label: "Alterar usuários", group: "Usuários" },
@@ -1237,6 +1238,7 @@ async function refreshArquivos() {
 }
 
 function arquivosTable(files) {
+  const canDeleteFiles = hasPermission("arquivos.delete") && canManageData();
   return `
     <div class="table-wrap">
       <table>
@@ -1250,6 +1252,7 @@ function arquivosTable(files) {
               <td>${escapeHtml(formatDateTime(file.updatedAt || file.createdAt))}</td>
               <td class="row-actions">
                 <a class="small-button" href="${escapeHtml(file.url)}" target="_blank" rel="noopener">Visualizar</a>
+                ${canDeleteFiles ? `<button type="button" class="small-button danger-text" data-delete-arquivo="${escapeHtml(file.categoria)}" data-delete-arquivo-nome="${escapeHtml(file.nome)}">Excluir</button>` : ""}
               </td>
             </tr>
           `).join("")}
@@ -1264,6 +1267,28 @@ function formatFileSize(value) {
   if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
   if (size >= 1024) return `${(size / 1024).toFixed(1).replace(".", ",")} KB`;
   return `${size} B`;
+}
+
+async function deleteArquivo(categoria, nome) {
+  if (!hasPermission("arquivos.delete") || !canManageData()) {
+    showNoPermissionMessage();
+    return;
+  }
+  if (!confirm(`Excluir o arquivo "${nome}"?`)) return;
+
+  try {
+    const response = await fetch(`/api/arquivos/${encodeURIComponent(categoria)}/${encodeURIComponent(nome)}`, {
+      method: "DELETE",
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Não foi possível excluir o arquivo.");
+    }
+    showFloatingMessage("Arquivo excluído.", "success");
+    await refreshArquivos();
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível excluir o arquivo.", "error");
+  }
 }
 
 async function loadUsuarios() {
@@ -4405,6 +4430,13 @@ document.body.addEventListener("click", (event) => {
   const deleteOrcamentoButton = event.target.closest("[data-delete-orcamento]");
   if (deleteOrcamentoButton) {
     deleteOrcamento(deleteOrcamentoButton.dataset.deleteOrcamento);
+    return;
+  }
+
+  const deleteArquivoButton = event.target.closest("[data-delete-arquivo]");
+  if (deleteArquivoButton) {
+    event.preventDefault();
+    deleteArquivo(deleteArquivoButton.dataset.deleteArquivo, deleteArquivoButton.dataset.deleteArquivoNome);
     return;
   }
 

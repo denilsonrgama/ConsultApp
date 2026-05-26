@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v233";
+const serverVersion = "v234";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -286,6 +286,7 @@ const PERMISSION_KEYS = [
   "relatorios.view",
   "relatorios.export",
   "arquivos.view",
+  "arquivos.delete",
   "usuarios.view",
   "usuarios.create",
   "usuarios.edit",
@@ -1200,6 +1201,19 @@ async function listStoredPdfFiles() {
     url: `/${row.categoria}/${encodeURIComponent(row.nome)}`,
     publicUrl: publicFileUrl(`/${row.categoria}/${encodeURIComponent(row.nome)}`),
   }));
+}
+
+async function deleteStoredFile(categoria, nome) {
+  if (postgresPool) {
+    const result = await postgresPool.query(
+      "DELETE FROM arquivos WHERE categoria = $1 AND nome = $2 RETURNING tamanho",
+      [categoria, nome],
+    );
+    return result.rowCount > 0;
+  }
+
+  const result = sqliteDb.prepare("DELETE FROM arquivos WHERE categoria = ? AND nome = ?").run(categoria, nome);
+  return Number(result.changes || 0) > 0;
 }
 
 function loadSmtpConfig() {
@@ -2146,6 +2160,41 @@ createServer(async (request, response) => {
         detalhes: { quantidade: arquivos.length },
       }).catch(() => {});
       sendJson(response, 200, { ok: true, arquivos });
+    } catch (error) {
+      sendJson(response, 500, { ok: false, error: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname.startsWith("/api/arquivos/")) {
+    const authUser = await requirePermission(request, response, "arquivos.delete");
+    if (!authUser) return;
+    try {
+      const parts = url.pathname.replace("/api/arquivos/", "").split("/");
+      const categoria = safeFileName(decodeURIComponent(parts.shift() || ""));
+      const nome = safeFileName(decodeURIComponent(parts.join("/") || ""));
+      const allowedCategories = new Set(["orcamentos", "relatorios"]);
+
+      if (!allowedCategories.has(categoria) || !nome) {
+        sendJson(response, 400, { ok: false, error: "Arquivo inválido." });
+        return;
+      }
+
+      const deleted = await deleteStoredFile(categoria, nome);
+      const baseDir = categoria === "orcamentos" ? budgetsDir : reportsDir;
+      const localPath = resolve(baseDir, nome);
+      if (localPath.startsWith(baseDir)) {
+        rmSync(localPath, { force: true });
+      }
+
+      await logAudit(request, authUser, {
+        acao: "arquivo.excluir",
+        modulo: "arquivos",
+        entidadeTipo: "arquivo",
+        entidadeId: `${categoria}/${nome}`,
+        detalhes: { categoria, nome, armazenamento: deleted ? "banco" : "local" },
+      }).catch(() => {});
+      sendJson(response, 200, { ok: true, deleted });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: error.message });
     }
