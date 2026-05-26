@@ -16,6 +16,7 @@ let currentUser = null;
 let usuarios = [];
 let auditoriaLogs = [];
 let editingUsuarioId = null;
+let explicitLogout = false;
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -475,9 +476,25 @@ async function handleForgotPassword(event) {
 }
 
 async function logoutApp() {
+  explicitLogout = true;
   await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
+}
+
+function notifySessionClosed() {
+  if (!currentUser || explicitLogout || location.protocol === "file:") return;
+  const payload = new Blob(["{}"], { type: "application/json" });
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon("/api/auth/close", payload);
+    return;
+  }
+  fetch("/api/auth/close", {
+    method: "POST",
+    body: "{}",
+    headers: { "Content-Type": "application/json" },
+    keepalive: true,
+  }).catch(() => {});
 }
 
 function stateRecordCount(value) {
@@ -3656,6 +3673,8 @@ window.addEventListener("appinstalled", () => {
   deferredInstallPrompt = null;
   syncInstallButton();
 });
+
+window.addEventListener("pagehide", notifySessionClosed);
 
 window.matchMedia("(display-mode: standalone)").addEventListener("change", (event) => {
   appInstalled = event.matches || isAppRunningInstalled();

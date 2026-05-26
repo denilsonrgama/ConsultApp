@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v193";
+const serverVersion = "v194";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1792,6 +1792,19 @@ createServer(async (request, response) => {
     const user = await currentUser(request);
     await logAudit(request, user, {
       acao: "auth.logout",
+      modulo: "seguranca",
+      entidadeTipo: "usuario",
+      entidadeId: user?.usuario || "",
+    }).catch(() => {});
+    await destroySession(parseCookies(request).consult_session);
+    sendJson(response, 200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/close") {
+    const user = await currentUser(request);
+    await logAudit(request, user, {
+      acao: "auth.fechar_tela",
       modulo: "seguranca",
       entidadeTipo: "usuario",
       entidadeId: user?.usuario || "",
