@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v202";
+const serverVersion = "v203";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -831,6 +831,7 @@ async function readAppState() {
 
 async function writeAppState(state) {
   const normalized = normalizeAppState(state);
+  validateUniqueBudgetServices(normalized);
   if (postgresPool) {
     await writeRelationalAppState(normalized);
     return normalized;
@@ -842,6 +843,20 @@ async function writeAppState(state) {
     ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = CURRENT_TIMESTAMP
   `).run("main", JSON.stringify(normalized));
   return normalized;
+}
+
+function validateUniqueBudgetServices(state) {
+  for (const orcamento of state.orcamentos || []) {
+    const seen = new Set();
+    for (const item of orcamento.itens || []) {
+      const code = String(item.servicoCodigo || "").trim();
+      if (!code) continue;
+      if (seen.has(code)) {
+        throw new Error(`O serviço ${code} está duplicado no orçamento ${orcamento.numero}.`);
+      }
+      seen.add(code);
+    }
+  }
 }
 
 async function readRelationalAppState() {

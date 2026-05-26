@@ -2534,6 +2534,17 @@ function collectBudgetItems() {
   return (editingOrcamento?.itens || []).map((item) => ({ ...item, originalServicoCodigo: item.servicoCodigo }));
 }
 
+function duplicatedBudgetServiceCode(items) {
+  const seen = new Set();
+  for (const item of items) {
+    const code = String(item.servicoCodigo || "").trim();
+    if (!code) continue;
+    if (seen.has(code)) return code;
+    seen.add(code);
+  }
+  return "";
+}
+
 function updateBudgetTotal() {
   const fake = { itens: collectBudgetItems() };
   const target = document.getElementById("budget-total");
@@ -2620,6 +2631,11 @@ async function addOrcamento(event) {
   }
 
   const finalItems = mergeBudgetItems(currentOrcamento?.itens || [], collectedItems);
+  const duplicatedServiceCode = duplicatedBudgetServiceCode(finalItems);
+  if (duplicatedServiceCode) {
+    alert(`O serviço ${duplicatedServiceCode} já foi informado neste orçamento. Não é permitido duplicar serviço no mesmo orçamento.`);
+    return;
+  }
 
   const newStatus = normalizeOrcamentoStatus(data.status || "EM ANÁLISE");
   let statusAuthorization = null;
