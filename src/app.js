@@ -1608,7 +1608,7 @@ function reportServiceChartData(budgets) {
 
   const filteredByServiceStatus = reportFilters.servicoStatus && reportFilters.servicoStatus !== "TODOS";
   return rows
-    .filter((row) => filteredByServiceStatus || row.value > 0)
+    .filter((row) => row.value > 0)
     .sort((a, b) => b.value - a.value || String(a.label).localeCompare(String(b.label), "pt-BR"))
     .slice(0, 6);
 }
@@ -4012,6 +4012,10 @@ function buildReportDefinition(type, options = {}) {
       rows: reportServices
         .slice()
         .sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true }))
+        .filter((servico) => {
+          const total = serviceTotals.get(String(servico.codigo));
+          return total && total.quantidade > 0;
+        })
         .map((servico) => {
           const total = serviceTotals.get(String(servico.codigo)) || { quantidade: 0, valor: 0, menorUnitario: null, maiorUnitario: null };
           return [
