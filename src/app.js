@@ -16,6 +16,7 @@ let currentUser = null;
 let usuarios = [];
 let auditoriaLogs = [];
 let arquivos = [];
+const cnpjLookupCache = new Map();
 let editingUsuarioId = null;
 let explicitLogout = false;
 
@@ -1807,6 +1808,19 @@ async function handleClienteDocumentoBlur(event) {
 
   setCnpjFieldsVisibility(input.form, true);
 
+  const clienteCadastrado = findClienteByDocumentDigits(digits);
+  if (clienteCadastrado) {
+    fillClienteForm(input.form, clienteCadastrado);
+    setCnpjFieldsVisibility(input.form, true);
+    showFloatingMessage("CNPJ já cadastrado. Dados carregados da base local.");
+    return;
+  }
+
+  if (cnpjLookupCache.has(digits)) {
+    applyCnpjLookupResult(input.form, cnpjLookupCache.get(digits));
+    return;
+  }
+
   try {
     const response = await fetch(`/api/cnpj/${digits}`);
     const contentType = response.headers.get("content-type") || "";
@@ -1819,21 +1833,25 @@ async function handleClienteDocumentoBlur(event) {
       throw new Error(result.error || "Não foi possível consultar o CNPJ.");
     }
 
-    const form = input.form;
-    form.elements.razaoSocial.value = result.razaoSocial || "";
-    form.elements.nomeFantasia.value = result.nomeFantasia || "";
-    form.elements.situacaoCnpj.value = result.situacaoCnpj || "";
-    form.elements.situacaoCnpj.className = cnpjStatusClass(result.situacaoCnpj);
-    if (!isCnpjAtivo(result.situacaoCnpj)) {
-      showFloatingMessage(`CNPJ com situação ${result.situacaoCnpj || "não ativa"}. Cadastro não permitido.`);
-      clearClienteForm(form);
-      return;
-    }
-    if (!form.elements.nome.value) {
-      form.elements.nome.value = result.nomeFantasia || result.razaoSocial || "";
-    }
+    cnpjLookupCache.set(digits, result);
+    applyCnpjLookupResult(input.form, result);
   } catch (error) {
     alert(error.message || "Não foi possível consultar o CNPJ.");
+  }
+}
+
+function applyCnpjLookupResult(form, result) {
+  form.elements.razaoSocial.value = result.razaoSocial || "";
+  form.elements.nomeFantasia.value = result.nomeFantasia || "";
+  form.elements.situacaoCnpj.value = result.situacaoCnpj || "";
+  form.elements.situacaoCnpj.className = cnpjStatusClass(result.situacaoCnpj);
+  if (!isCnpjAtivo(result.situacaoCnpj)) {
+    showFloatingMessage(`CNPJ com situação ${result.situacaoCnpj || "não ativa"}. Cadastro não permitido.`);
+    clearClienteForm(form);
+    return;
+  }
+  if (!form.elements.nome.value) {
+    form.elements.nome.value = result.nomeFantasia || result.razaoSocial || "";
   }
 }
 
@@ -1908,6 +1926,10 @@ function fillClienteByCpf(form, cpf) {
   if (!cliente) return;
 
   fillClienteForm(form, cliente);
+}
+
+function findClienteByDocumentDigits(digits) {
+  return state.clientes.find((item) => onlyDigits(item.documento) === digits);
 }
 
 function fillClienteForm(form, cliente) {
