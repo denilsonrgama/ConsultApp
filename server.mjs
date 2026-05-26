@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v234";
+const serverVersion = "v235";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -2183,7 +2183,8 @@ createServer(async (request, response) => {
       const deleted = await deleteStoredFile(categoria, nome);
       const baseDir = categoria === "orcamentos" ? budgetsDir : reportsDir;
       const localPath = resolve(baseDir, nome);
-      if (localPath.startsWith(baseDir)) {
+      const deletedLocal = localPath.startsWith(baseDir) && existsSync(localPath);
+      if (deletedLocal) {
         rmSync(localPath, { force: true });
       }
 
@@ -2192,7 +2193,13 @@ createServer(async (request, response) => {
         modulo: "arquivos",
         entidadeTipo: "arquivo",
         entidadeId: `${categoria}/${nome}`,
-        detalhes: { categoria, nome, armazenamento: deleted ? "banco" : "local" },
+        detalhes: {
+          categoria,
+          nome,
+          removidoBanco: deleted,
+          removidoLocal: deletedLocal,
+          path: localPath.startsWith(baseDir) ? localPath : "",
+        },
       }).catch(() => {});
       sendJson(response, 200, { ok: true, deleted });
     } catch (error) {
