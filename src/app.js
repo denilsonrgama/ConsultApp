@@ -1040,7 +1040,7 @@ function renderRelatorios() {
     <section class="panel report-export-panel">
       <div class="toolbar">
         <div>
-          <h2>Relatórios</h2>
+          <h2>Relatório de Orçamento e Serviços Solicitados</h2>
           <p>Gere relatórios consolidados para acompanhar vendas, clientes e serviços.</p>
         </div>
       </div>
@@ -1093,7 +1093,7 @@ function renderRelatorios() {
     </section>
     <section class="reports-grid">
       <article class="panel report-panel">
-        <div class="toolbar"><h2>Relatório de Orçamento e Serviços Solicitados</h2></div>
+        <div class="toolbar"><h2>Resumo por status</h2></div>
         ${statusReportTable(filteredBudgets)}
       </article>
       <article class="panel report-panel">
