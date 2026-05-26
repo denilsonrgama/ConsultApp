@@ -649,16 +649,28 @@ function isOrcamentoAprovado(orcamento) {
   return String(orcamento?.status || "").toUpperCase().includes("APROV");
 }
 
+function clienteByDocumento(documento) {
+  const digits = onlyDigits(documento);
+  return state.clientes.find((cliente) => (
+    cliente.documento === documento
+      || (digits && onlyDigits(cliente.documento) === digits)
+  ));
+}
+
+function isOrcamentoClienteAtivo(orcamento) {
+  return isClienteAtivo(clienteByDocumento(orcamento?.clienteDocumento));
+}
+
 function orcamentosEstatisticos() {
-  return state.orcamentos.filter((orcamento) => !isOrcamentoReprovado(orcamento));
+  return state.orcamentos.filter((orcamento) => !isOrcamentoReprovado(orcamento) && isOrcamentoClienteAtivo(orcamento));
 }
 
 function orcamentosAprovados() {
-  return state.orcamentos.filter((orcamento) => String(orcamento.status || "").toUpperCase().includes("APROV"));
+  return state.orcamentos.filter((orcamento) => isOrcamentoAprovado(orcamento) && isOrcamentoClienteAtivo(orcamento));
 }
 
 function clienteNome(documento) {
-  return state.clientes.find((cliente) => cliente.documento === documento)?.nome || documento || "Cliente não informado";
+  return clienteByDocumento(documento)?.nome || documento || "Cliente não informado";
 }
 
 function servicoNome(codigo) {
@@ -840,7 +852,7 @@ function sidebarSummaryForView(view) {
   }
 
   if (view === "orcamentos") {
-    const analysisBudgets = state.orcamentos.filter((orcamento) => {
+    const analysisBudgets = orcamentosEstatisticos().filter((orcamento) => {
       const status = String(orcamento.status || "").toUpperCase();
       return status.includes("ANÁLISE") || status.includes("ANALISE");
     });
@@ -965,7 +977,7 @@ function renderFinanceiro() {
     .sort((a, b) => Number(b.numero || 0) - Number(a.numero || 0))
     .slice(0, 10)
     .reverse();
-  const analysisBudgets = state.orcamentos.filter((orcamento) => {
+  const analysisBudgets = orcamentosEstatisticos().filter((orcamento) => {
     const status = String(orcamento.status || "").toUpperCase();
     return status.includes("ANÁLISE") || status.includes("ANALISE");
   });
@@ -1472,7 +1484,9 @@ function servicosPorValor() {
 }
 
 function orcamentosPorStatus(options = {}) {
-  const budgets = options.includeRejected ? state.orcamentos : orcamentosEstatisticos();
+  const budgets = options.includeRejected
+    ? state.orcamentos.filter(isOrcamentoClienteAtivo)
+    : orcamentosEstatisticos();
   const totals = new Map();
   budgets.forEach((orcamento) => {
     const label = normalizeOrcamentoStatus(orcamento.status || "Sem status");
