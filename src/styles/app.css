@@ -1347,9 +1347,12 @@ th {
 }
 
 .report-export-actions {
-  display: flex;
-  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  display: grid;
   gap: 10px;
+  grid-template-columns: repeat(3, minmax(96px, 120px));
+  justify-content: flex-start;
+  padding-top: 12px;
 }
 
 .report-filter-grid {
@@ -1373,11 +1376,14 @@ th {
   grid-column: 1 / -1;
   justify-content: flex-start;
   flex-wrap: nowrap;
+  padding-top: 2px;
 }
 
 .report-filter-grid .form-actions button,
 .report-export-actions button {
-  min-width: 86px;
+  justify-content: center;
+  min-width: 96px;
+  width: 100%;
 }
 
 .permissions-panel {

@@ -1020,6 +1020,7 @@ function renderFinanceiro() {
 
 function renderRelatorios() {
   const filteredBudgets = filteredReportBudgets();
+  const filteredServiceChartData = reportServiceChartData(filteredBudgets);
   const approvedBudgets = filteredBudgets.filter(isOrcamentoAprovado);
   const totalFiltered = filteredBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
   const totalApproved = approvedBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
@@ -1079,7 +1080,7 @@ function renderRelatorios() {
     <section class="dashboard-charts">
       ${pieChart("Orçamentos por status", orcamentosPorStatus({ budgets: filteredBudgets }))}
       ${barChart("Maiores clientes", topClientesPorValor(filteredBudgets))}
-      ${barChart("Serviços por valor", servicosPorValor(filteredBudgets, filteredReportServiceCodes()))}
+      ${barChart("Serviços por valor", filteredServiceChartData)}
     </section>
     <section class="reports-grid">
       <article class="panel report-panel">
@@ -1092,7 +1093,7 @@ function renderRelatorios() {
       </article>
       <article class="panel report-panel">
         <div class="toolbar"><h2>Serviços mais relevantes</h2></div>
-        ${chartDataTable(servicosPorValor(filteredBudgets, filteredReportServiceCodes()), "Serviço")}
+        ${chartDataTable(filteredServiceChartData, "Serviço")}
       </article>
     </section>
   `;
@@ -1585,6 +1586,22 @@ function servicosPorValor(budgets = orcamentosEstatisticos(), allowedCodes = nul
     });
   });
   return sortedChartData(totals, 6);
+}
+
+function reportServiceChartData(budgets) {
+  const selectedServices = filteredReportServices();
+  const allowedCodes = new Set(selectedServices.map((servico) => String(servico.codigo)));
+  const totals = reportServiceTotals(budgets, allowedCodes);
+  const rows = selectedServices.map((servico) => ({
+    label: servico.nome || servico.codigo || "Serviço",
+    value: totals.get(String(servico.codigo))?.valor || 0,
+  }));
+
+  const filteredByServiceStatus = reportFilters.servicoStatus && reportFilters.servicoStatus !== "TODOS";
+  return rows
+    .filter((row) => filteredByServiceStatus || row.value > 0)
+    .sort((a, b) => b.value - a.value || String(a.label).localeCompare(String(b.label), "pt-BR"))
+    .slice(0, 6);
 }
 
 function orcamentosPorStatus(options = {}) {
