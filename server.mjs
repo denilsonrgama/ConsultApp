@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v217";
+const serverVersion = "v218";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1731,6 +1731,187 @@ function createReportXlsx(report) {
   ]);
 }
 
+function normalizePdfText(value) {
+  return String(value ?? "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, "-")
+    .replace(/\u00a0/g, " ")
+    .replace(/[^\x09\x0a\x0d\x20-\xff]/g, "?");
+}
+
+function pdfText(value) {
+  return normalizePdfText(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)")
+    .replace(/\r?\n/g, " ");
+}
+
+function wrapPdfText(value, maxChars) {
+  const words = normalizePdfText(value).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxChars && line) {
+      lines.push(line);
+      line = word;
+      return;
+    }
+    line = next;
+  });
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+function createReportPdf(report) {
+  const columns = Array.isArray(report?.columns) ? report.columns : [];
+  const rows = Array.isArray(report?.rows) ? report.rows : [];
+  if (!columns.length) throw new Error("Relatório inválido.");
+
+  const landscape = String(report.pageSize || "").toLowerCase().includes("landscape");
+  const width = landscape ? 841.89 : 595.28;
+  const height = landscape ? 595.28 : 841.89;
+  const margin = 34;
+  const contentWidth = width - margin * 2;
+  const columnWidth = contentWidth / columns.length;
+  const pages = [];
+  let ops = [];
+  let y = height - margin;
+
+  const add = (line) => ops.push(line);
+  const color = (r, g, b) => add(`${r} ${g} ${b} rg ${r} ${g} ${b} RG`);
+  const text = (x, textY, size, value, font = "F1") => {
+    add(`BT /${font} ${size} Tf 1 0 0 1 ${x.toFixed(2)} ${textY.toFixed(2)} Tm (${pdfText(value)}) Tj ET`);
+  };
+  const rect = (x, rectY, rectWidth, rectHeight, fill = false) => {
+    add(`${x.toFixed(2)} ${rectY.toFixed(2)} ${rectWidth.toFixed(2)} ${rectHeight.toFixed(2)} re ${fill ? "f" : "S"}`);
+  };
+  const line = (x1, y1, x2, y2) => add(`${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
+
+  const startPage = () => {
+    ops = [];
+    y = height - margin;
+    color("0.08", "0.18", "0.22");
+    text(margin, y, 10, "Consult", "F2");
+    text(width - margin - 130, y, 18, "CONSULT", "F2");
+    y -= 18;
+    text(margin, y, 20, report.title || "Relatório", "F2");
+    text(width - margin - 130, y + 4, 8, "Segurança e Medicina do Trabalho", "F2");
+    y -= 14;
+    color("0.03", "0.50", "0.55");
+    line(margin, y, width - margin, y);
+    y -= 14;
+    color("0.32", "0.40", "0.42");
+    wrapPdfText(report.subtitle || "", 130).slice(0, 2).forEach((subtitleLine) => {
+      text(margin, y, 9, subtitleLine);
+      y -= 11;
+    });
+    y -= 4;
+  };
+
+  const finishPage = () => {
+    color("0.32", "0.40", "0.42");
+    text(width - margin - 85, 20, 8, `Página ${pages.length + 1}`);
+    pages.push(ops.join("\n"));
+  };
+
+  const renderHeader = () => {
+    color("0.08", "0.35", "0.45");
+    rect(margin, y - 20, contentWidth, 20, true);
+    color("1", "1", "1");
+    columns.forEach((column, index) => {
+      text(margin + index * columnWidth + 4, y - 13, 7, column, "F2");
+    });
+    y -= 20;
+  };
+
+  startPage();
+  const summary = Array.isArray(report.summary) ? report.summary : [];
+  const summaryColumns = Math.min(summary.length || 1, landscape ? 6 : 3);
+  const summaryWidth = contentWidth / summaryColumns;
+  summary.forEach((item, index) => {
+    if (index > 0 && index % summaryColumns === 0) y -= 54;
+    const x = margin + (index % summaryColumns) * summaryWidth;
+    color("0.83", "0.88", "0.90");
+    rect(x, y - 42, summaryWidth - 8, 42);
+    color("0.32", "0.40", "0.42");
+    text(x + 6, y - 14, 7, String(item.label || "").toUpperCase());
+    color("0.08", "0.18", "0.22");
+    text(x + 6, y - 31, 11, item.value || "", "F2");
+  });
+  y -= Math.ceil(summary.length / summaryColumns) * 54 + 6;
+  renderHeader();
+
+  rows.forEach((row, rowIndex) => {
+    const cellLines = columns.map((_, index) => wrapPdfText(Array.isArray(row) ? row[index] : "", Math.max(10, Math.floor(columnWidth / 4.4))).slice(0, 4));
+    const rowHeight = Math.max(20, 9 + Math.max(...cellLines.map((lines) => lines.length)) * 9);
+    if (y - rowHeight < margin + 24) {
+      finishPage();
+      startPage();
+      renderHeader();
+    }
+    if (rowIndex % 2 === 0) {
+      color("0.96", "0.98", "0.98");
+      rect(margin, y - rowHeight, contentWidth, rowHeight, true);
+    }
+    color("0.08", "0.18", "0.22");
+    cellLines.forEach((lines, columnIndex) => {
+      lines.forEach((cellLine, lineIndex) => {
+        text(margin + columnIndex * columnWidth + 4, y - 13 - lineIndex * 9, 7, cellLine);
+      });
+    });
+    color("0.86", "0.90", "0.91");
+    line(margin, y - rowHeight, width - margin, y - rowHeight);
+    y -= rowHeight;
+  });
+  y -= 8;
+  color("0.32", "0.40", "0.42");
+  text(margin, Math.max(y, margin), 8, `${rows.length} registro(s)`);
+  finishPage();
+
+  const objects = [];
+  const addObject = (body) => {
+    objects.push(body);
+    return objects.length;
+  };
+  const catalogId = addObject("<< /Type /Catalog /Pages 2 0 R >>");
+  const pagesId = addObject("");
+  const fontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const boldFontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  const pageIds = [];
+  pages.forEach((content) => {
+    const contentText = normalizePdfText(content);
+    const contentId = addObject(`<< /Length ${Buffer.byteLength(contentText, "latin1")} >>\nstream\n${contentText}\nendstream`);
+    const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${width.toFixed(2)} ${height.toFixed(2)}] /Resources << /Font << /F1 ${fontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    pageIds.push(pageId);
+  });
+  objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
+
+  const parts = [Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n", "binary")];
+  const offsets = [0];
+  objects.forEach((body, index) => {
+    offsets.push(parts.reduce((sum, part) => sum + part.length, 0));
+    parts.push(Buffer.from(`${index + 1} 0 obj\n${normalizePdfText(body)}\nendobj\n`, "latin1"));
+  });
+  const xrefOffset = parts.reduce((sum, part) => sum + part.length, 0);
+  const xref = [
+    "xref",
+    `0 ${objects.length + 1}`,
+    "0000000000 65535 f ",
+    ...offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `),
+    "trailer",
+    `<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>`,
+    "startxref",
+    String(xrefOffset),
+    "%%EOF",
+    "",
+  ].join("\n");
+  parts.push(Buffer.from(xref, "latin1"));
+  return Buffer.concat(parts);
+}
+
 async function fetchJson(url) {
   const apiResponse = await fetch(url, { headers: { Accept: "application/json" } });
   const data = await apiResponse.json().catch(() => ({}));
@@ -2267,8 +2448,9 @@ createServer(async (request, response) => {
       const payload = JSON.parse(await readBody(request));
       const fileName = `${safeFileName(payload.fileName)}.pdf`;
       const html = String(payload.html || "");
+      const report = payload.report && typeof payload.report === "object" ? payload.report : null;
 
-      if (!fileName || fileName === ".pdf" || !html) {
+      if (!fileName || fileName === ".pdf" || (!html && !report)) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ ok: false, error: "RelatÃ³rio invÃ¡lido." }));
         return;
@@ -2282,8 +2464,13 @@ createServer(async (request, response) => {
         return;
       }
 
-      await printHtmlToPdfPortable(html, target);
-      const pdfBuffer = readFileSync(target);
+      const generatedPdf = report ? createReportPdf(report) : null;
+      if (generatedPdf) {
+        writeFileSync(target, generatedPdf);
+      } else {
+        await printHtmlToPdfPortable(html, target);
+      }
+      const pdfBuffer = generatedPdf || readFileSync(target);
       await saveStoredFile({
         categoria: "relatorios",
         nome: fileName,

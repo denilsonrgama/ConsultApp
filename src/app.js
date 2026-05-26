@@ -3690,6 +3690,7 @@ async function exportReportPdf(type) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         fileName: report.fileName,
+        report,
         html: buildReportPdfHtml(report),
       }),
     });
