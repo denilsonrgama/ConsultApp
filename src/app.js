@@ -1359,6 +1359,7 @@ function renderAuditoria() {
   const view = document.getElementById("auditoria-view");
   if (!view || !hasPermission("auditoria.view")) return;
   const filters = auditoriaFilters;
+  const filtersOpen = window.innerWidth > 640 || hasActiveAuditFilters(filters) ? " open" : "";
   view.innerHTML = `
     ${pageBanner()}
     <section class="panel auditoria-panel">
@@ -1368,18 +1369,21 @@ function renderAuditoria() {
           <p>Rastreie ações executadas pelos usuários no sistema.</p>
         </div>
       </div>
-      <form class="audit-filter-grid" id="auditoria-filter-form">
-        <label>Usuário<input name="usuario" placeholder="Usuário" value="${escapeHtml(filters.usuario || "")}"></label>
-        <label>Ação<input name="acao" placeholder="Ex.: orçamento, login" value="${escapeHtml(filters.acao || "")}"></label>
-        <label>Módulo<select name="modulo"><option value="">Todos</option>${options(["seguranca", "usuarios", "clientes", "servicos", "orcamentos", "relatorios", "auditoria", "sistema"], filters.modulo || "")}</select></label>
-        <label>Data inicial<input name="dataInicio" type="date" value="${escapeHtml(filters.dataInicio || "")}"></label>
-        <label>Data final<input name="dataFim" type="date" value="${escapeHtml(filters.dataFim || "")}"></label>
-        <label>Por página<select name="limit">${options(["50", "100", "200", "500"], String(filters.limit || "100"))}</select></label>
-        <div class="form-actions budget-form-actions">
-          <button class="primary-button" type="submit">Consultar</button>
-          <button class="ghost-button" type="button" id="clear-audit-filters">Limpar</button>
-        </div>
-      </form>
+      <details class="audit-filters"${filtersOpen}>
+        <summary>Filtros de consulta</summary>
+        <form class="audit-filter-grid" id="auditoria-filter-form">
+          <label>Usuário<input name="usuario" placeholder="Usuário" value="${escapeHtml(filters.usuario || "")}"></label>
+          <label>Ação<input name="acao" placeholder="Ex.: orçamento, login" value="${escapeHtml(filters.acao || "")}"></label>
+          <label>Módulo<select name="modulo"><option value="">Todos</option>${options(["seguranca", "usuarios", "clientes", "servicos", "orcamentos", "relatorios", "auditoria", "sistema"], filters.modulo || "")}</select></label>
+          <label>Data inicial<input name="dataInicio" type="date" value="${escapeHtml(filters.dataInicio || "")}"></label>
+          <label>Data final<input name="dataFim" type="date" value="${escapeHtml(filters.dataFim || "")}"></label>
+          <label>Por página<select name="limit">${options(["50", "100", "200", "500"], String(filters.limit || "100"))}</select></label>
+          <div class="form-actions budget-form-actions">
+            <button class="primary-button" type="submit">Consultar</button>
+            <button class="ghost-button" type="button" id="clear-audit-filters">Limpar</button>
+          </div>
+        </form>
+      </details>
       ${auditMaintenancePanel()}
       <div id="auditoria-list">${auditTable(auditoriaLogs)}</div>
       ${auditPagination()}
@@ -1425,6 +1429,10 @@ function defaultAuditFilters() {
   return { usuario: "", acao: "", modulo: "", dataInicio: "", dataFim: "", limit: "100", page: 1 };
 }
 
+function hasActiveAuditFilters(filters = auditoriaFilters) {
+  return ["usuario", "acao", "modulo", "dataInicio", "dataFim"].some((key) => String(filters[key] || "").trim());
+}
+
 async function changeAuditPage(page) {
   try {
     await loadAuditoria({ page });
@@ -1466,19 +1474,23 @@ function auditMaintenancePanel() {
   ].map(([value, label]) => `<option value="${value}"${selectedAttr("365", value)}>${label}</option>`).join("");
 
   return `
-    <div class="audit-maintenance">
-      <div>
-        <strong>Manutenção dos logs</strong>
-        <span>Simule antes de excluir registros antigos.</span>
+    <details class="audit-maintenance">
+      <summary>
+        <span>
+          <strong>Manutenção dos logs</strong>
+          <small>Simule antes de excluir registros antigos.</small>
+        </span>
+      </summary>
+      <div class="audit-maintenance-body">
+        <label>Retenção
+          <select id="audit-retention-days">
+            ${retentionOptions}
+          </select>
+        </label>
+        <button type="button" class="ghost-button" id="preview-audit-cleanup">Simular</button>
+        <button type="button" class="danger-button" id="delete-audit-old">Excluir antigos</button>
       </div>
-      <label>Retenção
-        <select id="audit-retention-days">
-          ${retentionOptions}
-        </select>
-      </label>
-      <button type="button" class="ghost-button" id="preview-audit-cleanup">Simular</button>
-      <button type="button" class="danger-button" id="delete-audit-old">Excluir antigos</button>
-    </div>
+    </details>
   `;
 }
 

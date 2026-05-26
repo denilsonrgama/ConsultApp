@@ -1458,6 +1458,10 @@ th {
   gap: 14px;
 }
 
+.audit-filters summary {
+  display: none;
+}
+
 .audit-filter-grid {
   display: grid;
   gap: 12px;
@@ -1468,7 +1472,6 @@ th {
   grid-column: 1 / -1;
 }
 
-.audit-maintenance,
 .audit-pagination {
   align-items: center;
   display: flex;
@@ -1480,20 +1483,51 @@ th {
   background: #f7fafb;
   border: 1px solid #d9e3e7;
   border-radius: 8px;
-  flex-wrap: wrap;
   padding: 12px;
 }
 
-.audit-maintenance div {
+.audit-maintenance summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+}
+
+.audit-maintenance summary::-webkit-details-marker {
+  display: none;
+}
+
+.audit-maintenance summary::after {
+  content: "Abrir";
+  color: #165a72;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.audit-maintenance[open] summary::after {
+  content: "Fechar";
+}
+
+.audit-maintenance summary span {
   display: grid;
   gap: 2px;
   margin-right: auto;
 }
 
-.audit-maintenance span,
+.audit-maintenance small,
 .audit-pagination span {
   color: #52656c;
   font-size: 13px;
+}
+
+.audit-maintenance-body {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .audit-maintenance label {
@@ -1596,8 +1630,12 @@ th {
     grid-template-columns: 1fr 1fr;
   }
 
-  .audit-maintenance,
   .audit-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .audit-maintenance-body {
     align-items: stretch;
     flex-direction: column;
   }
@@ -2170,6 +2208,206 @@ th {
   h2 {
     margin-bottom: 6px;
     font-size: 0.98rem;
+  }
+
+  .auditoria-panel {
+    gap: 9px;
+  }
+
+  .auditoria-panel .toolbar {
+    align-items: start;
+  }
+
+  .auditoria-panel .toolbar p {
+    margin: 2px 0 0;
+    font-size: 0.76rem;
+    line-height: 1.25;
+  }
+
+  .audit-filters {
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .audit-filters summary {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    list-style: none;
+    color: #165a72;
+    font-weight: 800;
+  }
+
+  .audit-filters summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .audit-filters summary::after {
+    content: "Abrir";
+    font-size: 0.72rem;
+  }
+
+  .audit-filters[open] summary::after {
+    content: "Fechar";
+  }
+
+  .audit-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 9px;
+  }
+
+  .audit-filter-grid label {
+    min-width: 0;
+    font-size: 0.72rem;
+  }
+
+  .audit-filter-grid label:nth-child(1),
+  .audit-filter-grid label:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+
+  .audit-filter-grid input,
+  .audit-filter-grid select {
+    min-height: 36px;
+    padding: 0 9px;
+  }
+
+  .audit-filter-grid .form-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .audit-filter-grid .form-actions button {
+    width: 100%;
+    min-height: 38px;
+  }
+
+  .audit-maintenance {
+    padding: 9px;
+  }
+
+  .audit-maintenance summary {
+    align-items: flex-start;
+  }
+
+  .audit-maintenance small {
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+
+  .audit-maintenance-body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 9px;
+  }
+
+  .audit-maintenance-body label {
+    grid-column: 1 / -1;
+  }
+
+  .audit-maintenance button {
+    min-height: 36px;
+    padding-inline: 8px;
+  }
+
+  .audit-table-wrap {
+    max-height: none;
+    overflow-x: hidden;
+  }
+
+  .audit-table-wrap table {
+    display: block;
+    min-width: 0;
+    table-layout: auto;
+    font-size: 0.78rem;
+  }
+
+  .audit-table-wrap thead {
+    display: none;
+  }
+
+  .audit-table-wrap tbody {
+    display: grid;
+    gap: 8px;
+  }
+
+  .audit-table-wrap tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .audit-table-wrap tbody td {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.76rem;
+  }
+
+  .audit-table-wrap tbody td::before {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .audit-table-wrap tbody td:nth-child(1)::before {
+    content: "Data";
+  }
+
+  .audit-table-wrap tbody td:nth-child(2)::before {
+    content: "Usuário";
+  }
+
+  .audit-table-wrap tbody td:nth-child(3)::before {
+    content: "Perfil";
+  }
+
+  .audit-table-wrap tbody td:nth-child(4)::before {
+    content: "Ação";
+  }
+
+  .audit-table-wrap tbody td:nth-child(5)::before {
+    content: "Módulo";
+  }
+
+  .audit-table-wrap tbody td:nth-child(6)::before {
+    content: "Item";
+  }
+
+  .audit-table-wrap tbody td:nth-child(7)::before {
+    content: "Detalhes";
+  }
+
+  .audit-table-wrap tbody td:nth-child(8)::before {
+    content: "IP";
+  }
+
+  .audit-table-wrap tbody td:nth-child(4),
+  .audit-table-wrap tbody td:nth-child(7),
+  .audit-table-wrap tbody td:nth-child(8) {
+    grid-column: 1 / -1;
+  }
+
+  .audit-table-wrap code {
+    display: block;
+    max-height: 72px;
+    overflow: auto;
+    font-size: 0.68rem;
+    white-space: pre-wrap;
   }
 
   .dashboard-banner img {
