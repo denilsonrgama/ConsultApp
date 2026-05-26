@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v211";
+const serverVersion = "v213";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -269,6 +269,7 @@ const PERMISSION_KEYS = [
   "clientes.create",
   "clientes.edit",
   "clientes.delete",
+  "clientes.status",
   "servicos.view",
   "servicos.create",
   "servicos.edit",

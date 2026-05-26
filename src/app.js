@@ -43,6 +43,7 @@ const PERMISSIONS = [
   { key: "clientes.create", label: "Criar clientes", group: "Clientes" },
   { key: "clientes.edit", label: "Alterar clientes", group: "Clientes" },
   { key: "clientes.delete", label: "Excluir clientes", group: "Clientes" },
+  { key: "clientes.status", label: "Inativar clientes", group: "Clientes" },
   { key: "servicos.view", label: "Ver serviços", group: "Serviços" },
   { key: "servicos.create", label: "Criar serviços", group: "Serviços" },
   { key: "servicos.edit", label: "Alterar serviços", group: "Serviços" },
@@ -1677,7 +1678,7 @@ function renderClienteList() {
     : emptyState();
 }
 
-function addCliente(event) {
+async function addCliente(event) {
   event.preventDefault();
   const canSave = editingClienteDocumento ? hasPermission("clientes.edit") : hasPermission("clientes.create");
   if (!canSave || !canManageData()) {
@@ -1747,6 +1748,19 @@ function addCliente(event) {
     : { acao: "cliente.criar", modulo: "clientes", entidadeTipo: "cliente", entidadeId: data.documento, detalhes: { nome: data.nome } };
 
   if (editingClienteDocumento) {
+    const currentCliente = state.clientes.find((cliente) => cliente.documento === editingClienteDocumento);
+    if (currentCliente && normalizeClienteStatus(currentCliente.status) !== "INATIVO" && data.status === "INATIVO") {
+      const authorization = await confirmClienteInactivation(currentCliente);
+      if (!authorization) return;
+      clienteAudit.acao = "cliente.inativar";
+      clienteAudit.detalhes = {
+        ...clienteAudit.detalhes,
+        statusAnterior: normalizeClienteStatus(currentCliente.status),
+        statusNovo: data.status,
+        administradorAutorizador: authorization.approverUsuario || "",
+        administradorNome: authorization.approverNome || "",
+      };
+    }
     state.clientes = state.clientes.map((cliente) => cliente.documento === editingClienteDocumento ? data : cliente);
     state.orcamentos = state.orcamentos.map((orcamento) => (
       orcamento.clienteDocumento === editingClienteDocumento
@@ -2218,21 +2232,46 @@ async function deleteCliente(documento) {
       "Inativar",
     );
     if (!confirmed) return;
+    const authorization = await confirmClienteInactivation(cliente);
+    if (!authorization) return;
     state.clientes = state.clientes.map((item) => (
       item.documento === documento ? { ...item, status: "INATIVO" } : item
     ));
     if (editingClienteDocumento === documento) editingClienteDocumento = null;
-    await saveState({ acao: "cliente.inativar", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
+    await saveState({
+      acao: "cliente.inativar",
+      modulo: "clientes",
+      entidadeTipo: "cliente",
+      entidadeId: documento,
+      detalhes: {
+        statusAnterior: normalizeClienteStatus(cliente.status),
+        statusNovo: "INATIVO",
+        administradorAutorizador: authorization.approverUsuario || "",
+        administradorNome: authorization.approverNome || "",
+      },
+    });
     render();
     window.setTimeout(() => showFloatingMessage("Cliente inativado.", "success"), 0);
     return;
   }
   const confirmed = await askConfirmChoice("Excluir cliente", "Excluir este cliente definitivamente?", "Excluir");
   if (!confirmed) return;
+  const cliente = state.clientes.find((item) => item.documento === documento);
+  const authorization = await confirmClienteDeletion(cliente || { documento });
+  if (!authorization) return;
   state.clientes = state.clientes.filter((cliente) => cliente.documento !== documento);
   state.responsaveis = (state.responsaveis || []).filter((responsavel) => responsavel.clienteDocumento !== documento);
   if (editingClienteDocumento === documento) editingClienteDocumento = null;
-  await saveState({ acao: "cliente.excluir", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
+  await saveState({
+    acao: "cliente.excluir",
+    modulo: "clientes",
+    entidadeTipo: "cliente",
+    entidadeId: documento,
+    detalhes: {
+      administradorAutorizador: authorization.approverUsuario || "",
+      administradorNome: authorization.approverNome || "",
+    },
+  });
   render();
   window.setTimeout(() => showFloatingMessage("Cliente excluído.", "success"), 0);
 }
@@ -3241,6 +3280,84 @@ async function confirmBudgetStatusChange(orcamento, newStatus) {
         usuario: credentials.usuario,
         senha: credentials.senha,
         permission: "orcamentos.status",
+        requireAdmin: true,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Senha não confirmada.");
+    }
+    return {
+      approverUsuario: result.approver?.usuario || credentials.usuario,
+      approverNome: result.approver?.nome || "",
+    };
+  } catch (error) {
+    alert(error.message || "Não foi possível confirmar a senha.");
+    return null;
+  }
+}
+
+async function confirmClienteInactivation(cliente) {
+  if (userProfile().toUpperCase() === "ADMIN" || hasPermission("clientes.status")) {
+    return {
+      approverUsuario: currentUser?.usuario || "",
+      approverNome: currentUser?.nome || "",
+    };
+  }
+
+  const credentials = await askAdminAuthorization(
+    "Confirmar inativação de cliente",
+    `Informe as credenciais de um administrador para inativar o cliente ${cliente.nome || cliente.documento}.`,
+  );
+  if (!credentials) return null;
+
+  try {
+    const response = await fetch("/api/auth/confirm-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        usuario: credentials.usuario,
+        senha: credentials.senha,
+        permission: "clientes.status",
+        requireAdmin: true,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Senha não confirmada.");
+    }
+    return {
+      approverUsuario: result.approver?.usuario || credentials.usuario,
+      approverNome: result.approver?.nome || "",
+    };
+  } catch (error) {
+    alert(error.message || "Não foi possível confirmar a senha.");
+    return null;
+  }
+}
+
+async function confirmClienteDeletion(cliente) {
+  if (userProfile().toUpperCase() === "ADMIN" || hasPermission("clientes.delete")) {
+    return {
+      approverUsuario: currentUser?.usuario || "",
+      approverNome: currentUser?.nome || "",
+    };
+  }
+
+  const credentials = await askAdminAuthorization(
+    "Confirmar exclusão de cliente",
+    `Informe as credenciais de um administrador para excluir o cliente ${cliente.nome || cliente.documento}.`,
+  );
+  if (!credentials) return null;
+
+  try {
+    const response = await fetch("/api/auth/confirm-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        usuario: credentials.usuario,
+        senha: credentials.senha,
+        permission: "clientes.delete",
         requireAdmin: true,
       }),
     });
