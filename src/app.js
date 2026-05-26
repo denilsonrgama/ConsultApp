@@ -17,6 +17,11 @@ let usuarios = [];
 let auditoriaLogs = [];
 let arquivos = [];
 const cnpjLookupCache = new Map();
+const tableSorts = {
+  orcamentos: { key: "", direction: "asc" },
+  clientes: { key: "", direction: "asc" },
+  servicos: { key: "", direction: "asc" },
+};
 let reportFilters = {
   dataInicio: "",
   dataFim: "",
@@ -31,6 +36,7 @@ const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+const sortCollator = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
 
 const titles = {
   dashboard: "Dashboard",
@@ -1832,15 +1838,29 @@ function renderClientes() {
 
 function renderClienteList() {
   const search = document.getElementById("cliente-search")?.value.toLowerCase() || "";
-  const clientes = state.clientes.filter((cliente) => {
+  const filteredClientes = state.clientes.filter((cliente) => {
     return `${cliente.documento} ${cliente.nome} ${cliente.cidade} ${normalizeClienteStatus(cliente.status)}`.toLowerCase().includes(search);
+  });
+  const clientes = applyTableSort("clientes", filteredClientes, {
+    documento: (cliente) => onlyDigits(cliente.documento) || cliente.documento,
+    nome: (cliente) => cliente.nome || "",
+    contato: (cliente) => `${cliente.telefone || ""} ${cliente.email || ""}`,
+    cidade: (cliente) => `${cliente.cidade || ""} ${cliente.uf || ""}`,
+    status: (cliente) => normalizeClienteStatus(cliente.status),
   });
 
   document.getElementById("cliente-list").innerHTML = clientes.length
     ? `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Documento</th><th>Nome</th><th>Contato</th><th>Cidade</th><th>Status</th><th>Ações</th></tr></thead>
+          <thead><tr>
+            ${sortableTableHeader("clientes", "documento", "Documento")}
+            ${sortableTableHeader("clientes", "nome", "Nome")}
+            ${sortableTableHeader("clientes", "contato", "Contato")}
+            ${sortableTableHeader("clientes", "cidade", "Cidade")}
+            ${sortableTableHeader("clientes", "status", "Status")}
+            <th>Ações</th>
+          </tr></thead>
           <tbody>
             ${clientes.map((cliente) => `
               <tr class="clickable-row" data-open-cliente="${escapeHtml(cliente.documento)}">
@@ -2532,15 +2552,29 @@ function serviceTypeOptions(selected = "") {
 
 function renderServicoList() {
   const search = document.getElementById("servico-search")?.value.toLowerCase() || "";
-  const servicos = state.servicos.filter((servico) => {
+  const filteredServicos = state.servicos.filter((servico) => {
     return `${servico.codigo} ${servico.nome} ${servico.tipo}`.toLowerCase().includes(search);
+  });
+  const servicos = applyTableSort("servicos", filteredServicos, {
+    codigo: (servico) => Number(servico.codigo || 0),
+    nome: (servico) => servico.nome || "",
+    tipo: (servico) => servico.tipo || "",
+    status: (servico) => normalizeServicoStatus(servico.status),
+    valor: (servico) => Number(servico.valor || 0),
   });
 
   document.getElementById("servico-list").innerHTML = servicos.length
     ? `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Código</th><th>Serviço</th><th>Tipo</th><th>Status</th><th>Valor</th><th>Ações</th></tr></thead>
+          <thead><tr>
+            ${sortableTableHeader("servicos", "codigo", "Código")}
+            ${sortableTableHeader("servicos", "nome", "Serviço")}
+            ${sortableTableHeader("servicos", "tipo", "Tipo")}
+            ${sortableTableHeader("servicos", "status", "Status")}
+            ${sortableTableHeader("servicos", "valor", "Valor")}
+            <th>Ações</th>
+          </tr></thead>
           <tbody>
             ${servicos.map((servico) => `
               <tr class="clickable-row" data-open-servico="${escapeHtml(servico.codigo)}">
@@ -3185,11 +3219,18 @@ function deleteOrcamento(numero) {
 
 function renderOrcamentoList() {
   const search = document.getElementById("orcamento-search")?.value.toLowerCase() || "";
-  const budgets = state.orcamentos.filter((orcamento) => {
+  const filteredBudgets = state.orcamentos.filter((orcamento) => {
     return `${orcamento.numero} ${clienteNome(orcamento.clienteDocumento)} ${orcamento.status}`.toLowerCase().includes(search);
   });
+  const budgets = applyTableSort("orcamentos", filteredBudgets, {
+    numero: (orcamento) => Number(orcamento.numero || 0),
+    cliente: (orcamento) => clienteNome(orcamento.clienteDocumento),
+    data: (orcamento) => orcamento.data || "",
+    status: (orcamento) => normalizeOrcamentoStatus(orcamento.status),
+    total: (orcamento) => totalOrcamento(orcamento),
+  });
 
-  document.getElementById("orcamento-list").innerHTML = budgetTable(budgets);
+  document.getElementById("orcamento-list").innerHTML = budgetTable(budgets, { sortList: "orcamentos" });
 }
 
 function financeiroTable(budgets) {
@@ -3242,10 +3283,19 @@ function budgetTable(budgets, options = {}) {
   if (!budgets.length) return emptyState();
   const showDetail = options.showDetail !== false;
   const showBudgetActions = hasPermission("orcamentos.print") || canShareBudgets() || canDeleteFromModule("orcamentos");
+  const budgetHeaders = options.sortList
+    ? [
+        sortableTableHeader(options.sortList, "numero", "Número"),
+        sortableTableHeader(options.sortList, "cliente", "Cliente"),
+        sortableTableHeader(options.sortList, "data", "Data"),
+        sortableTableHeader(options.sortList, "status", "Status"),
+        sortableTableHeader(options.sortList, "total", "Total"),
+      ].join("")
+    : "<th>Número</th><th>Cliente</th><th>Data</th><th>Status</th><th>Total</th>";
   return `
     <div class="table-wrap">
       <table class="budget-table">
-        <thead><tr><th>Número</th><th>Cliente</th><th>Data</th><th>Status</th><th>Total</th>${showBudgetActions ? "<th>Ações</th>" : ""}</tr></thead>
+        <thead><tr>${budgetHeaders}${showBudgetActions ? "<th>Ações</th>" : ""}</tr></thead>
         <tbody>
           ${budgets.map((orcamento) => `
             <tr class="clickable-row ${showDetail && Number(editingOrcamentoNumero) === Number(orcamento.numero) ? "is-selected" : ""}" data-open-orcamento="${escapeHtml(orcamento.numero)}">
@@ -4328,6 +4378,55 @@ function options(values, selected = "") {
   return values.map((value) => `<option value="${escapeHtml(value)}"${selectedAttr(selected, value)}>${escapeHtml(value)}</option>`).join("");
 }
 
+function sortableTableHeader(list, key, label) {
+  const sort = tableSorts[list] || {};
+  const active = sort.key === key;
+  const directionLabel = sort.direction === "desc" ? "descending" : "ascending";
+  const marker = active ? (sort.direction === "desc" ? "▼" : "▲") : "";
+  return `
+    <th${active ? ` aria-sort="${directionLabel}"` : ""}>
+      <button type="button" class="sort-header${active ? " is-active" : ""}" data-sort-list="${escapeHtml(list)}" data-sort-key="${escapeHtml(key)}">
+        <span>${escapeHtml(label)}</span>
+        <span class="sort-marker" aria-hidden="true">${marker}</span>
+      </button>
+    </th>
+  `;
+}
+
+function applyTableSort(list, items, accessors) {
+  const sort = tableSorts[list] || {};
+  const accessor = accessors[sort.key];
+  if (!sort.key || !accessor) return items;
+
+  const direction = sort.direction === "desc" ? -1 : 1;
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const result = compareSortValues(accessor(a.item), accessor(b.item));
+      return result === 0 ? a.index - b.index : result * direction;
+    })
+    .map((entry) => entry.item);
+}
+
+function compareSortValues(a, b) {
+  const aNumber = typeof a === "number" ? a : Number.NaN;
+  const bNumber = typeof b === "number" ? b : Number.NaN;
+  if (Number.isFinite(aNumber) && Number.isFinite(bNumber)) return aNumber - bNumber;
+  return sortCollator.compare(String(a ?? ""), String(b ?? ""));
+}
+
+function updateTableSort(list, key) {
+  const current = tableSorts[list] || { key: "", direction: "asc" };
+  tableSorts[list] = {
+    key,
+    direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+  };
+
+  if (list === "orcamentos") renderOrcamentoList();
+  if (list === "clientes") renderClienteList();
+  if (list === "servicos") renderServicoList();
+}
+
 function emptyState() {
   return document.getElementById("empty-state-template").innerHTML;
 }
@@ -4437,6 +4536,14 @@ document.body.addEventListener("click", (event) => {
   if (deleteArquivoButton) {
     event.preventDefault();
     deleteArquivo(deleteArquivoButton.dataset.deleteArquivo, deleteArquivoButton.dataset.deleteArquivoNome);
+    return;
+  }
+
+  const sortButton = event.target.closest("[data-sort-list]");
+  if (sortButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    updateTableSort(sortButton.dataset.sortList, sortButton.dataset.sortKey);
     return;
   }
 
