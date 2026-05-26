@@ -2573,7 +2573,7 @@ async function addOrcamento(event) {
       showFloatingMessage("Orçamento aprovado bloqueado. Nenhuma alteração de status foi feita.");
       return;
     }
-    const authorization = await confirmApprovedBudgetStatusChange(currentOrcamento, newStatus);
+    const authorization = await confirmBudgetStatusChange(currentOrcamento, newStatus);
     if (!authorization) return;
     const payload = { ...currentOrcamento, status: newStatus };
     state.orcamentos = state.orcamentos.map((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero) ? payload : orcamento);
@@ -2613,17 +2613,36 @@ async function addOrcamento(event) {
 
   const finalItems = mergeBudgetItems(currentOrcamento?.itens || [], collectedItems);
 
+  const newStatus = normalizeOrcamentoStatus(data.status || "EM ANÁLISE");
+  let statusAuthorization = null;
+  if (currentOrcamento && newStatus !== normalizeOrcamentoStatus(currentOrcamento.status)) {
+    statusAuthorization = await confirmBudgetStatusChange(currentOrcamento, newStatus);
+    if (!statusAuthorization) return;
+  }
+
   const payload = {
     numero,
     clienteDocumento: clienteSelecionado.documento,
     data: data.data,
-    status: normalizeOrcamentoStatus(data.status || "EM ANÁLISE"),
+    status: newStatus,
     observacoes: data.observacoes,
     itens: finalItems,
   };
 
   const orcamentoAudit = editingOrcamentoNumero
-    ? { acao: "orcamento.alterar", modulo: "orcamentos", entidadeTipo: "orcamento", entidadeId: String(numero), detalhes: { cliente: clienteSelecionado.nome, status: payload.status } }
+    ? {
+      acao: "orcamento.alterar",
+      modulo: "orcamentos",
+      entidadeTipo: "orcamento",
+      entidadeId: String(numero),
+      detalhes: {
+        cliente: clienteSelecionado.nome,
+        status: payload.status,
+        statusAnterior: currentOrcamento?.status || "",
+        administradorAutorizador: statusAuthorization?.approverUsuario || "",
+        administradorNome: statusAuthorization?.approverNome || "",
+      },
+    }
     : { acao: "orcamento.criar", modulo: "orcamentos", entidadeTipo: "orcamento", entidadeId: String(numero), detalhes: { cliente: clienteSelecionado.nome, status: payload.status } };
 
   if (editingOrcamentoNumero) {
@@ -3007,8 +3026,8 @@ function askAdminAuthorization(title, message) {
   });
 }
 
-async function confirmApprovedBudgetStatusChange(orcamento, newStatus) {
-  if (userProfile().toUpperCase() === "ADMIN") {
+async function confirmBudgetStatusChange(orcamento, newStatus) {
+  if (userProfile().toUpperCase() === "ADMIN" || hasPermission("orcamentos.status")) {
     return {
       approverUsuario: currentUser?.usuario || "",
       approverNome: currentUser?.nome || "",
@@ -3017,7 +3036,7 @@ async function confirmApprovedBudgetStatusChange(orcamento, newStatus) {
 
   const credentials = await askAdminAuthorization(
     "Confirmar alteração de status",
-    `Informe as credenciais de um administrador para alterar o orçamento aprovado Nº ${orcamento.numero} para ${newStatus}.`,
+    `Informe as credenciais de um administrador para alterar o status do orçamento Nº ${orcamento.numero} para ${newStatus}.`,
   );
   if (!credentials) return null;
 
