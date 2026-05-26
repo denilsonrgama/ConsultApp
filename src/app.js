@@ -2038,6 +2038,8 @@ function showFloatingMessage(message, tone = "warning") {
 
   box.textContent = message;
   box.classList.toggle("is-success", tone === "success");
+  box.classList.remove("is-visible");
+  void box.offsetWidth;
   box.classList.add("is-visible");
   window.clearTimeout(showFloatingMessage.timer);
   showFloatingMessage.timer = window.setTimeout(() => {
@@ -2210,23 +2212,29 @@ async function deleteCliente(documento) {
       alert("Este cliente já está inativo.");
       return;
     }
-    if (!confirm("Este cliente possui orçamentos cadastrados e será marcado como INATIVO. Confirmar?")) return;
+    const confirmed = await askConfirmChoice(
+      "Inativar cliente",
+      "Este cliente possui orçamentos cadastrados e será marcado como INATIVO. Confirmar?",
+      "Inativar",
+    );
+    if (!confirmed) return;
     state.clientes = state.clientes.map((item) => (
       item.documento === documento ? { ...item, status: "INATIVO" } : item
     ));
     if (editingClienteDocumento === documento) editingClienteDocumento = null;
     await saveState({ acao: "cliente.inativar", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
-    showFloatingMessage("Cliente inativado.", "success");
     render();
+    window.setTimeout(() => showFloatingMessage("Cliente inativado.", "success"), 0);
     return;
   }
-  if (!confirm("Excluir este cliente?")) return;
+  const confirmed = await askConfirmChoice("Excluir cliente", "Excluir este cliente definitivamente?", "Excluir");
+  if (!confirmed) return;
   state.clientes = state.clientes.filter((cliente) => cliente.documento !== documento);
   state.responsaveis = (state.responsaveis || []).filter((responsavel) => responsavel.clienteDocumento !== documento);
   if (editingClienteDocumento === documento) editingClienteDocumento = null;
   await saveState({ acao: "cliente.excluir", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
-  showFloatingMessage("Cliente excluído.", "success");
   render();
+  window.setTimeout(() => showFloatingMessage("Cliente excluído.", "success"), 0);
 }
 
 function renderServicos() {
@@ -3288,6 +3296,41 @@ function askPrintSaveChoice() {
     document.addEventListener("keydown", handleKeydown);
     document.body.append(overlay);
     overlay.querySelector('[data-choice="yes"]').focus();
+  });
+}
+
+function askConfirmChoice(title, message, confirmLabel = "Confirmar") {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-choice-title">
+        <h2 id="confirm-choice-title">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        <div class="choice-actions">
+          <button type="button" class="danger-button" data-choice="confirm">${escapeHtml(confirmLabel)}</button>
+          <button type="button" class="ghost-button" data-choice="cancel">Cancelar</button>
+        </div>
+      </div>
+    `;
+
+    const handleKeydown = (event) => {
+      if (event.key === "Escape") close(false);
+    };
+    const close = (value) => {
+      document.removeEventListener("keydown", handleKeydown);
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close(false);
+    });
+    overlay.querySelector('[data-choice="confirm"]').addEventListener("click", () => close(true));
+    overlay.querySelector('[data-choice="cancel"]').addEventListener("click", () => close(false));
+    document.addEventListener("keydown", handleKeydown);
+    document.body.append(overlay);
+    overlay.querySelector('[data-choice="cancel"]').focus();
   });
 }
 
