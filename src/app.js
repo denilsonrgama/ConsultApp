@@ -1914,6 +1914,15 @@ function showFloatingMessage(message, tone = "warning") {
   }, 4500);
 }
 
+function showStatusPrivilegeNotice() {
+  if (!editingOrcamentoNumero) return;
+  if (userProfile().toUpperCase() === "ADMIN" || hasPermission("orcamentos.status")) {
+    showFloatingMessage("Alteração de status permitida para este usuário.", "success");
+    return;
+  }
+  showFloatingMessage("Para alterar o status, será necessário informar as credenciais de um administrador ao salvar.");
+}
+
 function showProcessingMessage(message = "Solicitação sendo processada. Aguarde...") {
   let overlay = document.getElementById("processing-message");
   if (!overlay) {
@@ -2264,7 +2273,6 @@ function renderOrcamentos() {
       <section class="panel orcamento-form-panel">
         <h2>${editingOrcamentoNumero ? "Alterar orçamento" : "Novo orçamento"}</h2>
         <form class="orcamento-form-grid${approvedLocked ? " approved-budget-locked" : ""}" id="orcamento-form">
-          ${approvedLocked ? '<p class="approved-lock-notice">Orçamento aprovado: campos bloqueados. Apenas o status pode ser alterado com senha e permissão.</p>' : ""}
           <label>Número<input name="numero" type="number" min="15000" step="1" readonly required value="${fieldValue(numeroValue)}"></label>
           <button class="ghost-button" type="button" id="show-budget-client-search"${editingOrcamento.clienteDocumento || !editable ? " hidden" : ""}>Buscar cliente</button>
           <div class="budget-client-search hidden" id="budget-client-search">
@@ -2283,7 +2291,7 @@ function renderOrcamentos() {
               <button class="primary-button" type="submit" id="save-orcamento">${editingOrcamentoNumero && !addingBudgetItem ? "Salvar alteração" : "Salvar orçamento"}</button>
               <button class="success-button" type="button" id="new-orcamento">Novo orçamento</button>
               <button class="success-button" type="button" id="add-budget-item"${approvedLocked ? " disabled" : ""}>Inserir serviço</button>
-              ${editingOrcamentoNumero ? `<button class="danger-button" type="button" id="delete-budget-item" disabled${approvedLocked ? ' title="Orçamento aprovado bloqueado para alteração."' : ""}>Deletar serviço</button>` : ""}
+              ${editingOrcamentoNumero ? '<button class="danger-button" type="button" id="delete-budget-item" disabled>Deletar serviço</button>' : ""}
               ${editingOrcamentoNumero ? `<button class="danger-button" type="button" id="delete-current-orcamento"${approvedLocked ? " disabled" : ""}>Deletar</button>` : ""}
               <button class="danger-button" type="button" id="cancel-orcamento-edit">Cancelar</button>
             </div>
@@ -2294,6 +2302,8 @@ function renderOrcamentos() {
   `;
 
   document.getElementById("orcamento-form").addEventListener("submit", addOrcamento);
+  document.querySelector('#orcamento-form [name="status"]')?.addEventListener("focus", showStatusPrivilegeNotice);
+  document.querySelector('#orcamento-form [name="status"]')?.addEventListener("click", showStatusPrivilegeNotice);
   if (editable) {
     document.getElementById("new-orcamento").addEventListener("click", newOrcamento);
     document.getElementById("cancel-orcamento-edit").addEventListener("click", cancelOrcamento);
@@ -2398,7 +2408,6 @@ function showBudgetClientSearch() {
 
 function selectBudgetClient(documento) {
   if (isEditingApprovedBudget()) {
-    alert("Orçamento aprovado bloqueado para alteração. Apenas o status pode ser alterado.");
     return;
   }
   if (!canEditModule("orcamentos") || !canManageData()) {
@@ -2464,7 +2473,6 @@ function addBudgetItemRow(item = {}, keepBlank = false) {
 
 function addBlankBudgetItem() {
   if (isEditingApprovedBudget()) {
-    alert("Orçamento aprovado bloqueado para alteração. Apenas o status pode ser alterado.");
     return;
   }
   if (!canEditModule("orcamentos") || !canManageData()) {
@@ -2570,7 +2578,7 @@ async function addOrcamento(event) {
   if (currentOrcamento && isOrcamentoAprovado(currentOrcamento)) {
     const newStatus = normalizeOrcamentoStatus(data.status || currentOrcamento.status);
     if (newStatus === normalizeOrcamentoStatus(currentOrcamento.status)) {
-      showFloatingMessage("Orçamento aprovado bloqueado. Nenhuma alteração de status foi feita.");
+      showFloatingMessage("Nenhuma alteração de status foi feita.");
       return;
     }
     const authorization = await confirmBudgetStatusChange(currentOrcamento, newStatus);
@@ -2721,7 +2729,6 @@ function loadBudgetItemIntoForm(index) {
 
 function deleteSelectedBudgetItem() {
   if (isEditingApprovedBudget()) {
-    alert("Orçamento aprovado bloqueado para alteração. Apenas o status pode ser alterado.");
     return;
   }
   if (!hasPermission("orcamentos.edit") || !canManageData()) {
@@ -2752,7 +2759,6 @@ function deleteSelectedBudgetItem() {
 function deleteOrcamento(numero) {
   const orcamento = state.orcamentos.find((item) => Number(item.numero) === Number(numero));
   if (isOrcamentoAprovado(orcamento)) {
-    alert("Orçamento aprovado bloqueado para alteração. Altere o status antes de excluir.");
     return;
   }
   if (!canDeleteFromModule("orcamentos") || !canManageData()) {
