@@ -22,6 +22,7 @@ let reportFilters = {
   dataFim: "",
   status: "",
   clienteStatus: "ATIVO",
+  servicoStatus: "TODOS",
 };
 let editingUsuarioId = null;
 let explicitLogout = false;
@@ -1049,6 +1050,13 @@ function renderRelatorios() {
             <option value="TODOS"${selectedAttr(reportFilters.clienteStatus, "TODOS")}>Todos</option>
           </select>
         </label>
+        <label>Status do serviço
+          <select name="servicoStatus">
+            <option value="TODOS"${selectedAttr(reportFilters.servicoStatus, "TODOS")}>Todos</option>
+            <option value="ATIVO"${selectedAttr(reportFilters.servicoStatus, "ATIVO")}>Ativos</option>
+            <option value="INATIVO"${selectedAttr(reportFilters.servicoStatus, "INATIVO")}>Inativos</option>
+          </select>
+        </label>
         <div class="form-actions">
           <button type="submit" class="primary-button">Filtrar</button>
           <button type="button" class="ghost-button" id="clear-report-filters">Limpar</button>
@@ -1071,7 +1079,7 @@ function renderRelatorios() {
     <section class="dashboard-charts">
       ${pieChart("Orçamentos por status", orcamentosPorStatus({ budgets: filteredBudgets }))}
       ${barChart("Maiores clientes", topClientesPorValor(filteredBudgets))}
-      ${barChart("Serviços por valor", servicosPorValor(filteredBudgets))}
+      ${barChart("Serviços por valor", servicosPorValor(filteredBudgets, filteredReportServiceCodes()))}
     </section>
     <section class="reports-grid">
       <article class="panel report-panel">
@@ -1084,7 +1092,7 @@ function renderRelatorios() {
       </article>
       <article class="panel report-panel">
         <div class="toolbar"><h2>Serviços mais relevantes</h2></div>
-        ${chartDataTable(servicosPorValor(filteredBudgets), "Serviço")}
+        ${chartDataTable(servicosPorValor(filteredBudgets, filteredReportServiceCodes()), "Serviço")}
       </article>
     </section>
   `;
@@ -1106,6 +1114,7 @@ function clearReportFilters() {
     dataFim: "",
     status: "",
     clienteStatus: "ATIVO",
+    servicoStatus: "TODOS",
   };
   renderRelatorios();
   renderSidebarPanel();
@@ -1122,6 +1131,18 @@ function filteredReportBudgets() {
     if (reportFilters.dataFim && String(orcamento.data || "") > reportFilters.dataFim) return false;
     return true;
   });
+}
+
+function filteredReportServices() {
+  return state.servicos.filter((servico) => {
+    if (reportFilters.servicoStatus === "ATIVO" && !isServicoAtivo(servico)) return false;
+    if (reportFilters.servicoStatus === "INATIVO" && isServicoAtivo(servico)) return false;
+    return true;
+  });
+}
+
+function filteredReportServiceCodes() {
+  return new Set(filteredReportServices().map((servico) => String(servico.codigo)));
 }
 
 async function loadArquivos() {
@@ -1532,10 +1553,11 @@ function orcamentosPorValor(budgets = orcamentosEstatisticos()) {
     .filter((item) => item.value > 0);
 }
 
-function servicosPorValor(budgets = orcamentosEstatisticos()) {
+function servicosPorValor(budgets = orcamentosEstatisticos(), allowedCodes = null) {
   const totals = new Map();
   budgets.forEach((orcamento) => {
     (orcamento.itens || []).forEach((item) => {
+      if (allowedCodes && !allowedCodes.has(String(item.servicoCodigo || ""))) return;
       const value = Number(item.quantidade || 0) * Number(item.valorUnitario || 0) - Number(item.desconto || 0);
       const label = servicoNome(item.servicoCodigo);
       totals.set(label, (totals.get(label) || 0) + value);
@@ -3838,6 +3860,8 @@ function buildReportDefinition(type, options = {}) {
   const reportDate = formatDate(today);
   const statisticalBudgets = options.budgets || orcamentosEstatisticos();
   const totalValue = statisticalBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
+  const reportServices = filteredReportServices();
+  const reportServiceCodes = new Set(reportServices.map((servico) => String(servico.codigo)));
   const filteredClientDocuments = new Set();
   statisticalBudgets.forEach((orcamento) => {
     filteredClientDocuments.add(orcamento.clienteDocumento);
@@ -3924,7 +3948,7 @@ function buildReportDefinition(type, options = {}) {
   }
 
   if (type === "servicos") {
-    const serviceTotals = reportServiceTotals(statisticalBudgets);
+    const serviceTotals = reportServiceTotals(statisticalBudgets, reportServiceCodes);
     const requestedServices = [...serviceTotals.values()].filter((item) => item.quantidade > 0).length;
     return {
       title: "Relatório de Serviços",
@@ -3932,13 +3956,13 @@ function buildReportDefinition(type, options = {}) {
       pageSize: "A4 landscape",
       subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
       summary: [
-        { label: "Serviços", value: String(state.servicos.length) },
+        { label: "Serviços", value: String(reportServices.length) },
         { label: "Solicitados", value: String(requestedServices) },
         { label: "Valor total", value: currency.format(totalValue) },
-        { label: "Ativos", value: String(state.servicos.filter((servico) => isServicoAtivo(servico)).length) },
+        { label: "Ativos", value: String(reportServices.filter((servico) => isServicoAtivo(servico)).length) },
       ],
       columns: ["Código", "Serviço", "Status", "Valor cadastrado", "Menor unit. orçado", "Maior unit. orçado", "Qtd. solicitada", "Valor total"],
-      rows: state.servicos
+      rows: reportServices
         .slice()
         .sort((a, b) => String(a.codigo || "").localeCompare(String(b.codigo || ""), "pt-BR", { numeric: true }))
         .map((servico) => {
@@ -3960,11 +3984,12 @@ function buildReportDefinition(type, options = {}) {
   return null;
 }
 
-function reportServiceTotals(budgets) {
+function reportServiceTotals(budgets, allowedCodes = null) {
   const totals = new Map();
   budgets.forEach((orcamento) => {
     (orcamento.itens || []).forEach((item) => {
       const key = String(item.servicoCodigo || "");
+      if (allowedCodes && !allowedCodes.has(key)) return;
       const valorUnitario = Number(item.valorUnitario || 0);
       const current = totals.get(key) || { quantidade: 0, valor: 0, menorUnitario: null, maiorUnitario: null };
       current.quantidade += Number(item.quantidade || 0);
