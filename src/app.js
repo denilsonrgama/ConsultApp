@@ -15,6 +15,7 @@ let pendingSave = null;
 let currentUser = null;
 let usuarios = [];
 let auditoriaLogs = [];
+let arquivos = [];
 let editingUsuarioId = null;
 let explicitLogout = false;
 
@@ -30,6 +31,7 @@ const titles = {
   orcamentos: "Orçamentos",
   financeiro: "Financeiro",
   relatorios: "Relatórios",
+  arquivos: "Arquivos",
   usuarios: "Usuários",
   auditoria: "Auditoria",
 };
@@ -54,6 +56,7 @@ const PERMISSIONS = [
   { key: "financeiro.view", label: "Ver financeiro", group: "Financeiro" },
   { key: "relatorios.view", label: "Ver relatórios", group: "Relatórios" },
   { key: "relatorios.export", label: "Exportar relatórios", group: "Relatórios" },
+  { key: "arquivos.view", label: "Ver arquivos", group: "Arquivos" },
   { key: "usuarios.view", label: "Ver usuários", group: "Usuários" },
   { key: "usuarios.create", label: "Criar usuários", group: "Usuários" },
   { key: "usuarios.edit", label: "Alterar usuários", group: "Usuários" },
@@ -672,6 +675,7 @@ function viewPermission(view) {
     orcamentos: "orcamentos.view",
     financeiro: "financeiro.view",
     relatorios: "relatorios.view",
+    arquivos: "arquivos.view",
     usuarios: "usuarios.view",
     auditoria: "auditoria.view",
   }[view] || "";
@@ -689,8 +693,9 @@ function setView(view) {
   }
   if (view === "orcamentos" && !editingOrcamentoNumero) blankNewOrcamento = true;
   document.querySelectorAll(".nav-button").forEach((button) => {
-    const isFinanceGroup = button.dataset.view === "financeiro" && ["financeiro", "orcamentos", "relatorios"].includes(view);
-    button.classList.toggle("is-active", button.dataset.view === view || isFinanceGroup);
+    const isFinanceGroup = button.dataset.view === "financeiro" && ["financeiro", "orcamentos"].includes(view);
+    const isAdminGroup = button.dataset.menuGroup === "administracao" && ["usuarios", "relatorios", "arquivos", "auditoria"].includes(view);
+    button.classList.toggle("is-active", button.dataset.view === view || isFinanceGroup || isAdminGroup);
   });
 
   document.querySelectorAll(".view").forEach((section) => {
@@ -714,6 +719,7 @@ function render() {
   renderOrcamentos();
   renderFinanceiro();
   renderRelatorios();
+  if (hasPermission("arquivos.view")) renderArquivos();
   if (canManageUsers()) renderUsuarios();
   if (hasPermission("auditoria.view")) renderAuditoria();
 }
@@ -740,6 +746,10 @@ function renderCurrentView(view) {
     renderRelatorios();
     return;
   }
+  if (view === "arquivos") {
+    renderArquivos();
+    return;
+  }
   if (view === "usuarios") {
     renderUsuarios();
     return;
@@ -756,12 +766,13 @@ function renderSidebarPanel() {
     userBox.hidden = !currentUser;
     userName.textContent = currentUser ? `${currentUser.nome} (${currentUser.perfil})` : "";
   }
-  document.querySelectorAll(".admin-only").forEach((element) => {
-    element.hidden = !canManageUsers();
-  });
   document.querySelectorAll("[data-view]").forEach((element) => {
     element.hidden = !canView(element.dataset.view);
   });
+  const adminViews = ["usuarios", "relatorios", "arquivos", "auditoria"];
+  const hasAdminItem = adminViews.some((view) => canView(view));
+  document.querySelector('[data-menu-group="administracao"]')?.toggleAttribute("hidden", !hasAdminItem);
+  document.querySelector("[data-admin-menu]")?.toggleAttribute("hidden", !hasAdminItem);
   document.querySelectorAll("[data-sidebar-new]").forEach((element) => {
     element.hidden = !hasPermission(`${element.dataset.sidebarNew}.create`) || !canManageData();
   });
@@ -849,6 +860,14 @@ function sidebarSummaryForView(view) {
       { label: "Relatórios", value: "3" },
       { label: "Base estatística", value: String(statisticalBudgets.length) },
       { label: "Aprovados", value: String(approved) },
+    ];
+  }
+
+  if (view === "arquivos") {
+    return [
+      { label: "Arquivos", value: String(arquivos.length) },
+      { label: "Orçamentos", value: String(arquivos.filter((file) => file.categoria === "orcamentos").length) },
+      { label: "Relatórios", value: String(arquivos.filter((file) => file.categoria === "relatorios").length) },
     ];
   }
 
@@ -1017,6 +1036,80 @@ function renderRelatorios() {
       </article>
     </section>
   `;
+}
+
+async function loadArquivos() {
+  if (!hasPermission("arquivos.view")) return [];
+  const response = await fetch("/api/arquivos");
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível carregar arquivos.");
+  arquivos = result.arquivos || [];
+  return arquivos;
+}
+
+function renderArquivos() {
+  const view = document.getElementById("arquivos-view");
+  if (!view || !hasPermission("arquivos.view")) return;
+
+  view.innerHTML = `
+    ${pageBanner()}
+    <section class="panel files-panel">
+      <div class="toolbar">
+        <div>
+          <h2>Arquivos salvos</h2>
+          <p>PDFs armazenados no banco de dados.</p>
+        </div>
+        <button type="button" class="primary-button" id="refresh-files">Atualizar</button>
+      </div>
+      <div id="files-list">${emptyState()}</div>
+    </section>
+  `;
+
+  document.getElementById("refresh-files")?.addEventListener("click", refreshArquivos);
+  refreshArquivos();
+}
+
+async function refreshArquivos() {
+  const target = document.getElementById("files-list");
+  if (!target) return;
+  target.innerHTML = '<p class="muted">Carregando arquivos...</p>';
+  try {
+    await loadArquivos();
+    renderSidebarPanel();
+    target.innerHTML = arquivos.length ? arquivosTable(arquivos) : emptyState();
+  } catch (error) {
+    target.innerHTML = `<p class="muted">${escapeHtml(error.message || "Não foi possível carregar arquivos.")}</p>`;
+  }
+}
+
+function arquivosTable(files) {
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Arquivo</th><th>Origem</th><th>Tamanho</th><th>Atualizado em</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${files.map((file) => `
+            <tr>
+              <td><strong>${escapeHtml(file.nome)}</strong></td>
+              <td>${escapeHtml(file.categoria === "orcamentos" ? "Orçamento" : "Relatório")}</td>
+              <td>${escapeHtml(formatFileSize(file.tamanho))}</td>
+              <td>${escapeHtml(formatDateTime(file.updatedAt || file.createdAt))}</td>
+              <td class="row-actions">
+                <a class="small-button" href="${escapeHtml(file.url)}" target="_blank" rel="noopener">Visualizar</a>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function formatFileSize(value) {
+  const size = Number(value || 0);
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+  if (size >= 1024) return `${(size / 1024).toFixed(1).replace(".", ",")} KB`;
+  return `${size} B`;
 }
 
 async function loadUsuarios() {
@@ -3759,7 +3852,15 @@ function emptyState() {
 }
 
 document.querySelectorAll(".nav-button").forEach((button) => {
-  button.addEventListener("click", () => setView(button.dataset.view));
+  button.addEventListener("click", () => {
+    if (button.dataset.menuGroup === "administracao") {
+      const target = ["usuarios", "relatorios", "arquivos", "auditoria"].find((view) => canView(view));
+      if (target) setView(target);
+      return;
+    }
+
+    setView(button.dataset.view);
+  });
 });
 
 document.querySelectorAll("[data-sidebar-new]").forEach((button) => {

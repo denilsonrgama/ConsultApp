@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" href="assets/consult-icon.png">
     <link rel="apple-touch-icon" href="assets/consult-icon-192.png">
-    <link rel="stylesheet" href="src/styles/app.css?v=203">
+    <link rel="stylesheet" href="src/styles/app.css?v=204">
   </head>
   <body>
     <div class="app-shell">
@@ -31,10 +31,14 @@
           <button class="nav-button" data-view="financeiro">Financeiro</button>
           <div class="nav-submenu" aria-label="Submenu Financeiro">
             <button class="nav-button nav-sub-button" data-view="orcamentos">Or&ccedil;amentos</button>
-            <button class="nav-button nav-sub-button" data-view="relatorios">Relat&oacute;rios</button>
           </div>
-          <button class="nav-button admin-only" data-view="usuarios" hidden>Usu&aacute;rios</button>
-          <button class="nav-button admin-only" data-view="auditoria" hidden>Auditoria</button>
+          <button class="nav-button" type="button" data-menu-group="administracao">Administra&ccedil;&atilde;o</button>
+          <div class="nav-submenu" data-admin-menu aria-label="Submenu Administra&ccedil;&atilde;o">
+            <button class="nav-button nav-sub-button" data-view="usuarios">Usu&aacute;rios</button>
+            <button class="nav-button nav-sub-button" data-view="relatorios">Relat&oacute;rios</button>
+            <button class="nav-button nav-sub-button" data-view="arquivos">Arquivos</button>
+            <button class="nav-button nav-sub-button" data-view="auditoria">Auditoria</button>
+          </div>
         </nav>
         <section class="sidebar-tools" aria-label="Atalhos r&aacute;pidos">
           <h2>Atalhos r&aacute;pidos</h2>
@@ -59,6 +63,7 @@
         <section class="view" id="orcamentos-view"></section>
         <section class="view" id="financeiro-view"></section>
         <section class="view" id="relatorios-view"></section>
+        <section class="view" id="arquivos-view"></section>
         <section class="view" id="usuarios-view"></section>
         <section class="view" id="auditoria-view"></section>
         <section class="print-area" id="print-area" aria-hidden="true"></section>
@@ -73,6 +78,6 @@
     </template>
 
     <script src="src/data/seed.js?v=138"></script>
-    <script src="src/app.js?v=203"></script>
+    <script src="src/app.js?v=204"></script>
   </body>
 </html>

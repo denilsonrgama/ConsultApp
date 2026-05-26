@@ -388,6 +388,13 @@ h2 {
   font-size: 0.86rem;
 }
 
+a.small-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .danger-text {
   color: var(--danger);
 }

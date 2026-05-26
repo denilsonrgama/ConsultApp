@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v203";
+const serverVersion = "v204";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -276,6 +276,7 @@ const PERMISSION_KEYS = [
   "financeiro.view",
   "relatorios.view",
   "relatorios.export",
+  "arquivos.view",
   "usuarios.view",
   "usuarios.create",
   "usuarios.edit",
@@ -1152,6 +1153,43 @@ async function readStoredFile(categoria, nome) {
   } : null;
 }
 
+async function listStoredPdfFiles() {
+  if (postgresPool) {
+    const result = await postgresPool.query(`
+      SELECT categoria, nome, mime_type, tamanho, created_at, updated_at
+      FROM arquivos
+      WHERE mime_type = 'application/pdf'
+      ORDER BY updated_at DESC, nome
+    `);
+    return result.rows.map((row) => ({
+      categoria: row.categoria,
+      nome: row.nome,
+      mimeType: row.mime_type,
+      tamanho: Number(row.tamanho || 0),
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+      updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+      url: `/${row.categoria}/${encodeURIComponent(row.nome)}`,
+      publicUrl: publicFileUrl(`/${row.categoria}/${encodeURIComponent(row.nome)}`),
+    }));
+  }
+
+  return sqliteDb.prepare(`
+    SELECT categoria, nome, mime_type, tamanho, created_at, updated_at
+    FROM arquivos
+    WHERE mime_type = 'application/pdf'
+    ORDER BY updated_at DESC, nome
+  `).all().map((row) => ({
+    categoria: row.categoria,
+    nome: row.nome,
+    mimeType: row.mime_type,
+    tamanho: Number(row.tamanho || 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    url: `/${row.categoria}/${encodeURIComponent(row.nome)}`,
+    publicUrl: publicFileUrl(`/${row.categoria}/${encodeURIComponent(row.nome)}`),
+  }));
+}
+
 function loadSmtpConfig() {
   const fileConfig = existsSync(smtpConfigPath) ? JSON.parse(readFileSync(smtpConfigPath, "utf-8")) : {};
   const config = {
@@ -1977,6 +2015,25 @@ createServer(async (request, response) => {
         detalhes: { quantidade: logs.length },
       }).catch(() => {});
       sendJson(response, 200, { ok: true, logs });
+    } catch (error) {
+      sendJson(response, 500, { ok: false, error: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/arquivos") {
+    const authUser = await requirePermission(request, response, "arquivos.view");
+    if (!authUser) return;
+    try {
+      const arquivos = await listStoredPdfFiles();
+      await logAudit(request, authUser, {
+        acao: "arquivo.consultar",
+        modulo: "arquivos",
+        entidadeTipo: "arquivo",
+        entidadeId: "",
+        detalhes: { quantidade: arquivos.length },
+      }).catch(() => {});
+      sendJson(response, 200, { ok: true, arquivos });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: error.message });
     }
