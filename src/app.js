@@ -1960,6 +1960,7 @@ function barChart(title, data) {
 function renderClientes() {
   const editingCliente = state.clientes.find((cliente) => cliente.documento === editingClienteDocumento) || {};
   const useBlankForm = blankNewCliente && !editingClienteDocumento;
+  const showClienteFormOnMobile = Boolean(editingClienteDocumento || blankNewCliente);
   const showCnpjFields = onlyDigits(editingCliente.documento).length === 14;
   const editable = canEditModule("clientes");
   document.getElementById("clientes-view").innerHTML = `
@@ -1971,11 +1972,12 @@ function renderClientes() {
       <section class="panel clientes-list-panel">
         <div class="toolbar">
           <h2>Clientes cadastrados</h2>
+          ${editable ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo cliente</button>' : ""}
           <input id="cliente-search" placeholder="Buscar cliente">
         </div>
         <div id="cliente-list"></div>
       </section>
-      <section class="panel cliente-form-panel">
+      <section class="panel cliente-form-panel${showClienteFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingClienteDocumento ? "Alterar cliente" : "Novo cliente"}</h2>
         <form class="cliente-form-grid" id="cliente-form">
           <label>CPF/CNPJ<input name="documento" required value="${useBlankForm ? "" : fieldValue(editingCliente.documento)}"></label>
@@ -2020,6 +2022,7 @@ function renderClientes() {
     document.querySelector('#cliente-form [name="cep"]').addEventListener("blur", handleClienteCepBlur);
     document.querySelector('#cliente-form [name="complemento"]').addEventListener("keydown", handleClienteComplementoKeydown);
     document.getElementById("new-cliente").addEventListener("click", newCliente);
+    document.getElementById("show-cliente-form")?.addEventListener("click", newCliente);
     document.getElementById("cancel-cliente-edit").addEventListener("click", cancelCliente);
   } else {
     setFormReadOnly(document.getElementById("cliente-form"));
@@ -2204,12 +2207,24 @@ function newCliente() {
   editingClienteDocumento = null;
   blankNewCliente = true;
   renderClientes();
+  scrollClienteFormIntoView();
 }
 
 function cancelCliente() {
   editingClienteDocumento = null;
-  blankNewCliente = true;
+  blankNewCliente = false;
   renderClientes();
+}
+
+function isCompactLayout() {
+  return window.innerWidth <= 640 || window.innerHeight <= 500;
+}
+
+function scrollClienteFormIntoView() {
+  if (!isCompactLayout()) return;
+  window.requestAnimationFrame(() => {
+    document.querySelector(".cliente-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 async function handleClienteDocumentoBlur(event) {
@@ -2601,6 +2616,7 @@ function editCliente(documento) {
   editingClienteDocumento = documento;
   blankNewCliente = false;
   setView("clientes");
+  scrollClienteFormIntoView();
 }
 
 function clienteHasBudgets(documento) {
@@ -2615,6 +2631,12 @@ async function deleteCliente(documento) {
   if (!canDeleteFromModule("clientes") || !canManageData()) {
     showNoPermissionMessage();
     return;
+  }
+  if (isCompactLayout()) {
+    editingClienteDocumento = documento;
+    blankNewCliente = false;
+    renderClientes();
+    scrollClienteFormIntoView();
   }
   const hasBudgets = clienteHasBudgets(documento);
   if (hasBudgets) {
@@ -4776,6 +4798,7 @@ document.body.addEventListener("click", (event) => {
 
   const openClienteRow = event.target.closest("[data-open-cliente]");
   if (openClienteRow) {
+    if (isCompactLayout()) return;
     editCliente(openClienteRow.dataset.openCliente);
     return;
   }

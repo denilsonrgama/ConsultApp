@@ -773,6 +773,10 @@ a.small-button {
   max-width: none;
 }
 
+.cliente-list-new-button {
+  display: none;
+}
+
 .clientes-list-panel table {
   min-width: 650px;
 }
@@ -2861,6 +2865,20 @@ th {
     white-space: nowrap;
   }
 
+  .cliente-list-new-button {
+    display: block;
+    width: 100%;
+    min-height: 38px;
+  }
+
+  .cliente-form-panel {
+    scroll-margin-top: 112px;
+  }
+
+  .cliente-form-panel.is-mobile-hidden {
+    display: none;
+  }
+
   .dashboard-list-panel .budget-table {
     min-width: 0;
     table-layout: fixed;
@@ -3557,6 +3575,20 @@ th {
     justify-content: center;
     text-align: center;
     white-space: nowrap;
+  }
+
+  .cliente-list-new-button {
+    display: block;
+    width: 100%;
+    min-height: 34px;
+  }
+
+  .cliente-form-panel {
+    scroll-margin-top: 76px;
+  }
+
+  .cliente-form-panel.is-mobile-hidden {
+    display: none;
   }
 
   .clientes-layout,
