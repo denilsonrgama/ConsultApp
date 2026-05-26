@@ -1093,7 +1093,7 @@ function renderRelatorios() {
     </section>
     <section class="reports-grid">
       <article class="panel report-panel">
-        <div class="toolbar"><h2>Resumo por status</h2></div>
+        <div class="toolbar"><h2>Relatório de Orçamento e Serviços Solicitados</h2></div>
         ${statusReportTable(filteredBudgets)}
       </article>
       <article class="panel report-panel">
@@ -3998,7 +3998,7 @@ function buildReportDefinition(type, options = {}) {
     const serviceTotals = reportServiceTotals(statisticalBudgets, reportServiceCodes);
     const requestedServices = [...serviceTotals.values()].filter((item) => item.quantidade > 0).length;
     return {
-      title: "Relatório de Serviços",
+      title: "Relatório de Serviços Solicitados",
       fileName: `relatorio-servicos-${formatDateFile(today)}`,
       pageSize: "A4 landscape",
       subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
