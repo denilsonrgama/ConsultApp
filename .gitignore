@@ -1,5 +1,6 @@
 smtp-config.json
 node_modules/
+.cache/
 .tools/
 node-v*-win-x64.zip
 .env

@@ -18,6 +18,8 @@ CORREÇÃO RENDER / LINUX
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = __dirname;
+const puppeteerCacheDir = resolve(root, ".cache", "puppeteer");
+process.env.PUPPETEER_CACHE_DIR ||= puppeteerCacheDir;
 
 /*
 ========================================
@@ -47,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v189";
+const serverVersion = "v190";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1308,6 +1310,27 @@ function renderChromiumPath() {
   return candidates.filter(Boolean).find((candidate) => existsSync(candidate)) || "";
 }
 
+function installPuppeteerChrome() {
+  const cliPath = join(root, "node_modules", "puppeteer", "lib", "puppeteer", "node", "cli.js");
+  if (!existsSync(cliPath)) {
+    throw new Error("CLI do Puppeteer nao encontrada em node_modules.");
+  }
+
+  mkdirSync(puppeteerCacheDir, { recursive: true });
+  const result = spawnSync(process.execPath, [cliPath, "browsers", "install", "chrome"], {
+    cwd: root,
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      PUPPETEER_CACHE_DIR: puppeteerCacheDir,
+    },
+  });
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || "Falha ao instalar o Chrome do Puppeteer.");
+  }
+}
+
 async function printHtmlToPdfPortable(html, target) {
   const browserExe = renderChromiumPath();
   if (browserExe) {
@@ -1340,10 +1363,18 @@ async function printHtmlToPdfPortable(html, target) {
   let browser;
   try {
     const puppeteer = await import("puppeteer");
-    browser = await puppeteer.default.launch({
+    const launchOptions = {
       headless: "new",
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    });
+    };
+
+    try {
+      browser = await puppeteer.default.launch(launchOptions);
+    } catch (firstError) {
+      installPuppeteerChrome();
+      browser = await puppeteer.default.launch(launchOptions);
+    }
+
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     await page.pdf({ path: target, printBackground: true, preferCSSPageSize: true });
