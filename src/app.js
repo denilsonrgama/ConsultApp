@@ -3675,13 +3675,12 @@ async function exportReportPdf(type) {
   const report = buildReportDefinition(type, { budgets: filteredReportBudgets() });
   if (!report) return;
 
-  const reportWindow = window.open("about:blank", "_blank", "noopener");
+  const reportWindow = window.open("about:blank", "_blank");
   if (!reportWindow) {
-    alert("O navegador bloqueou a nova aba. Permita pop-ups para este site e tente novamente.");
+    showFloatingMessage("O navegador bloqueou a nova aba. Permita pop-ups para este site e tente novamente.", "error");
     return;
   }
-  reportWindow.document.write("<p style=\"font-family:Arial,sans-serif;padding:24px\">Gerando relatório. Aguarde...</p>");
-  reportWindow.document.close();
+  writeReportWindowMessage(reportWindow, "Gerando relatório. Aguarde...");
 
   const closeProcessing = showProcessingMessage("Gerando relatório em PDF...");
   try {
@@ -3713,11 +3712,30 @@ async function exportReportPdf(type) {
     showFloatingMessage("Relatório gerado. Abrindo PDF...", "success");
     reportWindow.location.href = pdfUrl || reportUrl.href;
   } catch (error) {
-    reportWindow.close();
-    alert(error.message || "Não foi possível gerar o relatório em PDF.");
+    const message = error.message || "Não foi possível gerar o relatório em PDF.";
+    writeReportWindowMessage(reportWindow, message, true);
+    showFloatingMessage(message, "error");
   } finally {
     closeProcessing();
   }
+}
+
+function writeReportWindowMessage(targetWindow, message, isError = false) {
+  targetWindow.document.open();
+  targetWindow.document.write(`
+    <!doctype html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <title>Relatório</title>
+      </head>
+      <body style="font-family:Arial,sans-serif;margin:0;padding:24px;color:#152f38">
+        <h1 style="font-size:18px;margin:0 0 12px">${isError ? "Não foi possível gerar o relatório" : "Relatório"}</h1>
+        <p style="font-size:14px;line-height:1.5;margin:0;color:${isError ? "#9f1239" : "#52656c"}">${escapeHtml(message)}</p>
+      </body>
+    </html>
+  `);
+  targetWindow.document.close();
 }
 
 async function handleReportExport(type) {
