@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v216";
+const serverVersion = "v217";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -2176,7 +2176,7 @@ createServer(async (request, response) => {
       const fileName = `${safeFileName(payload.fileName)}.pdf`;
       const approved = isApprovedStatus(payload.orcamento?.status);
       const savedUrl = `/orcamentos/${encodeURIComponent(fileName)}`;
-      const storedFile = approved ? await readStoredFile("orcamentos", fileName) : null;
+      const storedFile = approved && payload.forceRegenerate !== true ? await readStoredFile("orcamentos", fileName) : null;
 
       if (!fileName || fileName === ".pdf") {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });

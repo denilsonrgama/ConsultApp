@@ -3628,6 +3628,7 @@ async function saveBudgetAsPrinted(numero, options = {}) {
   const payload = {
     fileName,
     html,
+    forceRegenerate: true,
     orcamento,
     cliente,
     itens: orcamento.itens.map((item) => ({
@@ -3671,7 +3672,7 @@ async function exportReportPdf(type) {
     showNoPermissionMessage();
     return;
   }
-  const report = buildReportDefinition(type);
+  const report = buildReportDefinition(type, { budgets: filteredReportBudgets() });
   if (!report) return;
 
   const reportWindow = window.open("about:blank", "_blank", "noopener");
@@ -3772,7 +3773,7 @@ async function exportReportExcel(type) {
     showNoPermissionMessage();
     return;
   }
-  const report = buildReportDefinition(type);
+  const report = buildReportDefinition(type, { budgets: filteredReportBudgets() });
   if (!report) return;
 
   const closeProcessing = showProcessingMessage("Exportando relatório para Excel...");
@@ -3809,21 +3810,32 @@ async function exportReportExcel(type) {
   }
 }
 
-function buildReportDefinition(type) {
+function buildReportDefinition(type, options = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const reportDate = formatDate(today);
-  const statisticalBudgets = orcamentosEstatisticos();
+  const statisticalBudgets = options.budgets || orcamentosEstatisticos();
   const totalValue = statisticalBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
+  const filteredClientDocuments = new Set();
+  statisticalBudgets.forEach((orcamento) => {
+    filteredClientDocuments.add(orcamento.clienteDocumento);
+    filteredClientDocuments.add(onlyDigits(orcamento.clienteDocumento));
+  });
+  const reportClients = state.clientes.filter((cliente) => {
+    if (reportFilters.clienteStatus === "ATIVO" && !isClienteAtivo(cliente)) return false;
+    if (reportFilters.clienteStatus === "INATIVO" && isClienteAtivo(cliente)) return false;
+    if (reportFilters.clienteStatus === "TODOS") return true;
+    return filteredClientDocuments.has(cliente.documento) || filteredClientDocuments.has(onlyDigits(cliente.documento));
+  });
 
   if (type === "vendas") {
-    const approvedBudgets = orcamentosAprovados();
+    const approvedBudgets = statisticalBudgets.filter(isOrcamentoAprovado);
     const registeredTotal = statisticalBudgets.reduce((sum, orcamento) => sum + totalCadastradoOrcamento(orcamento), 0);
     const discountTotal = statisticalBudgets.reduce((sum, orcamento) => sum + totalDescontosOrcamento(orcamento), 0);
     return {
       title: "Relatório de Vendas",
       fileName: `relatorio-vendas-${formatDateFile(today)}`,
       pageSize: "A4 landscape",
-      subtitle: `Emitido em ${reportDate}. Orçamentos reprovados não são considerados.`,
+      subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
       summary: [
         { label: "Orçamentos", value: String(statisticalBudgets.length) },
         { label: "Total cadastrado", value: currency.format(registeredTotal) },
@@ -3862,15 +3874,15 @@ function buildReportDefinition(type) {
       title: "Relatório de Clientes",
       fileName: `relatorio-clientes-${formatDateFile(today)}`,
       pageSize: "A4 landscape",
-      subtitle: `Emitido em ${reportDate}. Valor acumulado sem orçamentos reprovados.`,
+      subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
       summary: [
-        { label: "Clientes", value: String(state.clientes.length) },
+        { label: "Clientes", value: String(reportClients.length) },
         { label: "Com orçamento", value: String(valuesByClient.size) },
         { label: "Valor acumulado", value: currency.format(totalValue) },
         { label: "Ticket por cliente", value: currency.format(valuesByClient.size ? totalValue / valuesByClient.size : 0) },
       ],
       columns: ["CPF/CNPJ", "Cliente", "Contato", "Cidade", "Valor em orçamentos", "Último orçamento", "Data último orçamento"],
-      rows: state.clientes
+      rows: reportClients
         .slice()
         .sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR"))
         .map((cliente) => {
@@ -3895,7 +3907,7 @@ function buildReportDefinition(type) {
       title: "Relatório de Serviços",
       fileName: `relatorio-servicos-${formatDateFile(today)}`,
       pageSize: "A4 landscape",
-      subtitle: `Emitido em ${reportDate}. Totais sem orçamentos reprovados.`,
+      subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
       summary: [
         { label: "Serviços", value: String(state.servicos.length) },
         { label: "Solicitados", value: String(requestedServices) },
