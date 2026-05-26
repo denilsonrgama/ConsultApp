@@ -24,6 +24,7 @@ const tableSorts = {
   arquivos: { key: "", direction: "asc" },
   usuarios: { key: "", direction: "asc" },
   financeiro: { key: "numero", direction: "desc" },
+  auditoria: { key: "data", direction: "desc" },
 };
 let reportFilters = {
   dataInicio: "",
@@ -1393,12 +1394,32 @@ async function refreshAuditoriaView() {
 
 function auditTable(logs) {
   if (!logs.length) return emptyState();
+  const sortedLogs = applyTableSort("auditoria", logs.slice(), {
+    data: (log) => log.created_at || "",
+    usuario: (log) => log.usuario || "",
+    perfil: (log) => log.perfil || "",
+    acao: (log) => log.acao || "",
+    modulo: (log) => log.modulo || "",
+    item: (log) => [log.entidade_tipo, log.entidade_id].filter(Boolean).join(": "),
+    detalhes: (log) => JSON.stringify(log.detalhes || {}),
+    ip: (log) => log.ip || "",
+  });
+
   return `
     <div class="table-wrap audit-table-wrap">
       <table>
-        <thead><tr><th>Data</th><th>Usuário</th><th>Perfil</th><th>Ação</th><th>Módulo</th><th>Item</th><th>Detalhes</th><th>IP</th></tr></thead>
+        <thead><tr>
+          ${sortableTableHeader("auditoria", "data", "Data")}
+          ${sortableTableHeader("auditoria", "usuario", "Usuário")}
+          ${sortableTableHeader("auditoria", "perfil", "Perfil")}
+          ${sortableTableHeader("auditoria", "acao", "Ação")}
+          ${sortableTableHeader("auditoria", "modulo", "Módulo")}
+          ${sortableTableHeader("auditoria", "item", "Item")}
+          ${sortableTableHeader("auditoria", "detalhes", "Detalhes")}
+          ${sortableTableHeader("auditoria", "ip", "IP")}
+        </tr></thead>
         <tbody>
-          ${logs.map((log) => `
+          ${sortedLogs.map((log) => `
             <tr>
               <td>${escapeHtml(formatDateTime(log.created_at))}</td>
               <td><strong>${escapeHtml(log.usuario || "-")}</strong></td>
@@ -4472,6 +4493,10 @@ function updateTableSort(list, key) {
   }
   if (list === "usuarios") renderUsuarios();
   if (list === "financeiro") renderFinanceiro();
+  if (list === "auditoria") {
+    const target = document.getElementById("auditoria-list");
+    if (target) target.innerHTML = auditTable(auditoriaLogs);
+  }
 }
 
 function emptyState() {
