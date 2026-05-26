@@ -1176,6 +1176,22 @@ function hasBudgetReportFilters() {
   );
 }
 
+function reportFilterDescription() {
+  const filters = [];
+  if (reportFilters.dataInicio) filters.push(`Data inicial: ${formatDate(reportFilters.dataInicio)}`);
+  if (reportFilters.dataFim) filters.push(`Data final: ${formatDate(reportFilters.dataFim)}`);
+  if (reportFilters.status) filters.push(`Status do orçamento: ${normalizeOrcamentoStatus(reportFilters.status)}`);
+  if (reportFilters.clienteStatus && reportFilters.clienteStatus !== "TODOS") {
+    filters.push(`Status do cliente: ${normalizeClienteStatus(reportFilters.clienteStatus)}`);
+  }
+  if (reportFilters.servicoStatus && reportFilters.servicoStatus !== "TODOS") {
+    filters.push(`Status do serviço: ${normalizeServicoStatus(reportFilters.servicoStatus)}`);
+  }
+
+  if (!filters.length) return "Nenhum filtro selecionado.";
+  return `Filtros selecionados aplicados: ${filters.join("; ")}.`;
+}
+
 async function loadArquivos() {
   if (!hasPermission("arquivos.view")) return [];
   const response = await fetch("/api/arquivos");
@@ -3905,6 +3921,7 @@ async function exportReportExcel(type) {
 function buildReportDefinition(type, options = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const reportDate = formatDate(today);
+  const reportSubtitle = `Emitido em ${reportDate}. ${reportFilterDescription()}`;
   const statisticalBudgets = options.budgets || orcamentosEstatisticos();
   const totalValue = statisticalBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
   const reportServices = filteredReportServices();
@@ -3929,7 +3946,7 @@ function buildReportDefinition(type, options = {}) {
       title: "Relatório de Vendas",
       fileName: `relatorio-vendas-${formatDateFile(today)}`,
       pageSize: "A4 landscape",
-      subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
+      subtitle: reportSubtitle,
       summary: [
         { label: "Orçamentos", value: String(statisticalBudgets.length) },
         { label: "Total cadastrado", value: currency.format(registeredTotal) },
@@ -3968,7 +3985,7 @@ function buildReportDefinition(type, options = {}) {
       title: "Relatório de Clientes",
       fileName: `relatorio-clientes-${formatDateFile(today)}`,
       pageSize: "A4 landscape",
-      subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
+      subtitle: reportSubtitle,
       summary: [
         { label: "Clientes", value: String(reportClients.length) },
         { label: "Com orçamento", value: String(valuesByClient.size) },
@@ -4001,7 +4018,7 @@ function buildReportDefinition(type, options = {}) {
       title: "Relatório de Serviços Solicitados",
       fileName: `relatorio-servicos-${formatDateFile(today)}`,
       pageSize: "A4 landscape",
-      subtitle: `Emitido em ${reportDate}. Filtros selecionados aplicados.`,
+      subtitle: reportSubtitle,
       summary: [
         { label: "Serviços", value: String(reportServices.length) },
         { label: "Solicitados", value: String(requestedServices) },
