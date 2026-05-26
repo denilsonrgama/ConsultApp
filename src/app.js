@@ -187,6 +187,7 @@ function seedState() {
   const clientes = (seed.clientes || []).map((cliente) => ({
     documento: cliente["CPF/CNPJ"] || "",
     nome: cliente.NOME || "",
+    status: cliente.STATUS || "ATIVO",
     telefone: cliente.CELULAR || cliente.TELEFONE || "",
     email: cliente["E-MAIL"] || "",
     uf: cliente.UF || "",
@@ -250,6 +251,7 @@ function normalizeState(value) {
   return {
     clientes: Array.isArray(value?.clientes) ? value.clientes.map((cliente) => ({
       ...cliente,
+      status: normalizeClienteStatus(cliente.status),
       cidade: normalizeCidade(cliente.cidade),
     })) : [],
     servicos: Array.isArray(value?.servicos) ? value.servicos : [],
@@ -591,6 +593,10 @@ function normalizeOrcamentoStatus(status) {
   if (clean.includes("APROV")) return "APROVADO";
   if (clean.includes("ANLISE") || clean.includes("ANALISE") || clean.includes("AN")) return "EM ANÁLISE";
   return raw;
+}
+
+function normalizeClienteStatus(status) {
+  return String(status || "ATIVO").trim().toUpperCase() === "INATIVO" ? "INATIVO" : "ATIVO";
 }
 
 function normalizeCidade(cidade) {
@@ -1589,6 +1595,7 @@ function renderClientes() {
           <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">CPF do responsável<input name="responsavelCpf" value="${fieldValue(editingCliente.responsavelCpf)}"${showCnpjFields ? " required" : ""}></label>
           <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Responsável<input name="responsavelNome" value="${fieldValue(editingCliente.responsavelNome)}"${showCnpjFields ? " required" : ""}></label>
           <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Situação CNPJ<input class="${cnpjStatusClass(editingCliente.situacaoCnpj)}" name="situacaoCnpj" readonly value="${fieldValue(editingCliente.situacaoCnpj)}"></label>
+          <label>Status<select name="status">${options(["ATIVO", "INATIVO"], normalizeClienteStatus(editingCliente.status))}</select></label>
           <label>Celular<input name="telefone" value="${fieldValue(editingCliente.telefone)}"></label>
           <label>E-mail<input name="email" type="email" value="${fieldValue(editingCliente.email)}"></label>
           <label>CEP<input name="cep" value="${fieldValue(editingCliente.cep)}"></label>
@@ -1635,14 +1642,14 @@ function renderClientes() {
 function renderClienteList() {
   const search = document.getElementById("cliente-search")?.value.toLowerCase() || "";
   const clientes = state.clientes.filter((cliente) => {
-    return `${cliente.documento} ${cliente.nome} ${cliente.cidade}`.toLowerCase().includes(search);
+    return `${cliente.documento} ${cliente.nome} ${cliente.cidade} ${normalizeClienteStatus(cliente.status)}`.toLowerCase().includes(search);
   });
 
   document.getElementById("cliente-list").innerHTML = clientes.length
     ? `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Documento</th><th>Nome</th><th>Contato</th><th>Cidade</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Documento</th><th>Nome</th><th>Contato</th><th>Cidade</th><th>Status</th><th>Ações</th></tr></thead>
           <tbody>
             ${clientes.map((cliente) => `
               <tr class="clickable-row" data-open-cliente="${escapeHtml(cliente.documento)}">
@@ -1650,10 +1657,11 @@ function renderClienteList() {
                 <td><strong>${escapeHtml(cliente.nome)}</strong><br><span class="muted">${escapeHtml(cliente.email)}</span></td>
                 <td>${escapeHtml(cliente.telefone)}</td>
                 <td>${escapeHtml(cliente.cidade)} ${escapeHtml(cliente.uf)}</td>
+                <td><span class="badge ${normalizeClienteStatus(cliente.status) === "INATIVO" ? "danger" : ""}">${escapeHtml(normalizeClienteStatus(cliente.status))}</span></td>
                 <td>${canEditModule("clientes") || canDeleteFromModule("clientes") ? `
                   <div class="row-actions">
                     ${canEditModule("clientes") ? `<button class="small-button" data-edit-cliente="${escapeHtml(cliente.documento)}">Alterar</button>` : ""}
-                    ${canDeleteFromModule("clientes") ? `<button class="small-button danger-text" data-delete-cliente="${escapeHtml(cliente.documento)}">Excluir</button>` : ""}
+                    ${canDeleteFromModule("clientes") ? `<button class="small-button danger-text" data-delete-cliente="${escapeHtml(cliente.documento)}">${clienteHasBudgets(cliente.documento) ? "Inativar" : "Excluir"}</button>` : ""}
                   </div>
                 ` : ""}</td>
               </tr>
@@ -1683,6 +1691,7 @@ function addCliente(event) {
   if (!form.reportValidity()) return;
 
   const data = Object.fromEntries(new FormData(form));
+  data.status = normalizeClienteStatus(data.status);
   data.cidade = normalizeCidade(data.cidade);
   const oldClienteDocumento = editingClienteDocumento;
   if (!isValidCpfCnpj(data.documento)) {
@@ -1941,6 +1950,7 @@ function fillClienteForm(form, cliente) {
   form.elements.nomeFantasia.value = cliente.nomeFantasia || "";
   form.elements.situacaoCnpj.value = cliente.situacaoCnpj || "";
   form.elements.situacaoCnpj.className = cnpjStatusClass(cliente.situacaoCnpj);
+  form.elements.status.value = normalizeClienteStatus(cliente.status);
   form.elements.responsavelNome.value = cliente.responsavelNome || "";
   form.elements.responsavelCpf.value = cliente.responsavelCpf || "";
   form.elements.telefone.value = cliente.telefone || "";
@@ -2174,14 +2184,30 @@ function editCliente(documento) {
   setView("clientes");
 }
 
+function clienteHasBudgets(documento) {
+  return state.orcamentos.some((orcamento) => orcamento.clienteDocumento === documento);
+}
+
 function deleteCliente(documento) {
   if (!canDeleteFromModule("clientes") || !canManageData()) {
     showNoPermissionMessage();
     return;
   }
-  const hasBudgets = state.orcamentos.some((orcamento) => orcamento.clienteDocumento === documento);
+  const hasBudgets = clienteHasBudgets(documento);
   if (hasBudgets) {
-    alert("Não é possível excluir este cliente porque ele possui orçamentos cadastrados.");
+    const cliente = state.clientes.find((item) => item.documento === documento);
+    if (!cliente) return;
+    if (normalizeClienteStatus(cliente.status) === "INATIVO") {
+      alert("Este cliente já está inativo.");
+      return;
+    }
+    if (!confirm("Este cliente possui orçamentos cadastrados e será marcado como INATIVO. Confirmar?")) return;
+    state.clientes = state.clientes.map((item) => (
+      item.documento === documento ? { ...item, status: "INATIVO" } : item
+    ));
+    if (editingClienteDocumento === documento) editingClienteDocumento = null;
+    saveState({ acao: "cliente.inativar", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
+    render();
     return;
   }
   if (!confirm("Excluir este cliente?")) return;

@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v207";
+const serverVersion = "v208";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -160,11 +160,18 @@ function readBody(request) {
 
 function normalizeAppState(state) {
   return {
-    clientes: Array.isArray(state?.clientes) ? state.clientes : [],
+    clientes: Array.isArray(state?.clientes) ? state.clientes.map((cliente) => ({
+      ...cliente,
+      status: normalizeClienteStatus(cliente.status),
+    })) : [],
     servicos: Array.isArray(state?.servicos) ? state.servicos : [],
     orcamentos: Array.isArray(state?.orcamentos) ? state.orcamentos : [],
     responsaveis: Array.isArray(state?.responsaveis) ? state.responsaveis : [],
   };
+}
+
+function normalizeClienteStatus(status) {
+  return String(status || "ATIVO").trim().toUpperCase() === "INATIVO" ? "INATIVO" : "ATIVO";
 }
 
 async function createPostgresPool() {
@@ -365,6 +372,7 @@ function publicUser(user) {
 
 async function ensureAuthSchema() {
   if (postgresPool) {
+    await postgresPool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ATIVO'");
     await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''");
     await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_trocar_senha BOOLEAN NOT NULL DEFAULT FALSE");
     await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permissoes JSONB");
@@ -862,7 +870,7 @@ function validateUniqueBudgetServices(state) {
 
 async function readRelationalAppState() {
   const clientsResult = await postgresPool.query(`
-    SELECT documento, nome, telefone, email, cep, bairro, endereco, numero, complemento,
+    SELECT documento, nome, status, telefone, email, cep, bairro, endereco, numero, complemento,
            uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj
     FROM clientes
     ORDER BY nome, documento
@@ -919,6 +927,7 @@ async function readRelationalAppState() {
       return {
         documento: row.documento,
         nome: row.nome,
+        status: row.status || "ATIVO",
         telefone: row.telefone,
         email: row.email,
         cep: row.cep,
@@ -970,15 +979,16 @@ async function writeRelationalAppState(state) {
     for (const cliente of state.clientes) {
       await client.query(`
         INSERT INTO clientes (
-          documento, nome, telefone, email, cep, bairro, endereco, numero, complemento,
+          documento, nome, status, telefone, email, cep, bairro, endereco, numero, complemento,
           uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9,
-          $10, $11, $12, $13, $14, $15
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+          $11, $12, $13, $14, $15, $16
         )
       `, [
         requiredText(cliente.documento, "documento do cliente"),
         requiredText(cliente.nome || cliente.razaoSocial || cliente.nomeFantasia, "nome do cliente"),
+        dbText(cliente.status || "ATIVO"),
         dbText(cliente.telefone),
         dbText(cliente.email),
         dbText(cliente.cep),

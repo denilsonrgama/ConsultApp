@@ -2238,6 +2238,10 @@ th {
     content: "Cidade";
   }
 
+  .clientes-list-panel tbody td:nth-child(5)::before {
+    content: "Status";
+  }
+
   .servicos-list-panel tbody td:nth-child(1)::before {
     content: "Código";
   }
