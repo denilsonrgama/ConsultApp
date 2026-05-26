@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v199";
+const serverVersion = "v200";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1828,28 +1828,46 @@ createServer(async (request, response) => {
     try {
       const payload = JSON.parse(await readBody(request));
       const permission = String(payload.permission || "");
-      if (permission && !hasPermission(user, permission)) {
-        await logAudit(request, user, {
-          acao: "auth.confirmar_senha.negado",
-          modulo: "seguranca",
-          entidadeTipo: "usuario",
-          entidadeId: user.usuario,
-          detalhes: { permissao: permission },
-        }).catch(() => {});
-        sendJson(response, 403, { ok: false, error: "UsuÃ¡rio sem permissÃ£o para esta confirmaÃ§Ã£o." });
-        return;
-      }
+      const requireAdmin = payload.requireAdmin === true;
+      const authorizer = String(payload.usuario || "").trim()
+        ? await findUserByLogin(String(payload.usuario || ""))
+        : await findUserByLogin(user.usuario);
+      const authorizerActive = postgresPool ? authorizer?.ativo === true : Number(authorizer?.ativo || 0) === 1;
+      const authorizerPerfil = String(authorizer?.perfil || "").toUpperCase();
 
-      const fullUser = await findUserByLogin(user.usuario);
-      if (!fullUser || !verifyPassword(payload.senha || "", fullUser.senha_hash)) {
+      if (!authorizer || !authorizerActive || !verifyPassword(payload.senha || "", authorizer.senha_hash)) {
         await logAudit(request, user, {
           acao: "auth.confirmar_senha.falha",
           modulo: "seguranca",
           entidadeTipo: "usuario",
           entidadeId: user.usuario,
-          detalhes: { permissao: permission },
+          detalhes: { permissao: permission, autorizador: String(payload.usuario || "") },
         }).catch(() => {});
-        sendJson(response, 401, { ok: false, error: "Senha invÃ¡lida." });
+        sendJson(response, 401, { ok: false, error: "Credenciais invÃ¡lidas." });
+        return;
+      }
+
+      if (requireAdmin && authorizerPerfil !== "ADMIN") {
+        await logAudit(request, user, {
+          acao: "auth.confirmar_senha.negado",
+          modulo: "seguranca",
+          entidadeTipo: "usuario",
+          entidadeId: user.usuario,
+          detalhes: { permissao: permission, autorizador: authorizer.usuario, motivo: "autorizador_nao_admin" },
+        }).catch(() => {});
+        sendJson(response, 403, { ok: false, error: "Somente um administrador pode autorizar esta alteraÃ§Ã£o." });
+        return;
+      }
+
+      if (permission && !hasPermission(authorizer, permission)) {
+        await logAudit(request, user, {
+          acao: "auth.confirmar_senha.negado",
+          modulo: "seguranca",
+          entidadeTipo: "usuario",
+          entidadeId: user.usuario,
+          detalhes: { permissao: permission, autorizador: authorizer.usuario, motivo: "sem_permissao" },
+        }).catch(() => {});
+        sendJson(response, 403, { ok: false, error: "Administrador sem permissÃ£o para esta confirmaÃ§Ã£o." });
         return;
       }
 
@@ -1858,9 +1876,16 @@ createServer(async (request, response) => {
         modulo: "seguranca",
         entidadeTipo: "usuario",
         entidadeId: user.usuario,
-        detalhes: { permissao: permission },
+        detalhes: { permissao: permission, autorizador: authorizer.usuario, autorizadorNome: authorizer.nome },
       }).catch(() => {});
-      sendJson(response, 200, { ok: true });
+      sendJson(response, 200, {
+        ok: true,
+        approver: {
+          usuario: authorizer.usuario,
+          nome: authorizer.nome,
+          perfil: authorizer.perfil,
+        },
+      });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: error.message });
     }

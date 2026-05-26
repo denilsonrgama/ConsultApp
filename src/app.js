@@ -2573,12 +2573,8 @@ async function addOrcamento(event) {
       showFloatingMessage("Orçamento aprovado bloqueado. Nenhuma alteração de status foi feita.");
       return;
     }
-    if (!hasPermission("orcamentos.status")) {
-      showNoPermissionMessage();
-      return;
-    }
-    const confirmed = await confirmApprovedBudgetStatusChange(currentOrcamento, newStatus);
-    if (!confirmed) return;
+    const authorization = await confirmApprovedBudgetStatusChange(currentOrcamento, newStatus);
+    if (!authorization) return;
     const payload = { ...currentOrcamento, status: newStatus };
     state.orcamentos = state.orcamentos.map((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero) ? payload : orcamento);
     editingOrcamentoNumero = null;
@@ -2588,7 +2584,12 @@ async function addOrcamento(event) {
       modulo: "orcamentos",
       entidadeTipo: "orcamento",
       entidadeId: String(numero),
-      detalhes: { statusAnterior: currentOrcamento.status, statusNovo: newStatus },
+      detalhes: {
+        statusAnterior: currentOrcamento.status,
+        statusNovo: newStatus,
+        administradorAutorizador: authorization.approverUsuario || currentUser?.usuario || "",
+        administradorNome: authorization.approverNome || currentUser?.nome || "",
+      },
     });
     render();
     return;
@@ -2955,7 +2956,7 @@ async function sendBudgetEmail(payload) {
   }
 }
 
-function askPasswordConfirmation(title, message) {
+function askAdminAuthorization(title, message) {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "choice-modal";
@@ -2963,8 +2964,11 @@ function askPasswordConfirmation(title, message) {
       <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
         <h2 id="password-confirm-title">${escapeHtml(title)}</h2>
         <p>${escapeHtml(message)}</p>
-        <label>Senha do usuário atual
-          <input id="password-confirm-input" type="password" autocomplete="current-password" required>
+        <label>Login ou e-mail do administrador
+          <input id="admin-confirm-user" autocomplete="username" required>
+        </label>
+        <label>Senha do administrador
+          <input id="admin-confirm-password" type="password" autocomplete="current-password" required>
         </label>
         <div class="choice-actions">
           <button type="button" class="primary-button" data-choice="confirm">Confirmar</button>
@@ -2973,9 +2977,10 @@ function askPasswordConfirmation(title, message) {
       </div>
     `;
 
-    const input = overlay.querySelector("#password-confirm-input");
+    const userInput = overlay.querySelector("#admin-confirm-user");
+    const passwordInput = overlay.querySelector("#admin-confirm-password");
     const handleKeydown = (event) => {
-      if (event.key === "Escape") close("");
+      if (event.key === "Escape") close(null);
       if (event.key === "Enter") {
         event.preventDefault();
         submit();
@@ -2987,42 +2992,57 @@ function askPasswordConfirmation(title, message) {
       resolve(value);
     };
     const submit = () => {
-      if (!input.reportValidity()) return;
-      close(input.value);
+      if (!userInput.reportValidity() || !passwordInput.reportValidity()) return;
+      close({ usuario: userInput.value.trim(), senha: passwordInput.value });
     };
 
     overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) close("");
+      if (event.target === overlay) close(null);
     });
     overlay.querySelector('[data-choice="confirm"]').addEventListener("click", submit);
-    overlay.querySelector('[data-choice="cancel"]').addEventListener("click", () => close(""));
+    overlay.querySelector('[data-choice="cancel"]').addEventListener("click", () => close(null));
     document.addEventListener("keydown", handleKeydown);
     document.body.append(overlay);
-    input.focus();
+    userInput.focus();
   });
 }
 
 async function confirmApprovedBudgetStatusChange(orcamento, newStatus) {
-  const senha = await askPasswordConfirmation(
+  if (userProfile().toUpperCase() === "ADMIN") {
+    return {
+      approverUsuario: currentUser?.usuario || "",
+      approverNome: currentUser?.nome || "",
+    };
+  }
+
+  const credentials = await askAdminAuthorization(
     "Confirmar alteração de status",
-    `Informe sua senha para alterar o orçamento aprovado Nº ${orcamento.numero} para ${newStatus}.`,
+    `Informe as credenciais de um administrador para alterar o orçamento aprovado Nº ${orcamento.numero} para ${newStatus}.`,
   );
-  if (!senha) return false;
+  if (!credentials) return null;
 
   try {
     const response = await fetch("/api/auth/confirm-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ senha, permission: "orcamentos.status" }),
+      body: JSON.stringify({
+        usuario: credentials.usuario,
+        senha: credentials.senha,
+        permission: "orcamentos.status",
+        requireAdmin: true,
+      }),
     });
     const result = await response.json();
     if (!response.ok || !result.ok) {
       throw new Error(result.error || "Senha não confirmada.");
     }
-    return true;
+    return {
+      approverUsuario: result.approver?.usuario || credentials.usuario,
+      approverNome: result.approver?.nome || "",
+    };
   } catch (error) {
     alert(error.message || "Não foi possível confirmar a senha.");
-    return false;
+    return null;
   }
 }
 
