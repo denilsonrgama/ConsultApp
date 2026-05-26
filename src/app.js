@@ -17,6 +17,12 @@ let usuarios = [];
 let auditoriaLogs = [];
 let arquivos = [];
 const cnpjLookupCache = new Map();
+let reportFilters = {
+  dataInicio: "",
+  dataFim: "",
+  status: "",
+  clienteStatus: "ATIVO",
+};
 let editingUsuarioId = null;
 let explicitLogout = false;
 
@@ -1012,11 +1018,11 @@ function renderFinanceiro() {
 }
 
 function renderRelatorios() {
-  const statisticalBudgets = orcamentosEstatisticos();
-  const approvedBudgets = orcamentosAprovados();
-  const totalStatistical = statisticalBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
+  const filteredBudgets = filteredReportBudgets();
+  const approvedBudgets = filteredBudgets.filter(isOrcamentoAprovado);
+  const totalFiltered = filteredBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
   const totalApproved = approvedBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
-  const averageTicket = statisticalBudgets.length ? totalStatistical / statisticalBudgets.length : 0;
+  const averageTicket = filteredBudgets.length ? totalFiltered / filteredBudgets.length : 0;
 
   document.getElementById("relatorios-view").innerHTML = `
     ${pageBanner()}
@@ -1027,6 +1033,27 @@ function renderRelatorios() {
           <p>Gere relatórios consolidados para acompanhar vendas, clientes e serviços.</p>
         </div>
       </div>
+      <form class="report-filter-grid" id="report-filter-form">
+        <label>Data inicial<input type="date" name="dataInicio" value="${fieldValue(reportFilters.dataInicio)}"></label>
+        <label>Data final<input type="date" name="dataFim" value="${fieldValue(reportFilters.dataFim)}"></label>
+        <label>Status do orçamento
+          <select name="status">
+            <option value=""${selectedAttr(reportFilters.status, "")}>Todos</option>
+            ${options(["EM ANÁLISE", "APROVADO", "REPROVADO"], reportFilters.status)}
+          </select>
+        </label>
+        <label>Status do cliente
+          <select name="clienteStatus">
+            <option value="ATIVO"${selectedAttr(reportFilters.clienteStatus, "ATIVO")}>Ativos</option>
+            <option value="INATIVO"${selectedAttr(reportFilters.clienteStatus, "INATIVO")}>Inativos</option>
+            <option value="TODOS"${selectedAttr(reportFilters.clienteStatus, "TODOS")}>Todos</option>
+          </select>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary-button">Filtrar</button>
+          <button type="button" class="ghost-button" id="clear-report-filters">Limpar</button>
+        </div>
+      </form>
       ${canExportReports() ? `
         <div class="report-export-actions">
           <button type="button" class="primary-button" data-export-report="vendas">Vendas</button>
@@ -1036,31 +1063,65 @@ function renderRelatorios() {
       ` : '<p class="muted">Acesso somente leitura. Exportação disponível apenas para perfis autorizados.</p>'}
     </section>
     <div class="stats-grid report-stats-grid">
-      ${stat("Orçamentos considerados", statisticalBudgets.length)}
-      ${stat("Valor considerado", currency.format(totalStatistical))}
+      ${stat("Orçamentos filtrados", filteredBudgets.length)}
+      ${stat("Valor filtrado", currency.format(totalFiltered))}
       ${stat("Valor aprovado", currency.format(totalApproved))}
       ${stat("Ticket médio", currency.format(averageTicket))}
     </div>
     <section class="dashboard-charts">
-      ${pieChart("Orçamentos por status", orcamentosPorStatus())}
-      ${barChart("Maiores clientes", topClientesPorValor())}
-      ${barChart("Serviços por valor", servicosPorValor())}
+      ${pieChart("Orçamentos por status", orcamentosPorStatus({ budgets: filteredBudgets }))}
+      ${barChart("Maiores clientes", topClientesPorValor(filteredBudgets))}
+      ${barChart("Serviços por valor", servicosPorValor(filteredBudgets))}
     </section>
     <section class="reports-grid">
       <article class="panel report-panel">
         <div class="toolbar"><h2>Resumo por status</h2></div>
-        ${statusReportTable()}
+        ${statusReportTable(filteredBudgets)}
       </article>
       <article class="panel report-panel">
         <div class="toolbar"><h2>Maiores clientes</h2></div>
-        ${chartDataTable(topClientesPorValor(), "Cliente")}
+        ${chartDataTable(topClientesPorValor(filteredBudgets), "Cliente")}
       </article>
       <article class="panel report-panel">
         <div class="toolbar"><h2>Serviços mais relevantes</h2></div>
-        ${chartDataTable(servicosPorValor(), "Serviço")}
+        ${chartDataTable(servicosPorValor(filteredBudgets), "Serviço")}
       </article>
     </section>
   `;
+
+  document.getElementById("report-filter-form")?.addEventListener("submit", handleReportFilterSubmit);
+  document.getElementById("clear-report-filters")?.addEventListener("click", clearReportFilters);
+}
+
+function handleReportFilterSubmit(event) {
+  event.preventDefault();
+  reportFilters = Object.fromEntries(new FormData(event.currentTarget));
+  renderRelatorios();
+  renderSidebarPanel();
+}
+
+function clearReportFilters() {
+  reportFilters = {
+    dataInicio: "",
+    dataFim: "",
+    status: "",
+    clienteStatus: "ATIVO",
+  };
+  renderRelatorios();
+  renderSidebarPanel();
+}
+
+function filteredReportBudgets() {
+  return state.orcamentos.filter((orcamento) => {
+    const clienteAtivo = isOrcamentoClienteAtivo(orcamento);
+    if (reportFilters.clienteStatus === "ATIVO" && !clienteAtivo) return false;
+    if (reportFilters.clienteStatus === "INATIVO" && clienteAtivo) return false;
+
+    if (reportFilters.status && normalizeOrcamentoStatus(orcamento.status) !== reportFilters.status) return false;
+    if (reportFilters.dataInicio && String(orcamento.data || "") < reportFilters.dataInicio) return false;
+    if (reportFilters.dataFim && String(orcamento.data || "") > reportFilters.dataFim) return false;
+    return true;
+  });
 }
 
 async function loadArquivos() {
@@ -1450,17 +1511,17 @@ function pageBanner() {
   `;
 }
 
-function topClientesPorValor() {
+function topClientesPorValor(budgets = orcamentosEstatisticos()) {
   const totals = new Map();
-  orcamentosEstatisticos().forEach((orcamento) => {
+  budgets.forEach((orcamento) => {
     const label = clienteNome(orcamento.clienteDocumento);
     totals.set(label, (totals.get(label) || 0) + totalOrcamento(orcamento));
   });
   return sortedChartData(totals, 5);
 }
 
-function orcamentosPorValor() {
-  return orcamentosEstatisticos()
+function orcamentosPorValor(budgets = orcamentosEstatisticos()) {
+  return budgets
     .slice()
     .reverse()
     .slice(0, 8)
@@ -1471,9 +1532,9 @@ function orcamentosPorValor() {
     .filter((item) => item.value > 0);
 }
 
-function servicosPorValor() {
+function servicosPorValor(budgets = orcamentosEstatisticos()) {
   const totals = new Map();
-  orcamentosEstatisticos().forEach((orcamento) => {
+  budgets.forEach((orcamento) => {
     (orcamento.itens || []).forEach((item) => {
       const value = Number(item.quantidade || 0) * Number(item.valorUnitario || 0) - Number(item.desconto || 0);
       const label = servicoNome(item.servicoCodigo);
@@ -1484,9 +1545,9 @@ function servicosPorValor() {
 }
 
 function orcamentosPorStatus(options = {}) {
-  const budgets = options.includeRejected
+  const budgets = options.budgets || (options.includeRejected
     ? state.orcamentos.filter(isOrcamentoClienteAtivo)
-    : orcamentosEstatisticos();
+    : orcamentosEstatisticos());
   const totals = new Map();
   budgets.forEach((orcamento) => {
     const label = normalizeOrcamentoStatus(orcamento.status || "Sem status");
@@ -3043,8 +3104,8 @@ function financeiroTable(budgets) {
     </div>`;
 }
 
-function statusReportTable() {
-  const rows = orcamentosPorStatus({ includeRejected: true });
+function statusReportTable(budgets = state.orcamentos.filter(isOrcamentoClienteAtivo)) {
+  const rows = orcamentosPorStatus({ budgets });
   if (!rows.length) return emptyState();
   return chartDataTable(rows, "Status");
 }

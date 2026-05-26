@@ -1352,6 +1352,18 @@ th {
   gap: 10px;
 }
 
+.report-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.report-filter-grid .form-actions {
+  align-self: end;
+  flex-wrap: nowrap;
+}
+
 .permissions-panel {
   border-top: 1px solid #dbe6e9;
   display: grid;
@@ -1458,6 +1470,7 @@ th {
   .stats-grid,
   .dashboard-charts,
   .reports-grid,
+  .report-filter-grid,
   .clientes-layout,
   .cliente-form-grid,
   .servicos-layout,
