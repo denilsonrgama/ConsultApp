@@ -2317,8 +2317,11 @@ th {
   }
 
   .audit-table-wrap {
-    max-height: none;
+    max-height: min(54svh, 520px);
     overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
   }
 
   .audit-table-wrap table {
@@ -2408,6 +2411,17 @@ th {
     overflow: auto;
     font-size: 0.68rem;
     white-space: pre-wrap;
+  }
+
+  .audit-pagination {
+    gap: 7px;
+    padding-top: 7px;
+  }
+
+  .audit-pagination .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .dashboard-banner img {
@@ -2996,6 +3010,202 @@ th {
   .content {
     width: 100%;
     padding: 8px 10px 22px;
+  }
+
+  .auditoria-panel {
+    gap: 8px;
+  }
+
+  .auditoria-panel .toolbar p {
+    margin: 2px 0 0;
+    font-size: 0.74rem;
+    line-height: 1.2;
+  }
+
+  .audit-filters {
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .audit-filters summary {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    list-style: none;
+    color: #165a72;
+    font-weight: 800;
+  }
+
+  .audit-filters summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .audit-filters summary::after {
+    content: "Abrir";
+    font-size: 0.72rem;
+  }
+
+  .audit-filters[open] summary::after {
+    content: "Fechar";
+  }
+
+  .audit-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 8px;
+  }
+
+  .audit-filter-grid label {
+    min-width: 0;
+    font-size: 0.7rem;
+  }
+
+  .audit-filter-grid input,
+  .audit-filter-grid select {
+    min-height: 34px;
+    padding: 0 8px;
+  }
+
+  .audit-filter-grid .form-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .audit-maintenance {
+    padding: 8px;
+  }
+
+  .audit-maintenance small {
+    font-size: 0.7rem;
+  }
+
+  .audit-maintenance-body {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 8px;
+  }
+
+  .audit-maintenance-body label {
+    min-width: 0;
+  }
+
+  .audit-maintenance button {
+    min-height: 34px;
+    padding-inline: 8px;
+  }
+
+  .audit-table-wrap {
+    max-height: min(46svh, 260px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+  }
+
+  .audit-table-wrap table {
+    display: block;
+    min-width: 0;
+    table-layout: auto;
+    font-size: 0.76rem;
+  }
+
+  .audit-table-wrap thead {
+    display: none;
+  }
+
+  .audit-table-wrap tbody {
+    display: grid;
+    gap: 7px;
+  }
+
+  .audit-table-wrap tbody tr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .audit-table-wrap tbody td {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.74rem;
+  }
+
+  .audit-table-wrap tbody td::before {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 0.56rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .audit-table-wrap tbody td:nth-child(1)::before {
+    content: "Data";
+  }
+
+  .audit-table-wrap tbody td:nth-child(2)::before {
+    content: "Usuario";
+  }
+
+  .audit-table-wrap tbody td:nth-child(3)::before {
+    content: "Perfil";
+  }
+
+  .audit-table-wrap tbody td:nth-child(4)::before {
+    content: "Acao";
+  }
+
+  .audit-table-wrap tbody td:nth-child(5)::before {
+    content: "Modulo";
+  }
+
+  .audit-table-wrap tbody td:nth-child(6)::before {
+    content: "Item";
+  }
+
+  .audit-table-wrap tbody td:nth-child(7)::before {
+    content: "Detalhes";
+  }
+
+  .audit-table-wrap tbody td:nth-child(8)::before {
+    content: "IP";
+  }
+
+  .audit-table-wrap tbody td:nth-child(4),
+  .audit-table-wrap tbody td:nth-child(7),
+  .audit-table-wrap tbody td:nth-child(8) {
+    grid-column: span 2;
+  }
+
+  .audit-table-wrap code {
+    display: block;
+    max-height: 56px;
+    overflow: auto;
+    font-size: 0.66rem;
+    white-space: pre-wrap;
+  }
+
+  .audit-pagination {
+    gap: 7px;
+    padding-top: 7px;
+  }
+
+  .audit-pagination .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .clientes-layout,

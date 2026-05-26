@@ -1359,7 +1359,8 @@ function renderAuditoria() {
   const view = document.getElementById("auditoria-view");
   if (!view || !hasPermission("auditoria.view")) return;
   const filters = auditoriaFilters;
-  const filtersOpen = window.innerWidth > 640 || hasActiveAuditFilters(filters) ? " open" : "";
+  const compactAuditView = window.innerWidth <= 640 || window.innerHeight <= 500;
+  const filtersOpen = !compactAuditView || hasActiveAuditFilters(filters) ? " open" : "";
   view.innerHTML = `
     ${pageBanner()}
     <section class="panel auditoria-panel">
