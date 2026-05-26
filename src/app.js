@@ -21,6 +21,9 @@ const tableSorts = {
   orcamentos: { key: "", direction: "asc" },
   clientes: { key: "", direction: "asc" },
   servicos: { key: "", direction: "asc" },
+  arquivos: { key: "", direction: "asc" },
+  usuarios: { key: "", direction: "asc" },
+  financeiro: { key: "numero", direction: "desc" },
 };
 let reportFilters = {
   dataInicio: "",
@@ -1245,12 +1248,24 @@ async function refreshArquivos() {
 
 function arquivosTable(files) {
   const canDeleteFiles = hasPermission("arquivos.delete") && canManageData();
+  const sortedFiles = applyTableSort("arquivos", files.slice(), {
+    nome: (file) => file.nome || "",
+    categoria: (file) => file.categoria === "orcamentos" ? "Orçamento" : "Relatório",
+    tamanho: (file) => Number(file.tamanho || 0),
+    atualizado: (file) => file.updatedAt || file.createdAt || "",
+  });
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Arquivo</th><th>Origem</th><th>Tamanho</th><th>Atualizado em</th><th>Ações</th></tr></thead>
+        <thead><tr>
+          ${sortableTableHeader("arquivos", "nome", "Arquivo")}
+          ${sortableTableHeader("arquivos", "categoria", "Origem")}
+          ${sortableTableHeader("arquivos", "tamanho", "Tamanho")}
+          ${sortableTableHeader("arquivos", "atualizado", "Atualizado em")}
+          <th>Ações</th>
+        </tr></thead>
         <tbody>
-          ${files.map((file) => `
+          ${sortedFiles.map((file) => `
             <tr>
               <td><strong>${escapeHtml(file.nome)}</strong></td>
               <td>${escapeHtml(file.categoria === "orcamentos" ? "Orçamento" : "Relatório")}</td>
@@ -1407,6 +1422,13 @@ function renderUsuarios() {
   const editable = hasPermission("usuarios.create") || hasPermission("usuarios.edit");
   const view = document.getElementById("usuarios-view");
   if (!view || !canManageUsers()) return;
+  const sortedUsuarios = applyTableSort("usuarios", usuarios.slice(), {
+    usuario: (usuario) => usuario.usuario || "",
+    nome: (usuario) => usuario.nome || "",
+    email: (usuario) => usuario.email || "",
+    perfil: (usuario) => usuario.perfil || "",
+    status: (usuario) => usuario.ativo ? "ATIVO" : "INATIVO",
+  });
 
   view.innerHTML = `
     ${pageBanner()}
@@ -1416,9 +1438,16 @@ function renderUsuarios() {
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Usuário</th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
+          <thead><tr>
+            ${sortableTableHeader("usuarios", "usuario", "Usuário")}
+            ${sortableTableHeader("usuarios", "nome", "Nome")}
+            ${sortableTableHeader("usuarios", "email", "E-mail")}
+            ${sortableTableHeader("usuarios", "perfil", "Perfil")}
+            ${sortableTableHeader("usuarios", "status", "Status")}
+            <th>Ações</th>
+          </tr></thead>
           <tbody>
-            ${usuarios.map((usuario) => `
+            ${sortedUsuarios.map((usuario) => `
               <tr class="clickable-row ${Number(editingUsuarioId) === Number(usuario.id) ? "is-selected" : ""}" data-open-usuario="${escapeHtml(usuario.id)}">
                 <td><strong>${escapeHtml(usuario.usuario)}</strong></td>
                 <td>${escapeHtml(usuario.nome)}</td>
@@ -3235,11 +3264,23 @@ function renderOrcamentoList() {
 
 function financeiroTable(budgets) {
   if (!budgets.length) return emptyState();
-  const orderedBudgets = budgets.slice().sort((a, b) => Number(b.numero || 0) - Number(a.numero || 0));
+  const orderedBudgets = applyTableSort("financeiro", budgets.slice(), {
+    numero: (orcamento) => Number(orcamento.numero || 0),
+    cliente: (orcamento) => clienteNome(orcamento.clienteDocumento),
+    data: (orcamento) => orcamento.data || "",
+    status: (orcamento) => normalizeOrcamentoStatus(orcamento.status),
+    total: (orcamento) => totalOrcamento(orcamento),
+  });
   return `
     <div class="table-wrap">
       <table class="budget-table">
-        <thead><tr><th>N&uacute;mero</th><th>Cliente</th><th>Data</th><th>Status</th><th>Total</th></tr></thead>
+        <thead><tr>
+          ${sortableTableHeader("financeiro", "numero", "Número")}
+          ${sortableTableHeader("financeiro", "cliente", "Cliente")}
+          ${sortableTableHeader("financeiro", "data", "Data")}
+          ${sortableTableHeader("financeiro", "status", "Status")}
+          ${sortableTableHeader("financeiro", "total", "Total")}
+        </tr></thead>
         <tbody>
           ${orderedBudgets.map((orcamento) => `
             <tr class="clickable-row" data-open-orcamento="${escapeHtml(orcamento.numero)}">
@@ -4425,6 +4466,12 @@ function updateTableSort(list, key) {
   if (list === "orcamentos") renderOrcamentoList();
   if (list === "clientes") renderClienteList();
   if (list === "servicos") renderServicoList();
+  if (list === "arquivos") {
+    const target = document.getElementById("files-list");
+    if (target) target.innerHTML = arquivos.length ? arquivosTable(arquivos) : emptyState();
+  }
+  if (list === "usuarios") renderUsuarios();
+  if (list === "financeiro") renderFinanceiro();
 }
 
 function emptyState() {
