@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v222";
+const serverVersion = "v223";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1797,15 +1797,17 @@ async function createReportPdf(report) {
   const summary = Array.isArray(report.summary) ? report.summary : [];
   const summaryColumns = Math.max(1, Math.min(summary.length || 1, doc.page.layout === "landscape" ? 6 : 3));
   const summaryWidth = contentWidth() / summaryColumns;
+  const summaryStartY = doc.y;
   summary.forEach((item, index) => {
-    if (index > 0 && index % summaryColumns === 0) doc.y += 50;
-    const x = doc.page.margins.left + (index % summaryColumns) * summaryWidth;
-    const yBox = doc.y;
+    const row = Math.floor(index / summaryColumns);
+    const column = index % summaryColumns;
+    const x = doc.page.margins.left + column * summaryWidth;
+    const yBox = summaryStartY + row * 50;
     doc.roundedRect(x, yBox, summaryWidth - 8, 42, 3).strokeColor("#d4e1e5").lineWidth(0.8).stroke();
     doc.font("Helvetica").fontSize(7).fillColor("#52656c").text(normalizePdfText(String(item.label || "").toUpperCase()), x + 7, yBox + 8, { width: summaryWidth - 22, height: 10, ellipsis: true });
     doc.font("Helvetica-Bold").fontSize(11).fillColor("#152f38").text(normalizePdfText(item.value || ""), x + 7, yBox + 23, { width: summaryWidth - 22, height: 14, ellipsis: true });
   });
-  doc.y += Math.ceil(summary.length / summaryColumns) * 50 + 8;
+  doc.y = summaryStartY + Math.ceil(summary.length / summaryColumns) * 50 + 8;
 
   const columnWidth = contentWidth() / columns.length;
   drawTableHeader(columnWidth);
