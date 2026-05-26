@@ -599,6 +599,10 @@ function normalizeClienteStatus(status) {
   return String(status || "ATIVO").trim().toUpperCase() === "INATIVO" ? "INATIVO" : "ATIVO";
 }
 
+function isClienteAtivo(cliente) {
+  return normalizeClienteStatus(cliente?.status) === "ATIVO";
+}
+
 function normalizeCidade(cidade) {
   const raw = String(cidade || "").trim();
   const clean = raw
@@ -2215,6 +2219,7 @@ function deleteCliente(documento) {
   state.responsaveis = (state.responsaveis || []).filter((responsavel) => responsavel.clienteDocumento !== documento);
   if (editingClienteDocumento === documento) editingClienteDocumento = null;
   saveState({ acao: "cliente.excluir", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
+  showFloatingMessage("Cliente excluído.", "success");
   render();
 }
 
@@ -2514,13 +2519,14 @@ function filterBudgetClientOptions(event) {
     const responsavelMatches = (state.responsaveis || [])
       .filter((responsavel) => onlyDigits(responsavel.cpf) === digits)
       .map((responsavel) => state.clientes.find((cliente) => cliente.documento === responsavel.clienteDocumento))
-      .filter(Boolean);
+      .filter((cliente) => cliente && isClienteAtivo(cliente));
 
     clientes = responsavelMatches.length
       ? responsavelMatches
-      : state.clientes.filter((cliente) => onlyDigits(cliente.documento) === digits);
+      : state.clientes.filter((cliente) => isClienteAtivo(cliente) && onlyDigits(cliente.documento) === digits);
   } else {
     clientes = state.clientes.filter((cliente) => {
+    if (!isClienteAtivo(cliente)) return false;
     const responsavel = (state.responsaveis || []).find((item) => item.clienteDocumento === cliente.documento) || {};
     const text = normalizeSearch(`${cliente.nome} ${cliente.razaoSocial} ${cliente.nomeFantasia} ${cliente.documento} ${onlyDigits(cliente.documento)} ${cliente.responsavelNome} ${cliente.responsavelCpf} ${responsavel.nome} ${responsavel.cpf}`);
     return text.includes(search);
@@ -2558,6 +2564,10 @@ function selectBudgetClient(documento) {
   }
   const cliente = state.clientes.find((item) => item.documento === documento);
   if (!cliente) return;
+  if (!isClienteAtivo(cliente)) {
+    alert("Cliente inativo não pode ser usado em novo orçamento.");
+    return;
+  }
 
   const form = document.getElementById("orcamento-form");
   form.elements.clienteDocumento.value = cliente.documento;
@@ -2718,6 +2728,11 @@ async function addOrcamento(event) {
   ).trim();
   if (!clienteDocumento || !clienteSelecionado || !nomeClienteSelecionado) {
     alert("Selecione um cliente com nome cadastrado antes de salvar o orçamento.");
+    showBudgetClientSearch();
+    return;
+  }
+  if (!currentOrcamento && !isClienteAtivo(clienteSelecionado)) {
+    alert("Cliente inativo não pode ser usado em novo orçamento.");
     showBudgetClientSearch();
     return;
   }
