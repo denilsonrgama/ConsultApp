@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v220";
+const serverVersion = "v221";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -2415,7 +2415,15 @@ createServer(async (request, response) => {
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       const savedUrl = `/relatorios/${encodeURIComponent(fileName)}`;
-      response.end(JSON.stringify({ ok: true, fileName, path: target, url: savedUrl, publicUrl: publicFileUrl(savedUrl) }));
+      response.end(JSON.stringify({
+        ok: true,
+        fileName,
+        path: target,
+        url: savedUrl,
+        publicUrl: publicFileUrl(savedUrl),
+        mimeType: "application/pdf",
+        contentBase64: pdfBuffer.toString("base64"),
+      }));
     } catch (error) {
       response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: false, error: error.message }));

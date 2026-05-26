@@ -3704,11 +3704,14 @@ async function exportReportPdf(type) {
       throw new Error(result.error || "Não foi possível gerar o relatório.");
     }
 
-    const reportUrl = new URL(result.publicUrl || result.url, location.href);
-    reportUrl.searchParams.set("v", String(Date.now()));
+    const pdfUrl = result.contentBase64
+      ? URL.createObjectURL(base64ToBlob(result.contentBase64, result.mimeType || "application/pdf"))
+      : null;
+    const reportUrl = pdfUrl ? null : new URL(result.publicUrl || result.url, location.href);
+    if (reportUrl) reportUrl.searchParams.set("v", String(Date.now()));
     hideProcessingMessage();
     showFloatingMessage("Relatório gerado. Abrindo PDF...", "success");
-    reportWindow.location.href = reportUrl.href;
+    reportWindow.location.href = pdfUrl || reportUrl.href;
   } catch (error) {
     reportWindow.close();
     alert(error.message || "Não foi possível gerar o relatório em PDF.");
@@ -4085,6 +4088,15 @@ function blobToDataUrl(blob) {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function base64ToBlob(base64, mimeType = "application/octet-stream") {
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mimeType });
 }
 
 async function waitForPrintAreaAssets() {
