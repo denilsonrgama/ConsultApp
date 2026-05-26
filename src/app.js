@@ -235,8 +235,8 @@ function seedState() {
 
 function saveState(audit = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  if (location.protocol === "file:") return;
-  if (currentUser && !canManageData()) return;
+  if (location.protocol === "file:") return Promise.resolve({ ok: true });
+  if (currentUser && !canManageData()) return Promise.resolve({ ok: true });
 
   pendingSave = fetch("/api/data", {
     method: "POST",
@@ -245,6 +245,7 @@ function saveState(audit = {}) {
   }).catch(() => {
     showFloatingMessage("Não foi possível salvar no banco de dados. Verifique se o servidor local está rodando.");
   });
+  return pendingSave;
 }
 
 function normalizeState(value) {
@@ -2189,10 +2190,14 @@ function editCliente(documento) {
 }
 
 function clienteHasBudgets(documento) {
-  return state.orcamentos.some((orcamento) => orcamento.clienteDocumento === documento);
+  const digits = onlyDigits(documento);
+  return state.orcamentos.some((orcamento) => (
+    orcamento.clienteDocumento === documento
+      || (digits && onlyDigits(orcamento.clienteDocumento) === digits)
+  ));
 }
 
-function deleteCliente(documento) {
+async function deleteCliente(documento) {
   if (!canDeleteFromModule("clientes") || !canManageData()) {
     showNoPermissionMessage();
     return;
@@ -2210,7 +2215,8 @@ function deleteCliente(documento) {
       item.documento === documento ? { ...item, status: "INATIVO" } : item
     ));
     if (editingClienteDocumento === documento) editingClienteDocumento = null;
-    saveState({ acao: "cliente.inativar", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
+    await saveState({ acao: "cliente.inativar", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
+    showFloatingMessage("Cliente inativado.", "success");
     render();
     return;
   }
@@ -2218,7 +2224,7 @@ function deleteCliente(documento) {
   state.clientes = state.clientes.filter((cliente) => cliente.documento !== documento);
   state.responsaveis = (state.responsaveis || []).filter((responsavel) => responsavel.clienteDocumento !== documento);
   if (editingClienteDocumento === documento) editingClienteDocumento = null;
-  saveState({ acao: "cliente.excluir", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
+  await saveState({ acao: "cliente.excluir", modulo: "clientes", entidadeTipo: "cliente", entidadeId: documento });
   showFloatingMessage("Cliente excluído.", "success");
   render();
 }
@@ -3992,6 +3998,8 @@ document.body.addEventListener("click", (event) => {
 
   const deleteClienteButton = event.target.closest("[data-delete-cliente]");
   if (deleteClienteButton) {
+    event.preventDefault();
+    event.stopPropagation();
     deleteCliente(deleteClienteButton.dataset.deleteCliente);
     return;
   }
