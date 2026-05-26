@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v238";
+const serverVersion = "v239";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -120,6 +120,12 @@ if (sqliteDb) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (categoria, nome)
     );
+
+    CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao);
   `);
 }
 
@@ -291,6 +297,7 @@ const PERMISSION_KEYS = [
   "usuarios.create",
   "usuarios.edit",
   "auditoria.view",
+  "auditoria.manage",
   "data.write",
 ];
 
@@ -397,6 +404,8 @@ async function ensureAuthSchema() {
     `);
     await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at)");
     await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id)");
+    await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario)");
+    await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo)");
     await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao)");
     return;
   }
@@ -411,6 +420,14 @@ async function ensureAuthSchema() {
   if (!columns.includes("permissoes")) {
     sqliteDb.prepare("ALTER TABLE usuarios ADD COLUMN permissoes TEXT").run();
   }
+
+  sqliteDb.exec(`
+    CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo);
+    CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao);
+  `);
 }
 
 async function ensureInitialAdminUser() {
@@ -537,8 +554,16 @@ async function logAudit(request, user, audit = {}) {
   `).run(row.usuarioId, row.usuario, row.perfil, row.acao, row.modulo, row.entidadeTipo, row.entidadeId, JSON.stringify(row.detalhes), row.ip, row.userAgent);
 }
 
+function boundedNumber(value, fallback, min, max) {
+  const number = Number(value);
+  const safe = Number.isFinite(number) ? number : fallback;
+  return Math.min(Math.max(Math.floor(safe), min), max);
+}
+
 async function listAuditLogs(filters = {}) {
-  const limit = Math.min(Math.max(Number(filters.limit || 100), 10), 500);
+  const limit = boundedNumber(filters.limit, 100, 10, 500);
+  const page = boundedNumber(filters.page, 1, 1, 1000000);
+  const offset = (page - 1) * limit;
   const where = [];
   const params = [];
   const addFilter = (sql, value) => {
@@ -554,32 +579,77 @@ async function listAuditLogs(filters = {}) {
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   if (postgresPool) {
-    params.push(limit);
+    const totalResult = await postgresPool.query(`
+      SELECT COUNT(*)::int AS total
+      FROM auditoria_logs
+      ${whereSql}
+    `, params);
+    const total = Number(totalResult.rows[0]?.total || 0);
+    const queryParams = params.slice();
+    queryParams.push(limit, offset);
     const result = await postgresPool.query(`
       SELECT id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent, created_at
       FROM auditoria_logs
       ${whereSql}
       ORDER BY created_at DESC, id DESC
-      LIMIT $${params.length}
-    `, params);
-    return result.rows.map((row) => ({
+      LIMIT $${queryParams.length - 1}
+      OFFSET $${queryParams.length}
+    `, queryParams);
+    const logs = result.rows.map((row) => ({
       ...row,
       detalhes: row.detalhes || {},
       created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
     }));
+    return { logs, total, page, limit, pages: Math.max(Math.ceil(total / limit), 1) };
   }
 
-  params.push(limit);
-  return sqliteDb.prepare(`
+  const totalRow = sqliteDb.prepare(`
+    SELECT COUNT(*) AS total
+    FROM auditoria_logs
+    ${whereSql}
+  `).get(...params);
+  const total = Number(totalRow?.total || 0);
+  const logs = sqliteDb.prepare(`
     SELECT id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent, created_at
     FROM auditoria_logs
     ${whereSql}
     ORDER BY created_at DESC, id DESC
-    LIMIT ?
-  `).all(...params).map((row) => ({
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset).map((row) => ({
     ...row,
     detalhes: JSON.parse(row.detalhes || "{}"),
   }));
+  return { logs, total, page, limit, pages: Math.max(Math.ceil(total / limit), 1) };
+}
+
+function normalizeAuditRetentionDays(value) {
+  return boundedNumber(value, 365, 30, 3650);
+}
+
+function auditRetentionCutoff(days) {
+  const cutoff = new Date(Date.now() - normalizeAuditRetentionDays(days) * 24 * 60 * 60 * 1000);
+  return cutoff.toISOString().slice(0, 19).replace("T", " ");
+}
+
+async function maintainAuditLogs({ olderThanDays = 365, deleteOld = false } = {}) {
+  const days = normalizeAuditRetentionDays(olderThanDays);
+  const cutoff = auditRetentionCutoff(days);
+
+  if (postgresPool) {
+    if (!deleteOld) {
+      const result = await postgresPool.query("SELECT COUNT(*)::int AS total FROM auditoria_logs WHERE created_at < $1", [cutoff]);
+      return { olderThanDays: days, cutoff, total: Number(result.rows[0]?.total || 0), deleted: 0 };
+    }
+    const result = await postgresPool.query("DELETE FROM auditoria_logs WHERE created_at < $1", [cutoff]);
+    return { olderThanDays: days, cutoff, total: Number(result.rowCount || 0), deleted: Number(result.rowCount || 0) };
+  }
+
+  if (!deleteOld) {
+    const row = sqliteDb.prepare("SELECT COUNT(*) AS total FROM auditoria_logs WHERE created_at < ?").get(cutoff);
+    return { olderThanDays: days, cutoff, total: Number(row?.total || 0), deleted: 0 };
+  }
+  const result = sqliteDb.prepare("DELETE FROM auditoria_logs WHERE created_at < ?").run(cutoff);
+  return { olderThanDays: days, cutoff, total: Number(result.changes || 0), deleted: Number(result.changes || 0) };
 }
 
 function validateUserPayload(payload, isUpdate = false) {
@@ -2125,24 +2195,50 @@ createServer(async (request, response) => {
     const authUser = await requirePermission(request, response, "auditoria.view");
     if (!authUser) return;
     try {
-      const logs = await listAuditLogs({
+      const result = await listAuditLogs({
         usuario: url.searchParams.get("usuario") || "",
         acao: url.searchParams.get("acao") || "",
         modulo: url.searchParams.get("modulo") || "",
         dataInicio: url.searchParams.get("dataInicio") || "",
         dataFim: url.searchParams.get("dataFim") || "",
         limit: url.searchParams.get("limit") || 100,
+        page: url.searchParams.get("page") || 1,
       });
       await logAudit(request, authUser, {
         acao: "auditoria.consultar",
         modulo: "auditoria",
         entidadeTipo: "auditoria_logs",
         entidadeId: "",
-        detalhes: { quantidade: logs.length },
+        detalhes: { quantidade: result.logs.length, total: result.total, pagina: result.page },
       }).catch(() => {});
-      sendJson(response, 200, { ok: true, logs });
+      sendJson(response, 200, { ok: true, ...result });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auditoria/manutencao") {
+    const authUser = await requirePermission(request, response, "auditoria.manage");
+    if (!authUser) return;
+    try {
+      const payload = JSON.parse(await readBody(request));
+      const mode = String(payload.mode || "preview");
+      const deleteOld = mode === "delete";
+      const result = await maintainAuditLogs({
+        olderThanDays: payload.olderThanDays || 365,
+        deleteOld,
+      });
+      await logAudit(request, authUser, {
+        acao: deleteOld ? "auditoria.limpeza" : "auditoria.limpeza.simular",
+        modulo: "auditoria",
+        entidadeTipo: "auditoria_logs",
+        entidadeId: "",
+        detalhes: result,
+      }).catch(() => {});
+      sendJson(response, 200, { ok: true, ...result });
+    } catch (error) {
+      sendJson(response, 400, { ok: false, error: error.message });
     }
     return;
   }

@@ -1468,6 +1468,55 @@ th {
   grid-column: 1 / -1;
 }
 
+.audit-maintenance,
+.audit-pagination {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.audit-maintenance {
+  background: #f7fafb;
+  border: 1px solid #d9e3e7;
+  border-radius: 8px;
+  flex-wrap: wrap;
+  padding: 12px;
+}
+
+.audit-maintenance div {
+  display: grid;
+  gap: 2px;
+  margin-right: auto;
+}
+
+.audit-maintenance span,
+.audit-pagination span {
+  color: #52656c;
+  font-size: 13px;
+}
+
+.audit-maintenance label {
+  color: #52656c;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.audit-maintenance select {
+  border: 1px solid #d9e3e7;
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.audit-pagination {
+  border-top: 1px solid #e6edf0;
+  padding-top: 10px;
+}
+
 .audit-table-wrap {
   max-height: 520px;
 }
@@ -1520,6 +1569,7 @@ th {
   .dashboard-charts,
   .reports-grid,
   .report-filter-grid,
+  .audit-filter-grid,
   .clientes-layout,
   .cliente-form-grid,
   .servicos-layout,
@@ -1544,6 +1594,18 @@ th {
 
   .budget-item {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .audit-maintenance,
+  .audit-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .audit-pagination .row-actions,
+  .audit-maintenance button,
+  .audit-maintenance label {
+    width: 100%;
   }
 }
 

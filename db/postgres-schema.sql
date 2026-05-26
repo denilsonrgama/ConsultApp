@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS auditoria_logs (
 
 CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at);
 CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id);
+CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario);
+CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo);
 CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao);
 
 CREATE TABLE IF NOT EXISTS arquivos (

@@ -15,6 +15,9 @@ let pendingSave = null;
 let currentUser = null;
 let usuarios = [];
 let auditoriaLogs = [];
+let auditoriaLoaded = false;
+let auditoriaFilters = { usuario: "", acao: "", modulo: "", dataInicio: "", dataFim: "", limit: "100", page: 1 };
+let auditoriaMeta = { total: 0, page: 1, limit: 100, pages: 1 };
 let arquivos = [];
 const cnpjLookupCache = new Map();
 const tableSorts = {
@@ -81,6 +84,7 @@ const PERMISSIONS = [
   { key: "usuarios.create", label: "Criar usuários", group: "Usuários" },
   { key: "usuarios.edit", label: "Alterar usuários", group: "Usuários" },
   { key: "auditoria.view", label: "Ver auditoria", group: "Auditoria" },
+  { key: "auditoria.manage", label: "Limpar logs antigos", group: "Auditoria" },
   { key: "data.write", label: "Gravar alterações no banco", group: "Sistema" },
 ];
 
@@ -925,9 +929,9 @@ function sidebarSummaryForView(view) {
 
   if (view === "auditoria") {
     return [
-      { label: "Logs carregados", value: String(auditoriaLogs.length) },
+      { label: "Logs filtrados", value: String(auditoriaMeta.total || auditoriaLogs.length) },
+      { label: "Página", value: `${auditoriaMeta.page || 1}/${auditoriaMeta.pages || 1}` },
       { label: "Usuários", value: String(new Set(auditoriaLogs.map((log) => log.usuario).filter(Boolean)).size) },
-      { label: "Módulos", value: String(new Set(auditoriaLogs.map((log) => log.modulo).filter(Boolean)).size) },
     ];
   }
 
@@ -1324,20 +1328,37 @@ async function loadUsuarios() {
 
 async function loadAuditoria(filters = {}) {
   if (!hasPermission("auditoria.view")) return [];
+  const requestedPage = Number(filters.page || auditoriaFilters.page || 1);
+  auditoriaFilters = {
+    ...auditoriaFilters,
+    ...filters,
+    page: Number.isFinite(requestedPage) ? Math.max(requestedPage, 1) : 1,
+    limit: String(filters.limit || auditoriaFilters.limit || "100"),
+  };
   const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
+  Object.entries(auditoriaFilters).forEach(([key, value]) => {
     if (value) params.set(key, value);
   });
   const response = await fetch(`/api/auditoria?${params.toString()}`);
   const result = await response.json();
   if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível carregar auditoria.");
   auditoriaLogs = result.logs || [];
-  return auditoriaLogs;
+  auditoriaMeta = {
+    total: Number(result.total || auditoriaLogs.length),
+    page: Number(result.page || auditoriaFilters.page || 1),
+    limit: Number(result.limit || auditoriaFilters.limit || 100),
+    pages: Number(result.pages || 1),
+  };
+  auditoriaFilters.page = auditoriaMeta.page;
+  auditoriaFilters.limit = String(auditoriaMeta.limit);
+  auditoriaLoaded = true;
+  return { logs: auditoriaLogs, meta: auditoriaMeta };
 }
 
 function renderAuditoria() {
   const view = document.getElementById("auditoria-view");
   if (!view || !hasPermission("auditoria.view")) return;
+  const filters = auditoriaFilters;
   view.innerHTML = `
     ${pageBanner()}
     <section class="panel auditoria-panel">
@@ -1348,34 +1369,42 @@ function renderAuditoria() {
         </div>
       </div>
       <form class="audit-filter-grid" id="auditoria-filter-form">
-        <label>Usuário<input name="usuario" placeholder="Usuário"></label>
-        <label>Ação<input name="acao" placeholder="Ex.: orçamento, login"></label>
-        <label>Módulo<select name="modulo"><option value="">Todos</option>${options(["seguranca", "usuarios", "clientes", "servicos", "orcamentos", "relatorios", "auditoria", "sistema"], "")}</select></label>
-        <label>Data inicial<input name="dataInicio" type="date"></label>
-        <label>Data final<input name="dataFim" type="date"></label>
-        <label>Limite<select name="limit">${options(["50", "100", "200", "500"], "100")}</select></label>
+        <label>Usuário<input name="usuario" placeholder="Usuário" value="${escapeHtml(filters.usuario || "")}"></label>
+        <label>Ação<input name="acao" placeholder="Ex.: orçamento, login" value="${escapeHtml(filters.acao || "")}"></label>
+        <label>Módulo<select name="modulo"><option value="">Todos</option>${options(["seguranca", "usuarios", "clientes", "servicos", "orcamentos", "relatorios", "auditoria", "sistema"], filters.modulo || "")}</select></label>
+        <label>Data inicial<input name="dataInicio" type="date" value="${escapeHtml(filters.dataInicio || "")}"></label>
+        <label>Data final<input name="dataFim" type="date" value="${escapeHtml(filters.dataFim || "")}"></label>
+        <label>Por página<select name="limit">${options(["50", "100", "200", "500"], String(filters.limit || "100"))}</select></label>
         <div class="form-actions budget-form-actions">
           <button class="primary-button" type="submit">Consultar</button>
           <button class="ghost-button" type="button" id="clear-audit-filters">Limpar</button>
         </div>
       </form>
+      ${auditMaintenancePanel()}
       <div id="auditoria-list">${auditTable(auditoriaLogs)}</div>
+      ${auditPagination()}
     </section>
   `;
   document.getElementById("auditoria-filter-form").addEventListener("submit", handleAuditFilter);
   document.getElementById("clear-audit-filters").addEventListener("click", async () => {
+    auditoriaFilters = defaultAuditFilters();
     await refreshAuditoriaView();
   });
-  if (!auditoriaLogs.length) refreshAuditoriaView();
+  document.querySelectorAll("[data-audit-page]").forEach((button) => {
+    button.addEventListener("click", () => changeAuditPage(Number(button.dataset.auditPage || 1)));
+  });
+  document.getElementById("preview-audit-cleanup")?.addEventListener("click", () => handleAuditMaintenance("preview"));
+  document.getElementById("delete-audit-old")?.addEventListener("click", () => handleAuditMaintenance("delete"));
+  if (!auditoriaLoaded) refreshAuditoriaView();
 }
 
 async function handleAuditFilter(event) {
   event.preventDefault();
   const form = event.currentTarget;
-  const filters = Object.fromEntries(new FormData(form));
+  const filters = { ...Object.fromEntries(new FormData(form)), page: 1 };
   try {
     await loadAuditoria(filters);
-    document.getElementById("auditoria-list").innerHTML = auditTable(auditoriaLogs);
+    renderAuditoria();
     renderSidebarPanel();
   } catch (error) {
     showFloatingMessage(error.message || "Não foi possível consultar auditoria.");
@@ -1384,11 +1413,112 @@ async function handleAuditFilter(event) {
 
 async function refreshAuditoriaView() {
   try {
-    await loadAuditoria({ limit: 100 });
+    await loadAuditoria(auditoriaFilters);
     renderAuditoria();
     renderSidebarPanel();
   } catch (error) {
     showFloatingMessage(error.message || "Não foi possível carregar auditoria.");
+  }
+}
+
+function defaultAuditFilters() {
+  return { usuario: "", acao: "", modulo: "", dataInicio: "", dataFim: "", limit: "100", page: 1 };
+}
+
+async function changeAuditPage(page) {
+  try {
+    await loadAuditoria({ page });
+    renderAuditoria();
+    renderSidebarPanel();
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível mudar a página da auditoria.");
+  }
+}
+
+function auditPagination() {
+  if (!auditoriaLoaded) return "";
+  const total = auditoriaMeta.total || 0;
+  const page = auditoriaMeta.page || 1;
+  const limit = auditoriaMeta.limit || 100;
+  const pages = auditoriaMeta.pages || 1;
+  const first = total ? ((page - 1) * limit) + 1 : 0;
+  const last = Math.min(page * limit, total);
+
+  return `
+    <div class="audit-pagination">
+      <span>${escapeHtml(`Mostrando ${first}-${last} de ${total} logs`)}</span>
+      <div class="row-actions">
+        <button type="button" class="small-button" data-audit-page="${page - 1}"${page <= 1 ? " disabled" : ""}>Anterior</button>
+        <button type="button" class="small-button" data-audit-page="${page + 1}"${page >= pages ? " disabled" : ""}>Próxima</button>
+      </div>
+    </div>
+  `;
+}
+
+function auditMaintenancePanel() {
+  if (!hasPermission("auditoria.manage")) return "";
+  const retentionOptions = [
+    ["90", "90 dias"],
+    ["180", "180 dias"],
+    ["365", "1 ano"],
+    ["730", "2 anos"],
+    ["1095", "3 anos"],
+  ].map(([value, label]) => `<option value="${value}"${selectedAttr("365", value)}>${label}</option>`).join("");
+
+  return `
+    <div class="audit-maintenance">
+      <div>
+        <strong>Manutenção dos logs</strong>
+        <span>Simule antes de excluir registros antigos.</span>
+      </div>
+      <label>Retenção
+        <select id="audit-retention-days">
+          ${retentionOptions}
+        </select>
+      </label>
+      <button type="button" class="ghost-button" id="preview-audit-cleanup">Simular</button>
+      <button type="button" class="danger-button" id="delete-audit-old">Excluir antigos</button>
+    </div>
+  `;
+}
+
+async function requestAuditMaintenance(mode, olderThanDays) {
+  const response = await fetch("/api/auditoria/manutencao", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, olderThanDays }),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível executar a manutenção da auditoria.");
+  return result;
+}
+
+async function handleAuditMaintenance(mode) {
+  const olderThanDays = Number(document.getElementById("audit-retention-days")?.value || 365);
+  try {
+    const preview = await requestAuditMaintenance("preview", olderThanDays);
+    const cutoffDate = formatDate(String(preview.cutoff || "").slice(0, 10));
+    if (mode === "preview") {
+      showFloatingMessage(`${preview.total} logs anteriores a ${cutoffDate} seriam excluídos.`, "success");
+      return;
+    }
+    if (!preview.total) {
+      showFloatingMessage(`Nenhum log anterior a ${cutoffDate} para excluir.`, "success");
+      return;
+    }
+    const confirmed = await askConfirmChoice(
+      "Excluir logs antigos?",
+      `${preview.total} registros anteriores a ${cutoffDate} serão excluídos da auditoria principal.`,
+      "Excluir logs"
+    );
+    if (!confirmed) return;
+    const result = await requestAuditMaintenance("delete", olderThanDays);
+    showFloatingMessage(`${result.deleted} logs antigos excluídos.`, "success");
+    await loadAuditoria({ page: 1 });
+    renderAuditoria();
+    renderSidebarPanel();
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível limpar os logs antigos.", "error");
   }
 }
 
