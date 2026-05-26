@@ -9,6 +9,7 @@
     "migrate:relational": "node scripts/migrate_app_state_to_relational.mjs"
   },
   "dependencies": {
+    "pdfkit": "^0.18.0",
     "pg": "^8.16.3",
     "puppeteer": "^25.0.4"
   }

@@ -3704,10 +3704,11 @@ async function exportReportPdf(type) {
       throw new Error(result.error || "Não foi possível gerar o relatório.");
     }
 
-    const reportUrl = result.publicUrl || new URL(result.url, location.href).href;
+    const reportUrl = new URL(result.publicUrl || result.url, location.href);
+    reportUrl.searchParams.set("v", String(Date.now()));
     hideProcessingMessage();
     showFloatingMessage("Relatório gerado. Abrindo PDF...", "success");
-    reportWindow.location.href = reportUrl;
+    reportWindow.location.href = reportUrl.href;
   } catch (error) {
     reportWindow.close();
     alert(error.message || "Não foi possível gerar o relatório em PDF.");
