@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v197";
+const serverVersion = "v198";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -272,6 +272,7 @@ const PERMISSION_KEYS = [
   "orcamentos.delete",
   "orcamentos.print",
   "orcamentos.share",
+  "orcamentos.status",
   "financeiro.view",
   "relatorios.view",
   "relatorios.export",
@@ -1815,6 +1816,54 @@ createServer(async (request, response) => {
     }).catch(() => {});
     await destroySession(parseCookies(request).consult_session);
     sendJson(response, 200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/confirm-password") {
+    const user = await currentUser(request);
+    if (!user) {
+      sendJson(response, 401, { ok: false, error: "UsuÃ¡rio nÃ£o autenticado." });
+      return;
+    }
+    try {
+      const payload = JSON.parse(await readBody(request));
+      const permission = String(payload.permission || "");
+      if (permission && !hasPermission(user, permission)) {
+        await logAudit(request, user, {
+          acao: "auth.confirmar_senha.negado",
+          modulo: "seguranca",
+          entidadeTipo: "usuario",
+          entidadeId: user.usuario,
+          detalhes: { permissao: permission },
+        }).catch(() => {});
+        sendJson(response, 403, { ok: false, error: "UsuÃ¡rio sem permissÃ£o para esta confirmaÃ§Ã£o." });
+        return;
+      }
+
+      const fullUser = await findUserByLogin(user.usuario);
+      if (!fullUser || !verifyPassword(payload.senha || "", fullUser.senha_hash)) {
+        await logAudit(request, user, {
+          acao: "auth.confirmar_senha.falha",
+          modulo: "seguranca",
+          entidadeTipo: "usuario",
+          entidadeId: user.usuario,
+          detalhes: { permissao: permission },
+        }).catch(() => {});
+        sendJson(response, 401, { ok: false, error: "Senha invÃ¡lida." });
+        return;
+      }
+
+      await logAudit(request, user, {
+        acao: "auth.confirmar_senha.sucesso",
+        modulo: "seguranca",
+        entidadeTipo: "usuario",
+        entidadeId: user.usuario,
+        detalhes: { permissao: permission },
+      }).catch(() => {});
+      sendJson(response, 200, { ok: true });
+    } catch (error) {
+      sendJson(response, 500, { ok: false, error: error.message });
+    }
     return;
   }
 

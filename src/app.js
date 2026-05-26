@@ -50,6 +50,7 @@ const PERMISSIONS = [
   { key: "orcamentos.delete", label: "Excluir orçamentos", group: "Orçamentos" },
   { key: "orcamentos.print", label: "Imprimir orçamentos", group: "Orçamentos" },
   { key: "orcamentos.share", label: "Compartilhar orçamentos", group: "Orçamentos" },
+  { key: "orcamentos.status", label: "Alterar status aprovado", group: "Orçamentos" },
   { key: "financeiro.view", label: "Ver financeiro", group: "Financeiro" },
   { key: "relatorios.view", label: "Ver relatórios", group: "Relatórios" },
   { key: "relatorios.export", label: "Exportar relatórios", group: "Relatórios" },
@@ -2241,6 +2242,7 @@ function deleteServico(codigo) {
 
 function renderOrcamentos() {
   const editingOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero)) || {};
+  const approvedLocked = editingOrcamentoNumero && isOrcamentoAprovado(editingOrcamento);
   const useBlankForm = blankNewOrcamento && !editingOrcamentoNumero;
   const numeroValue = editingOrcamentoNumero ? editingOrcamento.numero : nextBudgetNumber();
   const dataValue = editingOrcamentoNumero ? editingOrcamento.data : (useBlankForm ? "" : new Date().toISOString().slice(0, 10));
@@ -2279,9 +2281,9 @@ function renderOrcamentos() {
             <div class="form-actions budget-form-actions">
               <button class="primary-button" type="submit" id="save-orcamento">${editingOrcamentoNumero && !addingBudgetItem ? "Salvar alteração" : "Salvar orçamento"}</button>
               <button class="success-button" type="button" id="new-orcamento">Novo orçamento</button>
-              <button class="success-button" type="button" id="add-budget-item">Inserir serviço</button>
-              ${editingOrcamentoNumero ? '<button class="danger-button" type="button" id="delete-budget-item" disabled>Deletar serviço</button>' : ""}
-              ${editingOrcamentoNumero ? '<button class="danger-button" type="button" id="delete-current-orcamento">Deletar</button>' : ""}
+              <button class="success-button" type="button" id="add-budget-item"${approvedLocked ? " disabled" : ""}>Inserir serviço</button>
+              ${editingOrcamentoNumero ? `<button class="danger-button" type="button" id="delete-budget-item" disabled${approvedLocked ? ' title="Orçamento aprovado bloqueado para alteração."' : ""}>Deletar serviço</button>` : ""}
+              ${editingOrcamentoNumero ? `<button class="danger-button" type="button" id="delete-current-orcamento"${approvedLocked ? " disabled" : ""}>Deletar</button>` : ""}
               <button class="danger-button" type="button" id="cancel-orcamento-edit">Cancelar</button>
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
@@ -2309,9 +2311,32 @@ function renderOrcamentos() {
     updateBudgetTotal();
   }
   updateBudgetItemDeleteButton();
+  if (approvedLocked) lockApprovedBudgetForm();
   if (!editable) setFormReadOnly(document.getElementById("orcamento-form"));
   blankNewOrcamento = false;
   renderOrcamentoList();
+}
+
+function isEditingApprovedBudget() {
+  const orcamento = state.orcamentos.find((item) => Number(item.numero) === Number(editingOrcamentoNumero));
+  return Boolean(orcamento && isOrcamentoAprovado(orcamento));
+}
+
+function lockApprovedBudgetForm() {
+  const form = document.getElementById("orcamento-form");
+  if (!form) return;
+  form.querySelectorAll("input, select, textarea").forEach((field) => {
+    if (field.name === "status" || field.type === "hidden") return;
+    if (field.tagName === "SELECT") {
+      field.disabled = true;
+    } else {
+      field.readOnly = true;
+    }
+  });
+  document.getElementById("show-budget-client-search")?.setAttribute("hidden", "");
+  document.getElementById("add-budget-item")?.setAttribute("disabled", "");
+  document.getElementById("delete-budget-item")?.setAttribute("disabled", "");
+  document.getElementById("delete-current-orcamento")?.setAttribute("disabled", "");
 }
 
 function clientOptions(selected = "", includePlaceholder = false) {
@@ -2371,6 +2396,10 @@ function showBudgetClientSearch() {
 }
 
 function selectBudgetClient(documento) {
+  if (isEditingApprovedBudget()) {
+    alert("Orçamento aprovado bloqueado para alteração. Apenas o status pode ser alterado.");
+    return;
+  }
   if (!canEditModule("orcamentos") || !canManageData()) {
     showNoPermissionMessage();
     return;
@@ -2433,6 +2462,10 @@ function addBudgetItemRow(item = {}, keepBlank = false) {
 }
 
 function addBlankBudgetItem() {
+  if (isEditingApprovedBudget()) {
+    alert("Orçamento aprovado bloqueado para alteração. Apenas o status pode ser alterado.");
+    return;
+  }
   if (!canEditModule("orcamentos") || !canManageData()) {
     showNoPermissionMessage();
     return;
@@ -2498,7 +2531,7 @@ function updateBudgetTotal() {
   if (target) target.textContent = currency.format(totalOrcamento(fake));
 }
 
-function addOrcamento(event) {
+async function addOrcamento(event) {
   event.preventDefault();
   const canSave = editingOrcamentoNumero ? hasPermission("orcamentos.edit") : hasPermission("orcamentos.create");
   if (!canSave || !canManageData()) {
@@ -2531,6 +2564,34 @@ function addOrcamento(event) {
     return;
   }
 
+  const currentOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero));
+  if (currentOrcamento && isOrcamentoAprovado(currentOrcamento)) {
+    const newStatus = normalizeOrcamentoStatus(data.status || currentOrcamento.status);
+    if (newStatus === normalizeOrcamentoStatus(currentOrcamento.status)) {
+      showFloatingMessage("Orçamento aprovado bloqueado. Nenhuma alteração de status foi feita.");
+      return;
+    }
+    if (!hasPermission("orcamentos.status")) {
+      showNoPermissionMessage();
+      return;
+    }
+    const confirmed = await confirmApprovedBudgetStatusChange(currentOrcamento, newStatus);
+    if (!confirmed) return;
+    const payload = { ...currentOrcamento, status: newStatus };
+    state.orcamentos = state.orcamentos.map((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero) ? payload : orcamento);
+    editingOrcamentoNumero = null;
+    addingBudgetItem = false;
+    saveState({
+      acao: "orcamento.alterar_status_aprovado",
+      modulo: "orcamentos",
+      entidadeTipo: "orcamento",
+      entidadeId: String(numero),
+      detalhes: { statusAnterior: currentOrcamento.status, statusNovo: newStatus },
+    });
+    render();
+    return;
+  }
+
   const collectedItems = collectBudgetItems();
   if (!collectedItems.length || collectedItems.some((item) => !item.servicoCodigo)) {
     alert("Informe pelo menos um serviço ativo no orçamento.");
@@ -2547,7 +2608,6 @@ function addOrcamento(event) {
     return;
   }
 
-  const currentOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero));
   const finalItems = mergeBudgetItems(currentOrcamento?.itens || [], collectedItems);
 
   const payload = {
@@ -2630,6 +2690,7 @@ function loadBudgetItemIntoForm(index) {
   container.innerHTML = "";
   addingBudgetItem = false;
   addBudgetItemRow({ ...budgetItem, itemIndex: index });
+  if (isEditingApprovedBudget()) lockApprovedBudgetForm();
   updateBudgetTotal();
   updateBudgetSaveButton();
   updateBudgetItemDeleteButton();
@@ -2637,6 +2698,10 @@ function loadBudgetItemIntoForm(index) {
 }
 
 function deleteSelectedBudgetItem() {
+  if (isEditingApprovedBudget()) {
+    alert("Orçamento aprovado bloqueado para alteração. Apenas o status pode ser alterado.");
+    return;
+  }
   if (!hasPermission("orcamentos.edit") || !canManageData()) {
     showNoPermissionMessage();
     return;
@@ -2663,6 +2728,11 @@ function deleteSelectedBudgetItem() {
 }
 
 function deleteOrcamento(numero) {
+  const orcamento = state.orcamentos.find((item) => Number(item.numero) === Number(numero));
+  if (isOrcamentoAprovado(orcamento)) {
+    alert("Orçamento aprovado bloqueado para alteração. Altere o status antes de excluir.");
+    return;
+  }
   if (!canDeleteFromModule("orcamentos") || !canManageData()) {
     showNoPermissionMessage();
     return;
@@ -2880,6 +2950,77 @@ async function sendBudgetEmail(payload) {
     showFloatingMessage(error.message || "Não foi possível enviar o e-mail. Verifique a configuração SMTP.");
   } finally {
     closeProcessing();
+  }
+}
+
+function askPasswordConfirmation(title, message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
+        <h2 id="password-confirm-title">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        <label>Senha do usuário atual
+          <input id="password-confirm-input" type="password" autocomplete="current-password" required>
+        </label>
+        <div class="choice-actions">
+          <button type="button" class="primary-button" data-choice="confirm">Confirmar</button>
+          <button type="button" class="danger-button" data-choice="cancel">Cancelar</button>
+        </div>
+      </div>
+    `;
+
+    const input = overlay.querySelector("#password-confirm-input");
+    const handleKeydown = (event) => {
+      if (event.key === "Escape") close("");
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submit();
+      }
+    };
+    const close = (value) => {
+      document.removeEventListener("keydown", handleKeydown);
+      overlay.remove();
+      resolve(value);
+    };
+    const submit = () => {
+      if (!input.reportValidity()) return;
+      close(input.value);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close("");
+    });
+    overlay.querySelector('[data-choice="confirm"]').addEventListener("click", submit);
+    overlay.querySelector('[data-choice="cancel"]').addEventListener("click", () => close(""));
+    document.addEventListener("keydown", handleKeydown);
+    document.body.append(overlay);
+    input.focus();
+  });
+}
+
+async function confirmApprovedBudgetStatusChange(orcamento, newStatus) {
+  const senha = await askPasswordConfirmation(
+    "Confirmar alteração de status",
+    `Informe sua senha para alterar o orçamento aprovado Nº ${orcamento.numero} para ${newStatus}.`,
+  );
+  if (!senha) return false;
+
+  try {
+    const response = await fetch("/api/auth/confirm-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senha, permission: "orcamentos.status" }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Senha não confirmada.");
+    }
+    return true;
+  } catch (error) {
+    alert(error.message || "Não foi possível confirmar a senha.");
+    return false;
   }
 }
 
