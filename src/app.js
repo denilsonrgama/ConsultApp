@@ -3046,6 +3046,14 @@ async function exportReportPdf(type) {
   const report = buildReportDefinition(type);
   if (!report) return;
 
+  const reportWindow = window.open("about:blank", "_blank", "noopener");
+  if (!reportWindow) {
+    alert("O navegador bloqueou a nova aba. Permita pop-ups para este site e tente novamente.");
+    return;
+  }
+  reportWindow.document.write("<p style=\"font-family:Arial,sans-serif;padding:24px\">Gerando relatório. Aguarde...</p>");
+  reportWindow.document.close();
+
   const closeProcessing = showProcessingMessage("Gerando relatório em PDF...");
   try {
     const response = await fetch("/api/relatorios/salvar-pdf", {
@@ -3069,11 +3077,9 @@ async function exportReportPdf(type) {
     const reportUrl = result.publicUrl || new URL(result.url, location.href).href;
     hideProcessingMessage();
     showFloatingMessage("Relatório gerado. Abrindo PDF...", "success");
-    const opened = window.open(reportUrl, "_blank", "noopener");
-    if (!opened) {
-      location.href = reportUrl;
-    }
+    reportWindow.location.href = reportUrl;
   } catch (error) {
+    reportWindow.close();
     alert(error.message || "Não foi possível gerar o relatório em PDF.");
   } finally {
     closeProcessing();
