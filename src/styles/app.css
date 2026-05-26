@@ -1652,7 +1652,19 @@ th {
     display: none;
   }
 
+  .sidebar-user {
+    justify-self: end;
+    max-width: min(100%, 320px);
+    margin: 0;
+    padding-left: 0;
+  }
+
+  .sidebar-user span {
+    max-width: 240px;
+  }
+
   nav {
+    grid-column: 1 / -1;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 5px;
   }
@@ -2091,7 +2103,8 @@ th {
     position: sticky;
     inset: 0 0 auto;
     z-index: 5;
-    display: block;
+    display: grid;
+    gap: 6px;
     padding: max(7px, env(safe-area-inset-top)) 6px 7px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow: 0 9px 20px rgba(8, 30, 38, 0.18);
@@ -2101,6 +2114,22 @@ th {
   .sidebar-tools,
   .client-logo-panel {
     display: none;
+  }
+
+  .sidebar-user {
+    justify-content: center;
+    width: 100%;
+    margin: 0;
+    padding-left: 0;
+  }
+
+  .sidebar-user span {
+    max-width: calc(100vw - 92px);
+    text-align: center;
+  }
+
+  .sidebar-user button {
+    flex: 0 0 auto;
   }
 
   nav {
@@ -2681,7 +2710,8 @@ th {
     position: sticky;
     inset: 0 0 auto;
     z-index: 5;
-    display: block;
+    display: grid;
+    gap: 5px;
     padding: max(6px, env(safe-area-inset-top)) 8px 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow: 0 9px 20px rgba(8, 30, 38, 0.18);
@@ -2691,6 +2721,18 @@ th {
   .sidebar-tools,
   .client-logo-panel {
     display: none;
+  }
+
+  .sidebar-user {
+    justify-content: center;
+    width: 100%;
+    margin: 0;
+    padding-left: 0;
+  }
+
+  .sidebar-user span {
+    max-width: calc(100vw - 100px);
+    text-align: center;
   }
 
   nav {
