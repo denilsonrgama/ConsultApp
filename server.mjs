@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v196";
+const serverVersion = "v197";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1075,6 +1075,10 @@ function safePdfFileName(value) {
   return clean.toLowerCase().endsWith(".pdf") ? clean : `${clean}.pdf`;
 }
 
+function isApprovedStatus(value) {
+  return String(value || "").toUpperCase().includes("APROV");
+}
+
 function contentTypeForFile(fileName) {
   return types[extname(fileName).toLowerCase()] || "application/octet-stream";
 }
@@ -1993,18 +1997,21 @@ createServer(async (request, response) => {
       }
 
       writeFileSync(target, html, "utf-8");
-      await saveStoredFile({
-        categoria: "orcamentos",
-        nome: fileName,
-        mimeType: "text/html; charset=utf-8",
-        conteudo: Buffer.from(html, "utf-8"),
-      });
+      const approved = isApprovedStatus(payload.orcamento?.status);
+      if (approved) {
+        await saveStoredFile({
+          categoria: "orcamentos",
+          nome: fileName,
+          mimeType: "text/html; charset=utf-8",
+          conteudo: Buffer.from(html, "utf-8"),
+        });
+      }
       await logAudit(request, authUser, {
         acao: "orcamento.salvar.html",
         modulo: "orcamentos",
         entidadeTipo: "orcamento",
         entidadeId: fileName,
-        detalhes: { armazenamento: "banco", path: target },
+        detalhes: { armazenamento: approved ? "banco" : "temporario", status: payload.orcamento?.status || "", path: target },
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: true, fileName, path: target }));
@@ -2021,10 +2028,33 @@ createServer(async (request, response) => {
     try {
       const payload = JSON.parse(await readBody(request));
       const fileName = `${safeFileName(payload.fileName)}.pdf`;
+      const approved = isApprovedStatus(payload.orcamento?.status);
+      const savedUrl = `/orcamentos/${encodeURIComponent(fileName)}`;
+      const storedFile = approved ? await readStoredFile("orcamentos", fileName) : null;
 
       if (!fileName || fileName === ".pdf") {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ ok: false, error: "Arquivo inválido." }));
+        return;
+      }
+
+      if (storedFile) {
+        await logAudit(request, authUser, {
+          acao: "orcamento.abrir_pdf_existente",
+          modulo: "orcamentos",
+          entidadeTipo: "orcamento",
+          entidadeId: payload.orcamento?.numero || fileName,
+          detalhes: { fileName, armazenamento: "banco", tamanho: storedFile.tamanho },
+        }).catch(() => {});
+        response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({
+          ok: true,
+          fileName,
+          url: savedUrl,
+          publicUrl: publicFileUrl(savedUrl),
+          savedToDatabase: true,
+          reused: true,
+        }));
         return;
       }
 
@@ -2051,23 +2081,32 @@ createServer(async (request, response) => {
         }
       }
 
-      const savedUrl = `/orcamentos/${encodeURIComponent(fileName)}`;
       const pdfBuffer = readFileSync(target);
-      await saveStoredFile({
-        categoria: "orcamentos",
-        nome: fileName,
-        mimeType: "application/pdf",
-        conteudo: pdfBuffer,
-      });
+      if (approved) {
+        await saveStoredFile({
+          categoria: "orcamentos",
+          nome: fileName,
+          mimeType: "application/pdf",
+          conteudo: pdfBuffer,
+        });
+      }
       await logAudit(request, authUser, {
         acao: "orcamento.gerar_pdf",
         modulo: "orcamentos",
         entidadeTipo: "orcamento",
         entidadeId: payload.orcamento?.numero || fileName,
-        detalhes: { fileName, armazenamento: "banco", tamanho: pdfBuffer.length, path: target },
+        detalhes: { fileName, armazenamento: approved ? "banco" : "temporario", status: payload.orcamento?.status || "", tamanho: pdfBuffer.length, path: target },
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ ok: true, fileName, path: target, url: savedUrl, publicUrl: publicFileUrl(savedUrl) }));
+      response.end(JSON.stringify({
+        ok: true,
+        fileName,
+        path: target,
+        url: savedUrl,
+        publicUrl: publicFileUrl(savedUrl),
+        savedToDatabase: approved,
+        reused: false,
+      }));
     } catch (error) {
       response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: false, error: error.message }));

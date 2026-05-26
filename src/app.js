@@ -628,6 +628,10 @@ function isOrcamentoReprovado(orcamento) {
   return String(orcamento?.status || "").toUpperCase().includes("REPROV");
 }
 
+function isOrcamentoAprovado(orcamento) {
+  return String(orcamento?.status || "").toUpperCase().includes("APROV");
+}
+
 function orcamentosEstatisticos() {
   return state.orcamentos.filter((orcamento) => !isOrcamentoReprovado(orcamento));
 }
@@ -2803,9 +2807,19 @@ async function printBudget(numero) {
     }
 
     if (choice === "yes") {
-      const saved = await saveBudgetAsPrinted(numero);
-      if (!saved) {
-        return;
+      const orcamento = state.orcamentos.find((item) => Number(item.numero) === Number(numero));
+      if (!isOrcamentoAprovado(orcamento)) {
+        alert("Este orçamento não está aprovado. Não será possível salvar no banco; a impressão será realizada sem salvar.");
+      } else {
+        const saved = await saveBudgetAsPrinted(numero);
+        if (!saved) {
+          return;
+        }
+        if (saved.reused) {
+          const savedUrl = saved.publicUrl || new URL(saved.url, location.href).href;
+          window.open(savedUrl, "_blank", "noopener");
+          return;
+        }
       }
     }
 
@@ -2822,10 +2836,14 @@ async function shareBudget(numero) {
   }
   if (!renderPrintBudget(numero)) return;
 
-  const saved = await saveBudgetAsPrinted(numero, { silent: true });
+  const orcamento = state.orcamentos.find((item) => Number(item.numero) === Number(numero));
+  if (!isOrcamentoAprovado(orcamento)) {
+    alert("Este orçamento não está aprovado. O PDF será gerado apenas para compartilhamento e não será salvo no banco.");
+  }
+
+  const saved = await saveBudgetAsPrinted(numero, { silent: true, allowUnapprovedPdf: true });
   if (!saved) return;
 
-  const orcamento = state.orcamentos.find((item) => Number(item.numero) === Number(numero));
   const clienteRecord = state.clientes.find((item) => item.documento === orcamento?.clienteDocumento) || {};
   const cliente = clienteNome(orcamento?.clienteDocumento);
   const url = saved.publicUrl || new URL(saved.url, location.href).href;
@@ -2913,7 +2931,7 @@ function askBudgetShareChannel() {
     overlay.innerHTML = `
       <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="share-choice-title">
         <h2 id="share-choice-title">Compartilhar orçamento</h2>
-        <p>Escolha como deseja enviar o link do PDF salvo.</p>
+        <p>Escolha como deseja enviar o orçamento.</p>
         <div class="choice-actions">
           <button type="button" class="primary-button" data-choice="email">E-mail</button>
           <button type="button" class="success-button" data-choice="whatsapp">WhatsApp</button>
@@ -2996,6 +3014,11 @@ async function saveBudgetAsPrinted(numero, options = {}) {
     return false;
   }
 
+  if (!isOrcamentoAprovado(orcamento) && !options.allowUnapprovedPdf) {
+    alert("Este orçamento não está aprovado. Não será possível salvar no banco; use apenas imprimir ou compartilhar.");
+    return false;
+  }
+
   const fileName = budgetFileName(orcamento);
   const html = await buildSavedBudgetHtml(fileName, false);
   const cliente = state.clientes.find((item) => item.documento === orcamento.clienteDocumento) || {};
@@ -3028,7 +3051,9 @@ async function saveBudgetAsPrinted(numero, options = {}) {
       throw new Error(result.error || "Não foi possível salvar.");
     }
     if (!result.ok) throw new Error(result.error || "Não foi possível salvar.");
-    if (!options.silent) alert(`PDF salvo em:\n${result.path}`);
+    if (!options.silent) {
+      alert(result.reused ? "PDF já salvo no banco. Abrindo arquivo existente." : result.savedToDatabase ? "PDF salvo no banco de dados." : "PDF gerado sem salvar no banco, pois o orçamento não está aprovado.");
+    }
     return result;
   } catch (error) {
     alert(error.message || "Não foi possível salvar o orçamento. Verifique se o servidor de homologação está rodando atualizado.");
