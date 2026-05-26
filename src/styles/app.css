@@ -1005,6 +1005,11 @@ a.small-button {
   background: var(--panel);
 }
 
+.files-table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
 .orcamento-form-grid .budget-client-search,
 .orcamento-form-grid .budget-items,
 .orcamento-form-grid label:has(textarea),
@@ -2199,6 +2204,32 @@ th {
     gap: 8px;
   }
 
+  .usuario-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .usuarios-list-panel,
+  .usuario-form-panel,
+  .permissions-panel,
+  .permission-group {
+    min-width: 0;
+  }
+
+  .permission-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .permission-toolbar-actions,
+  .permission-group-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .permission-toolbar-actions button,
+  .permission-group-actions button {
+    width: 100%;
+  }
+
   .panel,
   .stat-card {
     padding: 8px;
@@ -2422,6 +2453,153 @@ th {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+  }
+
+  .files-panel .toolbar,
+  .usuarios-list-panel .toolbar {
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .files-panel .toolbar button {
+    width: 100%;
+    min-height: 38px;
+  }
+
+  .files-table-wrap,
+  .users-table-wrap {
+    max-height: min(54svh, 520px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+  }
+
+  .files-table-wrap table,
+  .users-table-wrap table {
+    display: block;
+    min-width: 0;
+    table-layout: auto;
+    font-size: 0.78rem;
+  }
+
+  .files-table-wrap thead,
+  .users-table-wrap thead {
+    display: none;
+  }
+
+  .files-table-wrap tbody,
+  .users-table-wrap tbody {
+    display: grid;
+    gap: 8px;
+  }
+
+  .files-table-wrap tbody tr,
+  .users-table-wrap tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .users-table-wrap tbody tr.is-selected {
+    border-color: #0aa8b5;
+    background: #eefbfc;
+  }
+
+  .files-table-wrap tbody td,
+  .users-table-wrap tbody td {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.76rem;
+  }
+
+  .files-table-wrap tbody td::before,
+  .users-table-wrap tbody td::before {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .files-table-wrap tbody td:nth-child(1),
+  .files-table-wrap tbody td:nth-child(5),
+  .users-table-wrap tbody td:nth-child(2),
+  .users-table-wrap tbody td:nth-child(3),
+  .users-table-wrap tbody td:nth-child(6) {
+    grid-column: 1 / -1;
+  }
+
+  .files-table-wrap tbody td:nth-child(1)::before {
+    content: "Arquivo";
+  }
+
+  .files-table-wrap tbody td:nth-child(2)::before {
+    content: "Origem";
+  }
+
+  .files-table-wrap tbody td:nth-child(3)::before {
+    content: "Tamanho";
+  }
+
+  .files-table-wrap tbody td:nth-child(4)::before {
+    content: "Atualizado";
+  }
+
+  .files-table-wrap tbody td:nth-child(5)::before {
+    content: "Acoes";
+  }
+
+  .users-table-wrap tbody td:nth-child(1)::before {
+    content: "Usuario";
+  }
+
+  .users-table-wrap tbody td:nth-child(2)::before {
+    content: "Nome";
+  }
+
+  .users-table-wrap tbody td:nth-child(3)::before {
+    content: "E-mail";
+  }
+
+  .users-table-wrap tbody td:nth-child(4)::before {
+    content: "Perfil";
+  }
+
+  .users-table-wrap tbody td:nth-child(5)::before {
+    content: "Status";
+  }
+
+  .users-table-wrap tbody td:nth-child(6)::before {
+    content: "Acoes";
+  }
+
+  .files-table-wrap .row-actions,
+  .users-table-wrap .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .files-table-wrap .row-actions a,
+  .files-table-wrap .row-actions button,
+  .users-table-wrap .row-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .dashboard-banner img {
@@ -3012,6 +3190,32 @@ th {
     padding: 8px 10px 22px;
   }
 
+  .usuario-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .usuarios-list-panel,
+  .usuario-form-panel,
+  .permissions-panel,
+  .permission-group {
+    min-width: 0;
+  }
+
+  .permission-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .permission-toolbar-actions,
+  .permission-group-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .permission-toolbar-actions button,
+  .permission-group-actions button {
+    width: 100%;
+  }
+
   .auditoria-panel {
     gap: 8px;
   }
@@ -3206,6 +3410,153 @@ th {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+  }
+
+  .files-panel .toolbar,
+  .usuarios-list-panel .toolbar {
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .files-panel .toolbar button {
+    width: 100%;
+    min-height: 34px;
+  }
+
+  .files-table-wrap,
+  .users-table-wrap {
+    max-height: min(46svh, 260px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+  }
+
+  .files-table-wrap table,
+  .users-table-wrap table {
+    display: block;
+    min-width: 0;
+    table-layout: auto;
+    font-size: 0.76rem;
+  }
+
+  .files-table-wrap thead,
+  .users-table-wrap thead {
+    display: none;
+  }
+
+  .files-table-wrap tbody,
+  .users-table-wrap tbody {
+    display: grid;
+    gap: 7px;
+  }
+
+  .files-table-wrap tbody tr,
+  .users-table-wrap tbody tr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .users-table-wrap tbody tr.is-selected {
+    border-color: #0aa8b5;
+    background: #eefbfc;
+  }
+
+  .files-table-wrap tbody td,
+  .users-table-wrap tbody td {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.74rem;
+  }
+
+  .files-table-wrap tbody td::before,
+  .users-table-wrap tbody td::before {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 0.56rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .files-table-wrap tbody td:nth-child(1),
+  .files-table-wrap tbody td:nth-child(5),
+  .users-table-wrap tbody td:nth-child(2),
+  .users-table-wrap tbody td:nth-child(3),
+  .users-table-wrap tbody td:nth-child(6) {
+    grid-column: span 2;
+  }
+
+  .files-table-wrap tbody td:nth-child(1)::before {
+    content: "Arquivo";
+  }
+
+  .files-table-wrap tbody td:nth-child(2)::before {
+    content: "Origem";
+  }
+
+  .files-table-wrap tbody td:nth-child(3)::before {
+    content: "Tamanho";
+  }
+
+  .files-table-wrap tbody td:nth-child(4)::before {
+    content: "Atualizado";
+  }
+
+  .files-table-wrap tbody td:nth-child(5)::before {
+    content: "Acoes";
+  }
+
+  .users-table-wrap tbody td:nth-child(1)::before {
+    content: "Usuario";
+  }
+
+  .users-table-wrap tbody td:nth-child(2)::before {
+    content: "Nome";
+  }
+
+  .users-table-wrap tbody td:nth-child(3)::before {
+    content: "E-mail";
+  }
+
+  .users-table-wrap tbody td:nth-child(4)::before {
+    content: "Perfil";
+  }
+
+  .users-table-wrap tbody td:nth-child(5)::before {
+    content: "Status";
+  }
+
+  .users-table-wrap tbody td:nth-child(6)::before {
+    content: "Acoes";
+  }
+
+  .files-table-wrap .row-actions,
+  .users-table-wrap .row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    width: 100%;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .files-table-wrap .row-actions a,
+  .files-table-wrap .row-actions button,
+  .users-table-wrap .row-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .clientes-layout,

@@ -1260,7 +1260,7 @@ function arquivosTable(files) {
     atualizado: (file) => file.updatedAt || file.createdAt || "",
   });
   return `
-    <div class="table-wrap">
+    <div class="table-wrap files-table-wrap">
       <table>
         <thead><tr>
           ${sortableTableHeader("arquivos", "nome", "Arquivo")}
@@ -1600,7 +1600,7 @@ function renderUsuarios() {
       <div class="toolbar">
         <h2>Usuários cadastrados</h2>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap users-table-wrap">
         <table>
           <thead><tr>
             ${sortableTableHeader("usuarios", "usuario", "Usuário")}
