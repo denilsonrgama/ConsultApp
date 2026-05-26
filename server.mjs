@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v191";
+const serverVersion = "v192";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1449,10 +1449,13 @@ async function printHtmlToPdfPortable(html, target) {
     }
 
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    await page.pdf({ path: target, printBackground: true, preferCSSPageSize: true });
+    page.setDefaultTimeout(120000);
+    page.setDefaultNavigationTimeout(120000);
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 120000 });
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
+    await page.pdf({ path: target, printBackground: true, preferCSSPageSize: true, timeout: 120000 });
   } catch (error) {
-    throw new Error(`Chrome/Chromium nao encontrado para gerar o PDF. Detalhe: ${error.message}`);
+    throw new Error(`Falha ao gerar o PDF no servidor. Detalhe: ${error.message}`);
   } finally {
     if (browser) await browser.close().catch(() => {});
   }
