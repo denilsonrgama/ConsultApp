@@ -21,7 +21,7 @@ let reportFilters = {
   dataInicio: "",
   dataFim: "",
   status: "",
-  clienteStatus: "ATIVO",
+  clienteStatus: "TODOS",
   servicoStatus: "TODOS",
 };
 let editingUsuarioId = null;
@@ -1045,9 +1045,9 @@ function renderRelatorios() {
         </label>
         <label>Status do cliente
           <select name="clienteStatus">
+            <option value="TODOS"${selectedAttr(reportFilters.clienteStatus, "TODOS")}>Todos</option>
             <option value="ATIVO"${selectedAttr(reportFilters.clienteStatus, "ATIVO")}>Ativos</option>
             <option value="INATIVO"${selectedAttr(reportFilters.clienteStatus, "INATIVO")}>Inativos</option>
-            <option value="TODOS"${selectedAttr(reportFilters.clienteStatus, "TODOS")}>Todos</option>
           </select>
         </label>
         <label>Status do serviço
@@ -1113,7 +1113,7 @@ function clearReportFilters() {
     dataInicio: "",
     dataFim: "",
     status: "",
-    clienteStatus: "ATIVO",
+    clienteStatus: "TODOS",
     servicoStatus: "TODOS",
   };
   renderRelatorios();
@@ -1121,16 +1121,27 @@ function clearReportFilters() {
 }
 
 function filteredReportBudgets() {
-  return state.orcamentos.filter((orcamento) => {
+  const applyServiceFilter = reportFilters.servicoStatus && reportFilters.servicoStatus !== "TODOS";
+  const allowedServiceCodes = applyServiceFilter ? filteredReportServiceCodes() : null;
+  return state.orcamentos.reduce((budgets, orcamento) => {
     const clienteAtivo = isOrcamentoClienteAtivo(orcamento);
-    if (reportFilters.clienteStatus === "ATIVO" && !clienteAtivo) return false;
-    if (reportFilters.clienteStatus === "INATIVO" && clienteAtivo) return false;
+    if (reportFilters.clienteStatus === "ATIVO" && !clienteAtivo) return budgets;
+    if (reportFilters.clienteStatus === "INATIVO" && clienteAtivo) return budgets;
 
-    if (reportFilters.status && normalizeOrcamentoStatus(orcamento.status) !== reportFilters.status) return false;
-    if (reportFilters.dataInicio && String(orcamento.data || "") < reportFilters.dataInicio) return false;
-    if (reportFilters.dataFim && String(orcamento.data || "") > reportFilters.dataFim) return false;
-    return true;
-  });
+    if (reportFilters.status && normalizeOrcamentoStatus(orcamento.status) !== reportFilters.status) return budgets;
+    if (reportFilters.dataInicio && String(orcamento.data || "") < reportFilters.dataInicio) return budgets;
+    if (reportFilters.dataFim && String(orcamento.data || "") > reportFilters.dataFim) return budgets;
+
+    if (applyServiceFilter) {
+      const filteredItems = (orcamento.itens || []).filter((item) => allowedServiceCodes.has(String(item.servicoCodigo || "")));
+      if (!filteredItems.length) return budgets;
+      budgets.push({ ...orcamento, itens: filteredItems });
+      return budgets;
+    }
+
+    budgets.push(orcamento);
+    return budgets;
+  }, []);
 }
 
 function filteredReportServices() {
@@ -1143,6 +1154,15 @@ function filteredReportServices() {
 
 function filteredReportServiceCodes() {
   return new Set(filteredReportServices().map((servico) => String(servico.codigo)));
+}
+
+function hasBudgetReportFilters() {
+  return Boolean(
+    reportFilters.dataInicio ||
+    reportFilters.dataFim ||
+    reportFilters.status ||
+    (reportFilters.servicoStatus && reportFilters.servicoStatus !== "TODOS")
+  );
 }
 
 async function loadArquivos() {
@@ -3870,7 +3890,7 @@ function buildReportDefinition(type, options = {}) {
   const reportClients = state.clientes.filter((cliente) => {
     if (reportFilters.clienteStatus === "ATIVO" && !isClienteAtivo(cliente)) return false;
     if (reportFilters.clienteStatus === "INATIVO" && isClienteAtivo(cliente)) return false;
-    if (reportFilters.clienteStatus === "TODOS") return true;
+    if (!hasBudgetReportFilters()) return true;
     return filteredClientDocuments.has(cliente.documento) || filteredClientDocuments.has(onlyDigits(cliente.documento));
   });
 
