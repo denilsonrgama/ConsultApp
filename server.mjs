@@ -49,7 +49,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v190";
+const serverVersion = "v191";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -107,6 +107,17 @@ if (sqliteDb) {
       ip TEXT NOT NULL DEFAULT '',
       user_agent TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS arquivos (
+      categoria TEXT NOT NULL,
+      nome TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      conteudo BLOB NOT NULL,
+      tamanho INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (categoria, nome)
     );
   `);
 }
@@ -1064,6 +1075,63 @@ function safePdfFileName(value) {
   return clean.toLowerCase().endsWith(".pdf") ? clean : `${clean}.pdf`;
 }
 
+function contentTypeForFile(fileName) {
+  return types[extname(fileName).toLowerCase()] || "application/octet-stream";
+}
+
+async function saveStoredFile({ categoria, nome, mimeType, conteudo }) {
+  const buffer = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(conteudo);
+  if (postgresPool) {
+    await postgresPool.query(
+      `INSERT INTO arquivos (categoria, nome, mime_type, conteudo, tamanho, updated_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+       ON CONFLICT (categoria, nome)
+       DO UPDATE SET mime_type = EXCLUDED.mime_type,
+                     conteudo = EXCLUDED.conteudo,
+                     tamanho = EXCLUDED.tamanho,
+                     updated_at = CURRENT_TIMESTAMP`,
+      [categoria, nome, mimeType, buffer, buffer.length],
+    );
+    return;
+  }
+
+  sqliteDb.prepare(`
+    INSERT INTO arquivos (categoria, nome, mime_type, conteudo, tamanho, updated_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(categoria, nome)
+    DO UPDATE SET mime_type = excluded.mime_type,
+                  conteudo = excluded.conteudo,
+                  tamanho = excluded.tamanho,
+                  updated_at = CURRENT_TIMESTAMP
+  `).run(categoria, nome, mimeType, buffer, buffer.length);
+}
+
+async function readStoredFile(categoria, nome) {
+  if (postgresPool) {
+    const result = await postgresPool.query(
+      "SELECT nome, mime_type, conteudo, tamanho FROM arquivos WHERE categoria = $1 AND nome = $2",
+      [categoria, nome],
+    );
+    const row = result.rows[0];
+    return row ? {
+      nome: row.nome,
+      mimeType: row.mime_type,
+      conteudo: Buffer.from(row.conteudo),
+      tamanho: Number(row.tamanho || row.conteudo?.length || 0),
+    } : null;
+  }
+
+  const row = sqliteDb.prepare(
+    "SELECT nome, mime_type, conteudo, tamanho FROM arquivos WHERE categoria = ? AND nome = ?",
+  ).get(categoria, nome);
+  return row ? {
+    nome: row.nome,
+    mimeType: row.mime_type,
+    conteudo: Buffer.from(row.conteudo),
+    tamanho: Number(row.tamanho || row.conteudo?.length || 0),
+  } : null;
+}
+
 function loadSmtpConfig() {
   const fileConfig = existsSync(smtpConfigPath) ? JSON.parse(readFileSync(smtpConfigPath, "utf-8")) : {};
   const config = {
@@ -1115,10 +1183,15 @@ function dotStuff(message) {
   return String(message).replace(/^\./gm, "..");
 }
 
-function createMailMessage({ config, to, subject, text, html, attachmentPath, attachmentName }) {
+function createMailMessage({ config, to, subject, text, html, attachmentPath, attachmentName, attachmentContent, attachmentMimeType }) {
   const mixedBoundary = `mixed-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const altBoundary = `alt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const attachment = attachmentPath ? readFileSync(attachmentPath).toString("base64").replace(/.{1,76}/g, "$&\r\n").trim() : "";
+  const attachmentBuffer = attachmentContent
+    ? Buffer.from(attachmentContent)
+    : attachmentPath
+      ? readFileSync(attachmentPath)
+      : null;
+  const attachment = attachmentBuffer ? attachmentBuffer.toString("base64").replace(/.{1,76}/g, "$&\r\n").trim() : "";
 
   const parts = [
     `From: ${encodeHeader(config.fromName)} <${config.from}>`,
@@ -1148,7 +1221,7 @@ function createMailMessage({ config, to, subject, text, html, attachmentPath, at
   if (attachment) {
     parts.push(
       `--${mixedBoundary}`,
-      `Content-Type: application/pdf; name="${attachmentName}"`,
+      `Content-Type: ${attachmentMimeType || "application/pdf"}; name="${attachmentName}"`,
       "Content-Transfer-Encoding: base64",
       `Content-Disposition: attachment; filename="${attachmentName}"`,
       "",
@@ -1210,7 +1283,7 @@ function openSmtpSocket(config) {
   });
 }
 
-async function sendSmtpMail({ to, subject, text, html, attachmentPath, attachmentName }) {
+async function sendSmtpMail({ to, subject, text, html, attachmentPath, attachmentName, attachmentContent, attachmentMimeType }) {
   const config = loadSmtpConfig();
   to = normalizeEmail(to);
   let socket = await openSmtpSocket(config);
@@ -1231,7 +1304,7 @@ async function sendSmtpMail({ to, subject, text, html, attachmentPath, attachmen
   await smtp.command(`MAIL FROM:<${config.from}>`, 250);
   await smtp.command(`RCPT TO:<${to}>`, [250, 251]);
   await smtp.command("DATA", 354);
-  const message = createMailMessage({ config, to, subject, text, html, attachmentPath, attachmentName });
+  const message = createMailMessage({ config, to, subject, text, html, attachmentPath, attachmentName, attachmentContent, attachmentMimeType });
   socket.write(`${dotStuff(message)}\r\n.\r\n`);
   const dataResponse = await smtp.readResponse();
   if (Number(dataResponse.slice(0, 3)) !== 250) throw new Error(`Falha ao enviar e-mail: ${dataResponse.trim()}`);
@@ -1904,12 +1977,18 @@ createServer(async (request, response) => {
       }
 
       writeFileSync(target, html, "utf-8");
+      await saveStoredFile({
+        categoria: "orcamentos",
+        nome: fileName,
+        mimeType: "text/html; charset=utf-8",
+        conteudo: Buffer.from(html, "utf-8"),
+      });
       await logAudit(request, authUser, {
         acao: "orcamento.salvar.html",
         modulo: "orcamentos",
         entidadeTipo: "orcamento",
         entidadeId: fileName,
-        detalhes: { path: target },
+        detalhes: { armazenamento: "banco", path: target },
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: true, fileName, path: target }));
@@ -1957,12 +2036,19 @@ createServer(async (request, response) => {
       }
 
       const savedUrl = `/orcamentos/${encodeURIComponent(fileName)}`;
+      const pdfBuffer = readFileSync(target);
+      await saveStoredFile({
+        categoria: "orcamentos",
+        nome: fileName,
+        mimeType: "application/pdf",
+        conteudo: pdfBuffer,
+      });
       await logAudit(request, authUser, {
         acao: "orcamento.gerar_pdf",
         modulo: "orcamentos",
         entidadeTipo: "orcamento",
         entidadeId: payload.orcamento?.numero || fileName,
-        detalhes: { fileName, path: target },
+        detalhes: { fileName, armazenamento: "banco", tamanho: pdfBuffer.length, path: target },
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: true, fileName, path: target, url: savedUrl, publicUrl: publicFileUrl(savedUrl) }));
@@ -1996,12 +2082,19 @@ createServer(async (request, response) => {
       }
 
       await printHtmlToPdfPortable(html, target);
+      const pdfBuffer = readFileSync(target);
+      await saveStoredFile({
+        categoria: "relatorios",
+        nome: fileName,
+        mimeType: "application/pdf",
+        conteudo: pdfBuffer,
+      });
       await logAudit(request, authUser, {
         acao: "relatorio.gerar_pdf",
         modulo: "relatorios",
         entidadeTipo: "relatorio",
         entidadeId: fileName,
-        detalhes: { path: target },
+        detalhes: { armazenamento: "banco", tamanho: pdfBuffer.length, path: target },
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: true, fileName, path: target, url: `/relatorios/${encodeURIComponent(fileName)}` }));
@@ -2033,13 +2126,20 @@ createServer(async (request, response) => {
         return;
       }
 
-      writeFileSync(target, createReportXlsx(payload.report));
+      const xlsxBuffer = createReportXlsx(payload.report);
+      writeFileSync(target, xlsxBuffer);
+      await saveStoredFile({
+        categoria: "relatorios",
+        nome: fileName,
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        conteudo: xlsxBuffer,
+      });
       await logAudit(request, authUser, {
         acao: "relatorio.gerar_excel",
         modulo: "relatorios",
         entidadeTipo: "relatorio",
         entidadeId: fileName,
-        detalhes: { path: target, titulo: payload.report?.title || "" },
+        detalhes: { armazenamento: "banco", tamanho: xlsxBuffer.length, path: target, titulo: payload.report?.title || "" },
       }).catch(() => {});
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: true, fileName, path: target, url: `/relatorios/${encodeURIComponent(fileName)}` }));
@@ -2057,7 +2157,9 @@ createServer(async (request, response) => {
       const payload = JSON.parse(await readBody(request));
       const fileName = safePdfFileName(payload.fileName);
       const attachmentPath = resolve(budgetsDir, fileName);
-      if (!attachmentPath.startsWith(budgetsDir) || !existsSync(attachmentPath)) {
+      const storedAttachment = await readStoredFile("orcamentos", fileName);
+      const hasLocalAttachment = attachmentPath.startsWith(budgetsDir) && existsSync(attachmentPath);
+      if (!storedAttachment && !hasLocalAttachment) {
         response.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({ ok: false, error: "PDF do orçamento não encontrado. Salve o orçamento novamente." }));
         return;
@@ -2077,7 +2179,9 @@ createServer(async (request, response) => {
         subject: String(payload.subject || "Orçamento"),
         text,
         html,
-        attachmentPath,
+        attachmentPath: storedAttachment ? "" : attachmentPath,
+        attachmentContent: storedAttachment?.conteudo,
+        attachmentMimeType: storedAttachment?.mimeType,
         attachmentName: fileName,
       });
 
@@ -2169,6 +2273,17 @@ createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname.startsWith("/orcamentos/")) {
     const fileName = safeFileName(decodeURIComponent(url.pathname.replace("/orcamentos/", "")));
     const filePath = resolve(budgetsDir, fileName);
+    const storedFile = await readStoredFile("orcamentos", fileName);
+
+    if (storedFile) {
+      response.writeHead(200, {
+        "Content-Type": storedFile.mimeType || contentTypeForFile(fileName),
+        "Content-Length": storedFile.conteudo.length,
+        "Content-Disposition": `inline; filename="${fileName}"`,
+      });
+      response.end(storedFile.conteudo);
+      return;
+    }
 
     if (!filePath.startsWith(budgetsDir) || !existsSync(filePath)) {
       response.writeHead(404);
@@ -2176,7 +2291,7 @@ createServer(async (request, response) => {
       return;
     }
 
-    response.writeHead(200, { "Content-Type": types[extname(filePath)] || "application/octet-stream" });
+    response.writeHead(200, { "Content-Type": contentTypeForFile(filePath) });
     createReadStream(filePath).pipe(response);
     return;
   }
@@ -2184,6 +2299,17 @@ createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname.startsWith("/relatorios/")) {
     const fileName = safeFileName(decodeURIComponent(url.pathname.replace("/relatorios/", "")));
     const filePath = resolve(reportsDir, fileName);
+    const storedFile = await readStoredFile("relatorios", fileName);
+
+    if (storedFile) {
+      response.writeHead(200, {
+        "Content-Type": storedFile.mimeType || contentTypeForFile(fileName),
+        "Content-Length": storedFile.conteudo.length,
+        "Content-Disposition": `inline; filename="${fileName}"`,
+      });
+      response.end(storedFile.conteudo);
+      return;
+    }
 
     if (!filePath.startsWith(reportsDir) || !existsSync(filePath)) {
       response.writeHead(404);
@@ -2191,7 +2317,7 @@ createServer(async (request, response) => {
       return;
     }
 
-    response.writeHead(200, { "Content-Type": types[extname(filePath)] || "application/octet-stream" });
+    response.writeHead(200, { "Content-Type": contentTypeForFile(filePath) });
     createReadStream(filePath).pipe(response);
     return;
   }
