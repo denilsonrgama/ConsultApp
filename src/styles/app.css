@@ -4067,6 +4067,7 @@ th {
 
   .clientes-list-panel .table-wrap,
   .servicos-list-panel .table-wrap,
+  .orcamentos-list-panel .table-wrap,
   .files-table-wrap,
   .users-table-wrap {
     height: auto !important;
