@@ -2366,7 +2366,7 @@ function cancelCliente() {
 }
 
 function isCompactLayout() {
-  return window.innerWidth <= 640 || window.innerHeight <= 500;
+  return window.matchMedia("(max-width: 920px), (max-height: 500px)").matches;
 }
 
 function compactScrollOffset() {
