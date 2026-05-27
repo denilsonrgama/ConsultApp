@@ -2141,7 +2141,7 @@ function renderClienteList() {
                 <td>${canEditModule("clientes") || canDeleteFromModule("clientes") ? `
                   <div class="row-actions">
                     ${canEditModule("clientes") ? `<button class="small-button" data-edit-cliente="${escapeHtml(cliente.documento)}">Alterar</button>` : ""}
-                    ${canDeleteFromModule("clientes") ? `<button class="small-button danger-text" data-delete-cliente="${escapeHtml(cliente.documento)}">${clienteHasBudgets(cliente.documento) ? "Inativar" : "Excluir"}</button>` : ""}
+                    ${clienteDeleteActionButton(cliente)}
                   </div>
                 ` : ""}</td>
               </tr>
@@ -2150,6 +2150,14 @@ function renderClienteList() {
         </table>
       </div>`
     : emptyState();
+}
+
+function clienteDeleteActionButton(cliente) {
+  if (!canDeleteFromModule("clientes")) return "";
+  const hasBudgets = clienteHasBudgets(cliente.documento);
+  const inactive = normalizeClienteStatus(cliente.status) === "INATIVO";
+  if (hasBudgets && inactive) return "";
+  return `<button class="small-button danger-text" data-delete-cliente="${escapeHtml(cliente.documento)}">${hasBudgets ? "Inativar" : "Excluir"}</button>`;
 }
 
 async function addCliente(event) {
