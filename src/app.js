@@ -2372,7 +2372,8 @@ function cancelCliente() {
 }
 
 function isCompactLayout() {
-  return window.matchMedia("(max-width: 920px), (max-height: 500px)").matches;
+  return window.location.search.includes("android_app=1")
+    || window.matchMedia("(max-width: 920px), (max-height: 500px), ((hover: none) and (pointer: coarse))").matches;
 }
 
 function resetCompactViewScroll() {
