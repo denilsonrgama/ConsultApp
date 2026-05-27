@@ -171,6 +171,34 @@ nav {
   gap: 8px;
 }
 
+nav > [data-view="dashboard"] {
+  order: 1;
+}
+
+nav > [data-view="clientes"] {
+  order: 2;
+}
+
+nav > [data-view="servicos"] {
+  order: 3;
+}
+
+nav > [data-menu-group="financeiro"] {
+  order: 4;
+}
+
+nav > [data-submenu="financeiro"] {
+  order: 5;
+}
+
+nav > [data-menu-group="administracao"] {
+  order: 6;
+}
+
+nav > [data-submenu="administracao"] {
+  order: 7;
+}
+
 .nav-button {
   border: 0;
   border-radius: 8px;
@@ -3845,6 +3873,18 @@ th {
   nav {
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     gap: 5px;
+  }
+
+  nav > [data-menu-group="administracao"] {
+    order: 5;
+  }
+
+  nav > [data-submenu="financeiro"] {
+    order: 6;
+  }
+
+  nav > [data-submenu="administracao"] {
+    order: 7;
   }
 
   .nav-submenu {
