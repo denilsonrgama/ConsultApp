@@ -1,4 +1,5 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
+const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
@@ -314,6 +315,7 @@ async function loadServerState() {
 
 async function initializeApp() {
   try {
+    await destroySessionOnManualReload();
     currentUser = await fetchCurrentUser();
     if (!currentUser) {
       renderLogin();
@@ -417,6 +419,7 @@ async function handleLogin(event) {
       renderTemporaryPasswordChange(payload.usuario, payload.senha, result.user?.nome || payload.usuario);
       return;
     }
+    markNextReloadAsInternal();
     location.reload();
   } catch (error) {
     errorBox.textContent = error.message || "Não foi possível fazer login.";
@@ -429,6 +432,7 @@ async function handleGuestLogin() {
     const response = await fetch("/api/auth/guest", { method: "POST" });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível acessar como convidado.");
+    markNextReloadAsInternal();
     location.reload();
   } catch (error) {
     errorBox.textContent = error.message || "Não foi possível acessar como convidado.";
@@ -508,6 +512,42 @@ async function handleForgotPassword(event) {
   } catch (error) {
     messageBox.textContent = error.message || "Não foi possível enviar a recuperação.";
   }
+}
+
+function isManualReloadNavigation() {
+  const navigationEntry = performance.getEntriesByType?.("navigation")?.[0];
+  if (navigationEntry?.type) return navigationEntry.type === "reload";
+  return performance.navigation?.type === 1;
+}
+
+function markNextReloadAsInternal() {
+  try {
+    sessionStorage.setItem(SESSION_RELOAD_SKIP_KEY, "1");
+  } catch {
+    // sessionStorage pode estar indisponível em navegação privada/restrita.
+  }
+}
+
+function consumeInternalReloadMark() {
+  try {
+    if (sessionStorage.getItem(SESSION_RELOAD_SKIP_KEY) !== "1") return false;
+    sessionStorage.removeItem(SESSION_RELOAD_SKIP_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function destroySessionOnManualReload() {
+  if (location.protocol === "file:" || !isManualReloadNavigation()) return;
+  if (consumeInternalReloadMark()) return;
+
+  await fetch("/api/auth/close", {
+    method: "POST",
+    body: "{}",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  }).catch(() => {});
 }
 
 async function logoutApp() {
