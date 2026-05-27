@@ -1367,7 +1367,7 @@ function arquivosTable(files) {
               <td>${escapeHtml(formatDateTime(file.updatedAt || file.createdAt))}</td>
               <td>
                 <div class="row-actions files-row-actions">
-                  <a class="small-button" href="${escapeHtml(file.url)}" target="_blank" rel="noopener">Visualizar</a>
+                  <a class="small-button" href="${escapeHtml(file.url)}" target="_blank" rel="noopener" data-open-pdf-file>Visualizar</a>
                   ${canDeleteFiles ? `<button type="button" class="small-button danger-text" data-delete-arquivo="${escapeHtml(file.categoria)}" data-delete-arquivo-nome="${escapeHtml(file.nome)}">Excluir</button>` : ""}
                 </div>
               </td>
@@ -1377,6 +1377,19 @@ function arquivosTable(files) {
       </table>
     </div>
   `;
+}
+
+function isAndroidWebView() {
+  return document.documentElement.classList.contains("consult-android");
+}
+
+function openDocumentUrl(url) {
+  const absoluteUrl = new URL(url, location.href).href;
+  if (isAndroidWebView()) {
+    location.href = `consult-open://external?url=${encodeURIComponent(absoluteUrl)}`;
+    return;
+  }
+  window.open(absoluteUrl, "_blank", "noopener");
 }
 
 function formatFileSize(value) {
@@ -4223,12 +4236,13 @@ async function exportReportPdf(type) {
   const report = buildReportDefinition(type, { budgets: filteredReportBudgets() });
   if (!report) return;
 
-  const reportWindow = window.open("about:blank", "_blank");
-  if (!reportWindow) {
+  const androidWebView = isAndroidWebView();
+  const reportWindow = androidWebView ? null : window.open("about:blank", "_blank");
+  if (!androidWebView && !reportWindow) {
     showFloatingMessage("O navegador bloqueou a nova aba. Permita pop-ups para este site e tente novamente.", "error");
     return;
   }
-  writeReportWindowMessage(reportWindow, "Gerando relatório. Aguarde...");
+  if (reportWindow) writeReportWindowMessage(reportWindow, "Gerando relatório. Aguarde...");
 
   const closeProcessing = showProcessingMessage("Gerando relatório em PDF...");
   try {
@@ -4251,17 +4265,25 @@ async function exportReportPdf(type) {
       throw new Error(result.error || "Não foi possível gerar o relatório.");
     }
 
+    const reportUrl = new URL(result.publicUrl || result.url, location.href);
+    reportUrl.searchParams.set("v", String(Date.now()));
+
+    if (androidWebView) {
+      hideProcessingMessage();
+      showFloatingMessage("Relatório gerado. Abrindo PDF...", "success");
+      openDocumentUrl(reportUrl.href);
+      return;
+    }
+
     const pdfUrl = result.contentBase64
       ? URL.createObjectURL(base64ToBlob(result.contentBase64, result.mimeType || "application/pdf"))
       : null;
-    const reportUrl = pdfUrl ? null : new URL(result.publicUrl || result.url, location.href);
-    if (reportUrl) reportUrl.searchParams.set("v", String(Date.now()));
     hideProcessingMessage();
     showFloatingMessage("Relatório gerado. Abrindo PDF...", "success");
     reportWindow.location.href = pdfUrl || reportUrl.href;
   } catch (error) {
     const message = error.message || "Não foi possível gerar o relatório em PDF.";
-    writeReportWindowMessage(reportWindow, message, true);
+    if (reportWindow) writeReportWindowMessage(reportWindow, message, true);
     showFloatingMessage(message, "error");
   } finally {
     closeProcessing();
@@ -4929,6 +4951,13 @@ document.body.addEventListener("click", (event) => {
   const reportButton = event.target.closest("[data-export-report]");
   if (reportButton) {
     handleReportExport(reportButton.dataset.exportReport);
+    return;
+  }
+
+  const pdfFileLink = event.target.closest("[data-open-pdf-file]");
+  if (pdfFileLink) {
+    event.preventDefault();
+    openDocumentUrl(pdfFileLink.getAttribute("href"));
     return;
   }
 
