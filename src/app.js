@@ -1862,6 +1862,7 @@ function cancelUsuario() {
   editingUsuarioId = null;
   blankNewUsuario = false;
   renderUsuarios();
+  scrollUsuarioListIntoView();
 }
 
 function editUsuario(id) {
@@ -1879,6 +1880,13 @@ function scrollUsuarioFormIntoView() {
   if (!isCompactLayout()) return;
   window.requestAnimationFrame(() => {
     document.querySelector(".usuario-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function scrollUsuarioListIntoView() {
+  if (!isCompactLayout()) return;
+  window.requestAnimationFrame(() => {
+    document.querySelector(".usuarios-list-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
 
