@@ -849,6 +849,9 @@ function setView(view) {
   } else {
     renderCurrentView(view);
   }
+  if (["clientes", "servicos", "arquivos", "usuarios"].includes(view)) {
+    resetCompactViewScroll(`#${view}-view`);
+  }
 }
 
 function render() {
@@ -1866,7 +1869,7 @@ function cancelUsuario() {
   editingUsuarioId = null;
   blankNewUsuario = false;
   renderUsuarios();
-  scrollUsuarioListIntoView();
+  resetCompactViewScroll("#usuarios-view");
 }
 
 function editUsuario(id) {
@@ -1888,14 +1891,7 @@ function scrollUsuarioFormIntoView() {
 }
 
 function scrollUsuarioListIntoView() {
-  if (!isCompactLayout()) return;
-  window.requestAnimationFrame(() => {
-    const panel = document.querySelector(".usuarios-list-panel");
-    panel?.scrollIntoView({ behavior: "auto", block: "start" });
-    const rect = panel?.getBoundingClientRect();
-    const offset = document.querySelector(".sidebar")?.getBoundingClientRect().height || 0;
-    if (rect) window.scrollTo({ top: window.scrollY + rect.top - Math.min(offset + 8, 116), behavior: "auto" });
-  });
+  resetCompactViewScroll("#usuarios-view");
 }
 
 async function saveUsuario(event) {
@@ -2103,6 +2099,7 @@ function renderClientes() {
   const editingCliente = state.clientes.find((cliente) => cliente.documento === editingClienteDocumento) || {};
   const useBlankForm = blankNewCliente && !editingClienteDocumento;
   const showClienteFormOnMobile = Boolean(editingClienteDocumento || blankNewCliente);
+  const renderClienteForm = !isCompactLayout() || showClienteFormOnMobile;
   const showCnpjFields = onlyDigits(editingCliente.documento).length === 14;
   const editable = canEditModule("clientes");
   document.getElementById("clientes-view").innerHTML = `
@@ -2119,7 +2116,7 @@ function renderClientes() {
         <div id="cliente-list"></div>
         ${editable && !showClienteFormOnMobile ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo cliente</button>' : ""}
       </section>
-      <section class="panel cliente-form-panel${showClienteFormOnMobile ? "" : " is-mobile-hidden"}">
+      ${renderClienteForm ? `<section class="panel cliente-form-panel${showClienteFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingClienteDocumento ? "Alterar cliente" : "Novo cliente"}</h2>
         <form class="cliente-form-grid" id="cliente-form">
           <label>CPF/CNPJ<input name="documento" required value="${useBlankForm ? "" : fieldValue(editingCliente.documento)}"></label>
@@ -2148,26 +2145,27 @@ function renderClientes() {
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
         </form>
-      </section>
+      </section>` : ""}
     </div>
   `;
 
-  document.getElementById("cliente-form").addEventListener("submit", addCliente);
+  const clienteForm = document.getElementById("cliente-form");
+  clienteForm?.addEventListener("submit", addCliente);
   if (editable) {
-    document.querySelector('#cliente-form [name="documento"]').addEventListener("input", handleClienteDocumentoInput);
-    document.querySelector('#cliente-form [name="documento"]').addEventListener("keydown", handleClienteDocumentoKeydown);
-    document.querySelector('#cliente-form [name="documento"]').addEventListener("blur", handleClienteDocumentoBlur);
-    document.querySelector('#cliente-form [name="responsavelCpf"]').addEventListener("input", handleResponsavelCpfInput);
-    document.querySelector('#cliente-form [name="responsavelCpf"]').addEventListener("blur", handleResponsavelCpfInput);
-    document.querySelector('#cliente-form [name="email"]').addEventListener("blur", focusClienteCep);
-    document.querySelector('#cliente-form [name="cep"]').addEventListener("keydown", handleClienteCepKeydown);
-    document.querySelector('#cliente-form [name="cep"]').addEventListener("blur", handleClienteCepBlur);
-    document.querySelector('#cliente-form [name="complemento"]').addEventListener("keydown", handleClienteComplementoKeydown);
+    clienteForm?.querySelector('[name="documento"]')?.addEventListener("input", handleClienteDocumentoInput);
+    clienteForm?.querySelector('[name="documento"]')?.addEventListener("keydown", handleClienteDocumentoKeydown);
+    clienteForm?.querySelector('[name="documento"]')?.addEventListener("blur", handleClienteDocumentoBlur);
+    clienteForm?.querySelector('[name="responsavelCpf"]')?.addEventListener("input", handleResponsavelCpfInput);
+    clienteForm?.querySelector('[name="responsavelCpf"]')?.addEventListener("blur", handleResponsavelCpfInput);
+    clienteForm?.querySelector('[name="email"]')?.addEventListener("blur", focusClienteCep);
+    clienteForm?.querySelector('[name="cep"]')?.addEventListener("keydown", handleClienteCepKeydown);
+    clienteForm?.querySelector('[name="cep"]')?.addEventListener("blur", handleClienteCepBlur);
+    clienteForm?.querySelector('[name="complemento"]')?.addEventListener("keydown", handleClienteComplementoKeydown);
     document.getElementById("new-cliente")?.addEventListener("click", newCliente);
     document.getElementById("show-cliente-form")?.addEventListener("click", newCliente);
-    document.getElementById("cancel-cliente-edit").addEventListener("click", cancelCliente);
-  } else {
-    setFormReadOnly(document.getElementById("cliente-form"));
+    document.getElementById("cancel-cliente-edit")?.addEventListener("click", cancelCliente);
+  } else if (clienteForm) {
+    setFormReadOnly(clienteForm);
   }
   document.getElementById("cliente-search").addEventListener("input", renderClienteList);
   blankNewCliente = false;
@@ -2364,10 +2362,28 @@ function cancelCliente() {
   editingClienteDocumento = null;
   blankNewCliente = false;
   renderClientes();
+  resetCompactViewScroll("#clientes-view");
 }
 
 function isCompactLayout() {
   return window.innerWidth <= 640 || window.innerHeight <= 500;
+}
+
+function compactScrollOffset() {
+  const sidebarHeight = document.querySelector(".sidebar")?.getBoundingClientRect().height || 0;
+  return Math.min(sidebarHeight + 8, 116);
+}
+
+function resetCompactViewScroll(selector = ".view.is-active") {
+  if (!isCompactLayout()) return;
+  window.requestAnimationFrame(() => {
+    const target = document.querySelector(selector) || document.querySelector(".view.is-active");
+    if (!target) return;
+    const top = Math.max(0, window.scrollY + target.getBoundingClientRect().top - compactScrollOffset());
+    document.documentElement.scrollTop = top;
+    document.body.scrollTop = top;
+    window.scrollTo({ top, behavior: "auto" });
+  });
 }
 
 function scrollClienteFormIntoView() {
@@ -2850,6 +2866,7 @@ function renderServicos() {
   const editingServico = state.servicos.find((servico) => servico.codigo === editingServicoCodigo) || {};
   const useBlankForm = blankNewServico && !editingServicoCodigo;
   const showServicoFormOnMobile = Boolean(editingServicoCodigo || blankNewServico);
+  const renderServicoForm = !isCompactLayout() || showServicoFormOnMobile;
   const codigoValue = editingServicoCodigo ? editingServico.codigo : (useBlankForm ? "" : nextServiceCode());
   const frequenciaValue = editingServicoCodigo ? editingServico.frequencia : (useBlankForm ? "" : "UNITARIO");
   const statusValue = editingServicoCodigo ? editingServico.status : (useBlankForm ? "" : "ATIVO");
@@ -2868,7 +2885,7 @@ function renderServicos() {
         <div id="servico-list"></div>
         ${editable && !showServicoFormOnMobile ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo serviço</button>' : ""}
       </section>
-      <section class="panel servico-form-panel${showServicoFormOnMobile ? "" : " is-mobile-hidden"}">
+      ${renderServicoForm ? `<section class="panel servico-form-panel${showServicoFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingServicoCodigo ? "Alterar serviço" : "Novo serviço"}</h2>
         <form class="servico-form-grid" id="servico-form">
           <label>Código<input name="codigo" readonly required value="${fieldValue(codigoValue)}"></label>
@@ -2886,17 +2903,18 @@ function renderServicos() {
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
         </form>
-      </section>
+      </section>` : ""}
     </div>
   `;
 
-  document.getElementById("servico-form").addEventListener("submit", addServico);
+  const servicoForm = document.getElementById("servico-form");
+  servicoForm?.addEventListener("submit", addServico);
   if (editable) {
     document.getElementById("new-servico")?.addEventListener("click", newServico);
     document.getElementById("show-servico-form")?.addEventListener("click", newServico);
-    document.getElementById("cancel-servico-edit").addEventListener("click", cancelServico);
-  } else {
-    setFormReadOnly(document.getElementById("servico-form"));
+    document.getElementById("cancel-servico-edit")?.addEventListener("click", cancelServico);
+  } else if (servicoForm) {
+    setFormReadOnly(servicoForm);
   }
   document.getElementById("servico-search").addEventListener("input", renderServicoList);
   blankNewServico = false;
@@ -3012,6 +3030,7 @@ function cancelServico() {
   editingServicoCodigo = null;
   blankNewServico = !isCompactLayout();
   renderServicos();
+  resetCompactViewScroll("#servicos-view");
 }
 
 function editServico(codigo) {
