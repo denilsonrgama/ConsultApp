@@ -775,7 +775,9 @@ a.small-button {
 
 .cliente-list-new-button,
 .servico-list-new-button,
-.orcamento-list-new-button {
+.orcamento-list-new-button,
+.usuario-list-new-button,
+.files-list-refresh-button {
   display: none;
 }
 
@@ -2472,6 +2474,10 @@ th {
     min-height: 38px;
   }
 
+  .files-toolbar-refresh-button {
+    display: none;
+  }
+
   .files-table-wrap,
   .users-table-wrap {
     max-height: min(54svh, 520px);
@@ -2869,7 +2875,9 @@ th {
 
   .cliente-list-new-button,
   .servico-list-new-button,
-  .orcamento-list-new-button {
+  .orcamento-list-new-button,
+  .usuario-list-new-button,
+  .files-list-refresh-button {
     display: block;
     width: 100%;
     margin-top: 8px;
@@ -2878,13 +2886,15 @@ th {
 
   .cliente-form-panel,
   .servico-form-panel,
-  .orcamento-form-panel {
+  .orcamento-form-panel,
+  .usuario-form-panel {
     scroll-margin-top: 112px;
   }
 
   .cliente-form-panel.is-mobile-hidden,
   .servico-form-panel.is-mobile-hidden,
-  .orcamento-form-panel.is-mobile-hidden {
+  .orcamento-form-panel.is-mobile-hidden,
+  .usuario-form-panel.is-mobile-hidden {
     display: none;
   }
 
@@ -3450,6 +3460,10 @@ th {
     min-height: 34px;
   }
 
+  .files-toolbar-refresh-button {
+    display: none;
+  }
+
   .files-table-wrap,
   .users-table-wrap {
     max-height: min(46svh, 260px);
@@ -3588,7 +3602,9 @@ th {
 
   .cliente-list-new-button,
   .servico-list-new-button,
-  .orcamento-list-new-button {
+  .orcamento-list-new-button,
+  .usuario-list-new-button,
+  .files-list-refresh-button {
     display: block;
     width: 100%;
     margin-top: 7px;
@@ -3597,13 +3613,15 @@ th {
 
   .cliente-form-panel,
   .servico-form-panel,
-  .orcamento-form-panel {
+  .orcamento-form-panel,
+  .usuario-form-panel {
     scroll-margin-top: 76px;
   }
 
   .cliente-form-panel.is-mobile-hidden,
   .servico-form-panel.is-mobile-hidden,
-  .orcamento-form-panel.is-mobile-hidden {
+  .orcamento-form-panel.is-mobile-hidden,
+  .usuario-form-panel.is-mobile-hidden {
     display: none;
   }
 

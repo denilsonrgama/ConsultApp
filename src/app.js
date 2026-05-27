@@ -37,6 +37,7 @@ let reportFilters = {
   servicoStatus: "TODOS",
 };
 let editingUsuarioId = null;
+let blankNewUsuario = false;
 let explicitLogout = false;
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -1228,13 +1229,15 @@ function renderArquivos() {
           <h2>Arquivos salvos</h2>
           <p>PDFs armazenados no banco de dados.</p>
         </div>
-        <button type="button" class="primary-button" id="refresh-files">Atualizar</button>
+        <button type="button" class="primary-button files-toolbar-refresh-button" id="refresh-files">Atualizar</button>
       </div>
       <div id="files-list">${emptyState()}</div>
+      <button type="button" class="primary-button files-list-refresh-button" id="refresh-files-list">Atualizar</button>
     </section>
   `;
 
   document.getElementById("refresh-files")?.addEventListener("click", refreshArquivos);
+  document.getElementById("refresh-files-list")?.addEventListener("click", refreshArquivos);
   refreshArquivos();
 }
 
@@ -1584,6 +1587,7 @@ function renderUsuarios() {
   const editingUsuario = usuarios.find((usuario) => Number(usuario.id) === Number(editingUsuarioId)) || {};
   const usuarioPermissoes = permissionsForUser(editingUsuario);
   const editable = hasPermission("usuarios.create") || hasPermission("usuarios.edit");
+  const showUsuarioFormOnMobile = Boolean(editingUsuarioId || blankNewUsuario);
   const view = document.getElementById("usuarios-view");
   if (!view || !canManageUsers()) return;
   const sortedUsuarios = applyTableSort("usuarios", usuarios.slice(), {
@@ -1624,8 +1628,9 @@ function renderUsuarios() {
           </tbody>
         </table>
       </div>
+      ${editable && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button>' : ""}
     </section>
-    <section class="panel usuario-form-panel">
+    <section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
       <h2>${editingUsuarioId ? "Alterar usuário" : "Novo usuário"}</h2>
       <form class="usuario-form-grid" id="usuario-form">
         <label>Usuário<input name="usuario" required value="${fieldValue(editingUsuario.usuario)}"></label>
@@ -1653,7 +1658,8 @@ function renderUsuarios() {
         ${editable ? `
           <div class="form-actions budget-form-actions">
             <button class="primary-button" type="submit">${editingUsuarioId ? "Salvar alteração" : "Salvar usuário"}</button>
-            <button class="success-button" type="button" id="cancel-usuario-edit">Novo usuário</button>
+            ${editingUsuarioId ? '<button class="success-button" type="button" id="new-usuario">Novo usuário</button>' : ""}
+            <button class="danger-button" type="button" id="cancel-usuario-edit">Cancelar</button>
           </div>
         ` : '<p class="muted">Acesso somente leitura.</p>'}
       </form>
@@ -1662,7 +1668,9 @@ function renderUsuarios() {
 
   document.getElementById("usuario-form").addEventListener("submit", saveUsuario);
   if (editable) {
-    document.getElementById("cancel-usuario-edit").addEventListener("click", newUsuario);
+    document.getElementById("new-usuario")?.addEventListener("click", newUsuario);
+    document.getElementById("show-usuario-form")?.addEventListener("click", newUsuario);
+    document.getElementById("cancel-usuario-edit").addEventListener("click", cancelUsuario);
     document.getElementById("apply-profile-permissions").addEventListener("click", applyProfilePermissionsToForm);
     document.getElementById("check-all-permissions").addEventListener("click", () => setAllPermissions(true));
     document.getElementById("clear-all-permissions").addEventListener("click", () => setAllPermissions(false));
@@ -1744,6 +1752,14 @@ async function refreshUsuariosView() {
 
 function newUsuario() {
   editingUsuarioId = null;
+  blankNewUsuario = true;
+  renderUsuarios();
+  scrollUsuarioFormIntoView();
+}
+
+function cancelUsuario() {
+  editingUsuarioId = null;
+  blankNewUsuario = false;
   renderUsuarios();
 }
 
@@ -1753,8 +1769,16 @@ function editUsuario(id) {
     return;
   }
   editingUsuarioId = Number(id);
+  blankNewUsuario = false;
   renderUsuarios();
-  document.querySelector(".usuario-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  scrollUsuarioFormIntoView();
+}
+
+function scrollUsuarioFormIntoView() {
+  if (!isCompactLayout()) return;
+  window.requestAnimationFrame(() => {
+    document.querySelector(".usuario-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 async function saveUsuario(event) {
@@ -1784,6 +1808,7 @@ async function saveUsuario(event) {
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível salvar usuário.");
     editingUsuarioId = null;
+    blankNewUsuario = false;
     await refreshUsuariosView();
     showFloatingMessage("Usuário salvo com sucesso.");
   } catch (error) {
@@ -2001,7 +2026,7 @@ function renderClientes() {
           ${editable ? `
             <div class="form-actions cliente-form-actions">
               <button class="primary-button" type="submit">${editingClienteDocumento ? "Salvar alteração" : "Salvar cliente"}</button>
-              <button class="success-button" type="button" id="new-cliente">Novo cliente</button>
+              ${editingClienteDocumento ? '<button class="success-button" type="button" id="new-cliente">Novo cliente</button>' : ""}
               <button class="danger-button" type="button" id="cancel-cliente-edit">Cancelar</button>
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
@@ -2021,7 +2046,7 @@ function renderClientes() {
     document.querySelector('#cliente-form [name="cep"]').addEventListener("keydown", handleClienteCepKeydown);
     document.querySelector('#cliente-form [name="cep"]').addEventListener("blur", handleClienteCepBlur);
     document.querySelector('#cliente-form [name="complemento"]').addEventListener("keydown", handleClienteComplementoKeydown);
-    document.getElementById("new-cliente").addEventListener("click", newCliente);
+    document.getElementById("new-cliente")?.addEventListener("click", newCliente);
     document.getElementById("show-cliente-form")?.addEventListener("click", newCliente);
     document.getElementById("cancel-cliente-edit").addEventListener("click", cancelCliente);
   } else {
@@ -2731,7 +2756,7 @@ function renderServicos() {
           ${editable ? `
             <div class="form-actions budget-form-actions">
               <button class="primary-button" type="submit">${editingServicoCodigo ? "Salvar alteração" : "Salvar serviço"}</button>
-              <button class="success-button" type="button" id="new-servico">Novo serviço</button>
+              ${editingServicoCodigo ? '<button class="success-button" type="button" id="new-servico">Novo serviço</button>' : ""}
               <button class="danger-button" type="button" id="cancel-servico-edit">Cancelar</button>
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
@@ -2742,7 +2767,7 @@ function renderServicos() {
 
   document.getElementById("servico-form").addEventListener("submit", addServico);
   if (editable) {
-    document.getElementById("new-servico").addEventListener("click", newServico);
+    document.getElementById("new-servico")?.addEventListener("click", newServico);
     document.getElementById("show-servico-form")?.addEventListener("click", newServico);
     document.getElementById("cancel-servico-edit").addEventListener("click", cancelServico);
   } else {
@@ -2943,7 +2968,7 @@ function renderOrcamentos() {
           ${editable ? `
             <div class="form-actions budget-form-actions">
               <button class="primary-button" type="submit" id="save-orcamento">${editingOrcamentoNumero && !addingBudgetItem ? "Salvar alteração" : "Salvar orçamento"}</button>
-              <button class="success-button" type="button" id="new-orcamento">Novo orçamento</button>
+              ${editingOrcamentoNumero ? '<button class="success-button" type="button" id="new-orcamento">Novo orçamento</button>' : ""}
               <button class="success-button" type="button" id="add-budget-item"${approvedLocked ? " disabled" : ""}>Inserir serviço</button>
               ${editingOrcamentoNumero ? '<button class="danger-button" type="button" id="delete-budget-item" disabled>Deletar serviço</button>' : ""}
               ${editingOrcamentoNumero ? `<button class="danger-button" type="button" id="delete-current-orcamento"${approvedLocked ? " disabled" : ""}>Deletar</button>` : ""}
@@ -2959,7 +2984,7 @@ function renderOrcamentos() {
   document.querySelector('#orcamento-form [name="status"]')?.addEventListener("focus", showStatusPrivilegeNotice);
   document.querySelector('#orcamento-form [name="status"]')?.addEventListener("click", showStatusPrivilegeNotice);
   if (editable) {
-    document.getElementById("new-orcamento").addEventListener("click", newOrcamento);
+    document.getElementById("new-orcamento")?.addEventListener("click", newOrcamento);
     document.getElementById("show-orcamento-form")?.addEventListener("click", newOrcamento);
     document.getElementById("cancel-orcamento-edit").addEventListener("click", cancelOrcamento);
     document.getElementById("add-budget-item").addEventListener("click", addBlankBudgetItem);
@@ -4857,6 +4882,7 @@ document.body.addEventListener("click", (event) => {
 
   const openUsuarioRow = event.target.closest("[data-open-usuario]");
   if (openUsuarioRow) {
+    if (isCompactLayout()) return;
     editUsuario(openUsuarioRow.dataset.openUsuario);
   }
 });
