@@ -44,6 +44,10 @@ let openMenuGroup = "";
 let lastNavScrollY = 0;
 let navScrollTicking = false;
 
+if ("scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
+
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -1866,6 +1870,7 @@ function newUsuario() {
 }
 
 function cancelUsuario() {
+  document.activeElement?.blur();
   editingUsuarioId = null;
   blankNewUsuario = false;
   renderUsuarios();
@@ -2359,6 +2364,7 @@ function newCliente() {
 }
 
 function cancelCliente() {
+  document.activeElement?.blur();
   editingClienteDocumento = null;
   blankNewCliente = false;
   renderClientes();
@@ -2371,7 +2377,9 @@ function isCompactLayout() {
 
 function resetCompactViewScroll() {
   if (!isCompactLayout()) return;
+  document.body.classList.add("is-resetting-compact-scroll");
   const scrollTop = () => {
+    document.querySelector(".sidebar")?.classList.remove("is-hidden-on-scroll");
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -2379,7 +2387,12 @@ function resetCompactViewScroll() {
   window.requestAnimationFrame(() => {
     scrollTop();
     window.requestAnimationFrame(scrollTop);
-    window.setTimeout(scrollTop, 80);
+    window.setTimeout(scrollTop, 60);
+    window.setTimeout(scrollTop, 160);
+    window.setTimeout(() => {
+      scrollTop();
+      document.body.classList.remove("is-resetting-compact-scroll");
+    }, 320);
   });
 }
 
@@ -3024,6 +3037,7 @@ function newServico() {
 }
 
 function cancelServico() {
+  document.activeElement?.blur();
   editingServicoCodigo = null;
   blankNewServico = !isCompactLayout();
   renderServicos();

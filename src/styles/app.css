@@ -3980,6 +3980,15 @@ th {
 }
 
 @media (max-width: 920px) {
+  html,
+  body,
+  .app-shell,
+  .content,
+  .view,
+  .panel {
+    overflow-anchor: none;
+  }
+
   .clientes-list-panel,
   .servicos-list-panel,
   .usuarios-list-panel,
@@ -4009,6 +4018,15 @@ th {
   .servico-form-panel.is-mobile-hidden,
   .usuario-form-panel.is-mobile-hidden {
     display: none !important;
+  }
+
+  body.is-resetting-compact-scroll .content {
+    padding-bottom: 8px !important;
+  }
+
+  body.is-resetting-compact-scroll .view.is-active {
+    align-content: start !important;
+    gap: 8px !important;
   }
 }
 
