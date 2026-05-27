@@ -1972,10 +1972,10 @@ function renderClientes() {
       <section class="panel clientes-list-panel">
         <div class="toolbar">
           <h2>Clientes cadastrados</h2>
-          ${editable ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo cliente</button>' : ""}
           <input id="cliente-search" placeholder="Buscar cliente">
         </div>
         <div id="cliente-list"></div>
+        ${editable && !showClienteFormOnMobile ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo cliente</button>' : ""}
       </section>
       <section class="panel cliente-form-panel${showClienteFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingClienteDocumento ? "Alterar cliente" : "Novo cliente"}</h2>
@@ -2713,10 +2713,10 @@ function renderServicos() {
       <section class="panel servicos-list-panel">
         <div class="toolbar">
           <h2>Serviços cadastrados</h2>
-          ${editable ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo serviço</button>' : ""}
           <input id="servico-search" placeholder="Buscar serviço">
         </div>
         <div id="servico-list"></div>
+        ${editable && !showServicoFormOnMobile ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo serviço</button>' : ""}
       </section>
       <section class="panel servico-form-panel${showServicoFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingServicoCodigo ? "Alterar serviço" : "Novo serviço"}</h2>
@@ -2919,10 +2919,10 @@ function renderOrcamentos() {
       <section class="panel orcamentos-list-panel">
         <div class="toolbar">
           <h2>Orçamentos</h2>
-          ${editable ? '<button class="success-button orcamento-list-new-button" type="button" id="show-orcamento-form">Novo orçamento</button>' : ""}
           <input id="orcamento-search" placeholder="Buscar orçamento"${editingOrcamentoNumero ? " hidden" : ""}>
         </div>
         <div id="orcamento-list"></div>
+        ${editable && !showOrcamentoFormOnMobile ? '<button class="success-button orcamento-list-new-button" type="button" id="show-orcamento-form">Novo orçamento</button>' : ""}
       </section>
       <section class="panel orcamento-form-panel${showOrcamentoFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingOrcamentoNumero ? "Alterar orçamento" : "Novo orçamento"}</h2>

@@ -2872,6 +2872,7 @@ th {
   .orcamento-list-new-button {
     display: block;
     width: 100%;
+    margin-top: 8px;
     min-height: 38px;
   }
 
@@ -3590,6 +3591,7 @@ th {
   .orcamento-list-new-button {
     display: block;
     width: 100%;
+    margin-top: 7px;
     min-height: 34px;
   }
 
