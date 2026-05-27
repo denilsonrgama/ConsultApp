@@ -4309,22 +4309,23 @@ async function exportReportExcel(type) {
         report,
       }),
     });
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
-      throw new Error("Servidor de homologação desatualizado. Reinicie o servidor e recarregue a página.");
-    }
-
-    const result = await response.json();
-    if (!response.ok || !result.ok) {
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") || "";
+      const result = contentType.includes("application/json") ? await response.json() : {};
       throw new Error(result.error || "Não foi possível gerar o relatório.");
     }
 
+    const blob = await response.blob();
+    const downloadUrl = URL.createObjectURL(blob);
+    const disposition = response.headers.get("content-disposition") || "";
+    const fileNameMatch = disposition.match(/filename="?([^";]+)"?/i);
     const link = document.createElement("a");
-    link.href = result.url;
-    link.download = result.fileName;
+    link.href = downloadUrl;
+    link.download = fileNameMatch?.[1] || `${report.fileName}.xlsx`;
     document.body.append(link);
     link.click();
     link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
     showFloatingMessage("Relatório exportado para Excel.", "success");
   } catch (error) {
     alert(error.message || "Não foi possível gerar o relatório em Excel.");

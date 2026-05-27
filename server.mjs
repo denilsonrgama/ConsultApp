@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v259";
+const serverVersion = "v260";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -2607,22 +2607,20 @@ createServer(async (request, response) => {
       }
 
       const xlsxBuffer = createReportXlsx(payload.report);
-      writeFileSync(target, xlsxBuffer);
-      await saveStoredFile({
-        categoria: "relatorios",
-        nome: fileName,
-        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        conteudo: xlsxBuffer,
-      });
       await logAudit(request, authUser, {
         acao: "relatorio.gerar_excel",
         modulo: "relatorios",
         entidadeTipo: "relatorio",
         entidadeId: fileName,
-        detalhes: { armazenamento: "banco", tamanho: xlsxBuffer.length, path: target, titulo: payload.report?.title || "" },
+        detalhes: { armazenamento: "download", tamanho: xlsxBuffer.length, titulo: payload.report?.title || "" },
       }).catch(() => {});
-      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ ok: true, fileName, path: target, url: `/relatorios/${encodeURIComponent(fileName)}` }));
+      response.writeHead(200, {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Length": xlsxBuffer.length,
+        "Cache-Control": "no-store",
+      });
+      response.end(xlsxBuffer);
     } catch (error) {
       response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
       response.end(JSON.stringify({ ok: false, error: error.message }));
