@@ -188,11 +188,11 @@ nav > [data-menu-group="financeiro"] {
 }
 
 nav > [data-menu-group="administracao"] {
-  order: 5;
+  order: 6;
 }
 
 nav > [data-submenu="financeiro"] {
-  order: 6;
+  order: 5;
 }
 
 nav > [data-submenu="administracao"] {
