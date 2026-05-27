@@ -4051,9 +4051,15 @@ th {
     min-height: 0 !important;
   }
 
+  .clientes-list-panel .table-wrap,
+  .servicos-list-panel .table-wrap,
+  .files-table-wrap,
   .users-table-wrap {
-    max-height: min(54svh, 520px) !important;
-    overflow-y: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overscroll-behavior: auto !important;
+    padding-right: 0 !important;
   }
 }
 
