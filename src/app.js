@@ -1279,9 +1279,11 @@ function arquivosTable(files) {
               <td>${escapeHtml(file.categoria === "orcamentos" ? "Orçamento" : "Relatório")}</td>
               <td>${escapeHtml(formatFileSize(file.tamanho))}</td>
               <td>${escapeHtml(formatDateTime(file.updatedAt || file.createdAt))}</td>
-              <td class="row-actions">
-                <a class="small-button" href="${escapeHtml(file.url)}" target="_blank" rel="noopener">Visualizar</a>
-                ${canDeleteFiles ? `<button type="button" class="small-button danger-text" data-delete-arquivo="${escapeHtml(file.categoria)}" data-delete-arquivo-nome="${escapeHtml(file.nome)}">Excluir</button>` : ""}
+              <td>
+                <div class="row-actions files-row-actions">
+                  <a class="small-button" href="${escapeHtml(file.url)}" target="_blank" rel="noopener">Visualizar</a>
+                  ${canDeleteFiles ? `<button type="button" class="small-button danger-text" data-delete-arquivo="${escapeHtml(file.categoria)}" data-delete-arquivo-nome="${escapeHtml(file.nome)}">Excluir</button>` : ""}
+                </div>
               </td>
             </tr>
           `).join("")}
