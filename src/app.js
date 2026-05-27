@@ -39,6 +39,7 @@ let reportFilters = {
 let editingUsuarioId = null;
 let blankNewUsuario = false;
 let explicitLogout = false;
+let openMenuGroup = "";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -743,17 +744,57 @@ function canView(view) {
   return !permission || hasPermission(permission);
 }
 
+function menuViewsForGroup(group) {
+  return {
+    financeiro: ["orcamentos", "relatorios"],
+    administracao: ["usuarios", "arquivos", "auditoria"],
+  }[group] || [];
+}
+
+function menuGroupForView(view) {
+  if (view === "financeiro" || menuViewsForGroup("financeiro").includes(view)) return "financeiro";
+  if (menuViewsForGroup("administracao").includes(view)) return "administracao";
+  return "";
+}
+
+function canShowMenuGroup(group) {
+  const views = menuViewsForGroup(group);
+  if (group === "financeiro") return canView("financeiro") || views.some((view) => canView(view));
+  return views.some((view) => canView(view));
+}
+
+function syncNavigationMenus() {
+  const activeView = document.querySelector(".view.is-active")?.id?.replace("-view", "") || "dashboard";
+  document.querySelectorAll("[data-menu-group]").forEach((button) => {
+    const group = button.dataset.menuGroup;
+    const visible = canShowMenuGroup(group);
+    const active = menuGroupForView(activeView) === group;
+    const open = visible && openMenuGroup === group;
+    button.hidden = !visible;
+    button.classList.toggle("is-active", active);
+    button.classList.toggle("is-open", open);
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  document.querySelectorAll("[data-submenu]").forEach((submenu) => {
+    const group = submenu.dataset.submenu;
+    submenu.hidden = !(canShowMenuGroup(group) && openMenuGroup === group);
+  });
+}
+
 function setView(view) {
   if (!canView(view)) {
     showNoPermissionMessage();
     return;
   }
+  openMenuGroup = menuGroupForView(view);
   if (view === "orcamentos" && !editingOrcamentoNumero) blankNewOrcamento = !isCompactLayout();
   document.querySelectorAll(".nav-button").forEach((button) => {
-    const isFinanceGroup = button.dataset.view === "financeiro" && ["financeiro", "orcamentos"].includes(view);
-    const isAdminGroup = button.dataset.menuGroup === "administracao" && ["usuarios", "relatorios", "arquivos", "auditoria"].includes(view);
-    button.classList.toggle("is-active", button.dataset.view === view || isFinanceGroup || isAdminGroup);
+    const group = button.dataset.menuGroup;
+    const active = group ? menuGroupForView(view) === group : button.dataset.view === view;
+    button.classList.toggle("is-active", active);
   });
+  syncNavigationMenus();
 
   document.querySelectorAll(".view").forEach((section) => {
     section.classList.toggle("is-active", section.id === `${view}-view`);
@@ -826,10 +867,13 @@ function renderSidebarPanel() {
   document.querySelectorAll("[data-view]").forEach((element) => {
     element.hidden = !canView(element.dataset.view);
   });
-  const adminViews = ["usuarios", "relatorios", "arquivos", "auditoria"];
+  const financeViews = menuViewsForGroup("financeiro");
+  const hasFinanceItem = canView("financeiro") || financeViews.some((view) => canView(view));
+  document.querySelector('[data-menu-group="financeiro"]')?.toggleAttribute("hidden", !hasFinanceItem);
+  const adminViews = menuViewsForGroup("administracao");
   const hasAdminItem = adminViews.some((view) => canView(view));
   document.querySelector('[data-menu-group="administracao"]')?.toggleAttribute("hidden", !hasAdminItem);
-  document.querySelector("[data-admin-menu]")?.toggleAttribute("hidden", !hasAdminItem);
+  syncNavigationMenus();
   document.querySelectorAll("[data-sidebar-new]").forEach((element) => {
     element.hidden = !hasPermission(`${element.dataset.sidebarNew}.create`) || !canManageData();
   });
@@ -4737,9 +4781,20 @@ function emptyState() {
 
 document.querySelectorAll(".nav-button").forEach((button) => {
   button.addEventListener("click", () => {
-    if (button.dataset.menuGroup === "administracao") {
-      const target = ["usuarios", "relatorios", "arquivos", "auditoria"].find((view) => canView(view));
+    const group = button.dataset.menuGroup;
+    if (group === "administracao") {
+      openMenuGroup = openMenuGroup === "administracao" ? "" : "administracao";
+      syncNavigationMenus();
+      return;
+    }
+
+    if (group === "financeiro") {
+      openMenuGroup = "financeiro";
+      const target = canView("financeiro")
+        ? "financeiro"
+        : menuViewsForGroup("financeiro").find((view) => canView(view));
       if (target) setView(target);
+      else syncNavigationMenus();
       return;
     }
 

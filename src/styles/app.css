@@ -193,6 +193,15 @@ nav {
   padding-left: 14px;
 }
 
+.nav-submenu[hidden] {
+  display: none !important;
+}
+
+.nav-menu-toggle.is-open {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
 .nav-sub-button {
   min-height: 34px;
   padding: 8px 12px;
@@ -3829,6 +3838,63 @@ th {
     min-width: 0;
     text-align: center;
     width: 100%;
+  }
+}
+
+@media (max-width: 920px) {
+  nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 5px;
+  }
+
+  .nav-submenu {
+    grid-column: 1 / -1;
+    display: grid !important;
+    gap: 5px;
+    margin: 0;
+    padding-left: 0;
+  }
+
+  .nav-submenu[hidden] {
+    display: none !important;
+  }
+
+  .nav-submenu[data-submenu="financeiro"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nav-submenu[data-submenu="administracao"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nav-button,
+  .nav-sub-button {
+    min-width: 0;
+    min-height: 36px;
+    padding: 5px 4px;
+    border-radius: 7px;
+    font-size: 0.72rem;
+    line-height: 1.12;
+    text-align: center;
+  }
+}
+
+@media (max-width: 640px) {
+  nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 4px;
+  }
+
+  .nav-button,
+  .nav-sub-button {
+    min-height: 37px;
+    padding: 5px 2px;
+    font-size: 0.62rem;
+  }
+
+  .nav-submenu[data-submenu="financeiro"],
+  .nav-submenu[data-submenu="administracao"] {
+    gap: 4px;
   }
 }
 
