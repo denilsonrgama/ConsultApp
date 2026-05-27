@@ -2369,20 +2369,17 @@ function isCompactLayout() {
   return window.matchMedia("(max-width: 920px), (max-height: 500px)").matches;
 }
 
-function compactScrollOffset() {
-  const sidebarHeight = document.querySelector(".sidebar")?.getBoundingClientRect().height || 0;
-  return Math.min(sidebarHeight + 8, 116);
-}
-
-function resetCompactViewScroll(selector = ".view.is-active") {
+function resetCompactViewScroll() {
   if (!isCompactLayout()) return;
+  const scrollTop = () => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  };
   window.requestAnimationFrame(() => {
-    const target = document.querySelector(selector) || document.querySelector(".view.is-active");
-    if (!target) return;
-    const top = Math.max(0, window.scrollY + target.getBoundingClientRect().top - compactScrollOffset());
-    document.documentElement.scrollTop = top;
-    document.body.scrollTop = top;
-    window.scrollTo({ top, behavior: "auto" });
+    scrollTop();
+    window.requestAnimationFrame(scrollTop);
+    window.setTimeout(scrollTop, 80);
   });
 }
 
