@@ -4789,7 +4789,12 @@ document.querySelectorAll(".nav-button").forEach((button) => {
     }
 
     if (group === "financeiro") {
-      openMenuGroup = "financeiro";
+      if (openMenuGroup === "financeiro") {
+        openMenuGroup = "";
+        syncNavigationMenus();
+        return;
+      }
+
       const target = canView("financeiro")
         ? "financeiro"
         : menuViewsForGroup("financeiro").find((view) => canView(view));
