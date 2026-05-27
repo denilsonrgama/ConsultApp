@@ -2960,10 +2960,13 @@ th {
   .orcamento-list-new-button,
   .usuario-list-new-button,
   .files-list-refresh-button {
+    bottom: 8px;
     display: block;
     width: 100%;
     margin-top: 8px;
     min-height: 38px;
+    position: sticky;
+    z-index: 2;
   }
 
   .cliente-form-panel,
@@ -3687,10 +3690,13 @@ th {
   .orcamento-list-new-button,
   .usuario-list-new-button,
   .files-list-refresh-button {
+    bottom: 8px;
     display: block;
     width: 100%;
     margin-top: 7px;
     min-height: 34px;
+    position: sticky;
+    z-index: 2;
   }
 
   .cliente-form-panel,
