@@ -3891,8 +3891,10 @@ th {
     grid-column: 1 / -1;
     display: grid !important;
     gap: 5px;
+    justify-self: end;
     margin: 0;
     padding-left: 0;
+    width: auto;
   }
 
   .nav-submenu[hidden] {
@@ -3900,11 +3902,11 @@ th {
   }
 
   .nav-submenu[data-submenu="financeiro"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(96px, 118px));
   }
 
   .nav-submenu[data-submenu="administracao"] {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(88px, 108px));
   }
 
   .nav-button,
@@ -3935,6 +3937,14 @@ th {
   .nav-submenu[data-submenu="financeiro"],
   .nav-submenu[data-submenu="administracao"] {
     gap: 4px;
+  }
+
+  .nav-submenu[data-submenu="financeiro"] {
+    grid-template-columns: repeat(2, minmax(82px, 100px));
+  }
+
+  .nav-submenu[data-submenu="administracao"] {
+    grid-template-columns: repeat(3, minmax(74px, 92px));
   }
 }
 
