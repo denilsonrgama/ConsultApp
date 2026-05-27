@@ -747,7 +747,7 @@ function setView(view) {
     showNoPermissionMessage();
     return;
   }
-  if (view === "orcamentos" && !editingOrcamentoNumero) blankNewOrcamento = true;
+  if (view === "orcamentos" && !editingOrcamentoNumero) blankNewOrcamento = !isCompactLayout();
   document.querySelectorAll(".nav-button").forEach((button) => {
     const isFinanceGroup = button.dataset.view === "financeiro" && ["financeiro", "orcamentos"].includes(view);
     const isAdminGroup = button.dataset.menuGroup === "administracao" && ["usuarios", "relatorios", "arquivos", "auditoria"].includes(view);
@@ -2699,6 +2699,7 @@ async function deleteCliente(documento) {
 function renderServicos() {
   const editingServico = state.servicos.find((servico) => servico.codigo === editingServicoCodigo) || {};
   const useBlankForm = blankNewServico && !editingServicoCodigo;
+  const showServicoFormOnMobile = Boolean(editingServicoCodigo || blankNewServico);
   const codigoValue = editingServicoCodigo ? editingServico.codigo : (useBlankForm ? "" : nextServiceCode());
   const frequenciaValue = editingServicoCodigo ? editingServico.frequencia : (useBlankForm ? "" : "UNITARIO");
   const statusValue = editingServicoCodigo ? editingServico.status : (useBlankForm ? "" : "ATIVO");
@@ -2712,11 +2713,12 @@ function renderServicos() {
       <section class="panel servicos-list-panel">
         <div class="toolbar">
           <h2>Serviços cadastrados</h2>
+          ${editable ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo serviço</button>' : ""}
           <input id="servico-search" placeholder="Buscar serviço">
         </div>
         <div id="servico-list"></div>
       </section>
-      <section class="panel servico-form-panel">
+      <section class="panel servico-form-panel${showServicoFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingServicoCodigo ? "Alterar serviço" : "Novo serviço"}</h2>
         <form class="servico-form-grid" id="servico-form">
           <label>Código<input name="codigo" readonly required value="${fieldValue(codigoValue)}"></label>
@@ -2741,6 +2743,7 @@ function renderServicos() {
   document.getElementById("servico-form").addEventListener("submit", addServico);
   if (editable) {
     document.getElementById("new-servico").addEventListener("click", newServico);
+    document.getElementById("show-servico-form")?.addEventListener("click", newServico);
     document.getElementById("cancel-servico-edit").addEventListener("click", cancelServico);
   } else {
     setFormReadOnly(document.getElementById("servico-form"));
@@ -2852,11 +2855,12 @@ function newServico() {
   editingServicoCodigo = null;
   blankNewServico = true;
   renderServicos();
+  scrollServicoFormIntoView();
 }
 
 function cancelServico() {
   editingServicoCodigo = null;
-  blankNewServico = true;
+  blankNewServico = !isCompactLayout();
   renderServicos();
 }
 
@@ -2864,12 +2868,26 @@ function editServico(codigo) {
   editingServicoCodigo = codigo;
   blankNewServico = false;
   setView("servicos");
+  scrollServicoFormIntoView();
+}
+
+function scrollServicoFormIntoView() {
+  if (!isCompactLayout()) return;
+  window.requestAnimationFrame(() => {
+    document.querySelector(".servico-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function deleteServico(codigo) {
   if (!canDeleteFromModule("servicos") || !canManageData()) {
     showNoPermissionMessage();
     return;
+  }
+  if (isCompactLayout()) {
+    editingServicoCodigo = codigo;
+    blankNewServico = false;
+    renderServicos();
+    scrollServicoFormIntoView();
   }
   const hasBudgets = state.orcamentos.some((orcamento) => orcamento.itens.some((item) => item.servicoCodigo === codigo));
   if (hasBudgets) {
@@ -2887,6 +2905,7 @@ function renderOrcamentos() {
   const editingOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero)) || {};
   const approvedLocked = editingOrcamentoNumero && isOrcamentoAprovado(editingOrcamento);
   const useBlankForm = blankNewOrcamento && !editingOrcamentoNumero;
+  const showOrcamentoFormOnMobile = Boolean(editingOrcamentoNumero || blankNewOrcamento);
   const numeroValue = editingOrcamentoNumero ? editingOrcamento.numero : nextBudgetNumber();
   const dataValue = editingOrcamentoNumero ? editingOrcamento.data : (useBlankForm ? "" : new Date().toISOString().slice(0, 10));
   const statusValue = editingOrcamentoNumero ? normalizeOrcamentoStatus(editingOrcamento.status) : "EM ANÁLISE";
@@ -2900,11 +2919,12 @@ function renderOrcamentos() {
       <section class="panel orcamentos-list-panel">
         <div class="toolbar">
           <h2>Orçamentos</h2>
+          ${editable ? '<button class="success-button orcamento-list-new-button" type="button" id="show-orcamento-form">Novo orçamento</button>' : ""}
           <input id="orcamento-search" placeholder="Buscar orçamento"${editingOrcamentoNumero ? " hidden" : ""}>
         </div>
         <div id="orcamento-list"></div>
       </section>
-      <section class="panel orcamento-form-panel">
+      <section class="panel orcamento-form-panel${showOrcamentoFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingOrcamentoNumero ? "Alterar orçamento" : "Novo orçamento"}</h2>
         <form class="orcamento-form-grid${approvedLocked ? " approved-budget-locked" : ""}" id="orcamento-form">
           <label>Número<input name="numero" type="number" min="15000" step="1" readonly required value="${fieldValue(numeroValue)}"></label>
@@ -2940,6 +2960,7 @@ function renderOrcamentos() {
   document.querySelector('#orcamento-form [name="status"]')?.addEventListener("click", showStatusPrivilegeNotice);
   if (editable) {
     document.getElementById("new-orcamento").addEventListener("click", newOrcamento);
+    document.getElementById("show-orcamento-form")?.addEventListener("click", newOrcamento);
     document.getElementById("cancel-orcamento-edit").addEventListener("click", cancelOrcamento);
     document.getElementById("add-budget-item").addEventListener("click", addBlankBudgetItem);
     document.getElementById("delete-budget-item")?.addEventListener("click", deleteSelectedBudgetItem);
@@ -3329,11 +3350,12 @@ function newOrcamento() {
   blankNewOrcamento = true;
   addingBudgetItem = false;
   renderOrcamentos();
+  scrollOrcamentoFormIntoView();
 }
 
 function cancelOrcamento() {
   editingOrcamentoNumero = null;
-  blankNewOrcamento = true;
+  blankNewOrcamento = !isCompactLayout();
   addingBudgetItem = false;
   renderOrcamentos();
 }
@@ -3343,11 +3365,22 @@ function editOrcamento(numero) {
   blankNewOrcamento = false;
   addingBudgetItem = false;
   setView("orcamentos");
-  focusSelectedOrcamentoRow();
+  if (isCompactLayout()) {
+    scrollOrcamentoFormIntoView();
+  } else {
+    focusSelectedOrcamentoRow();
+  }
 }
 
 function openOrcamentoDetail(numero) {
   editOrcamento(numero);
+}
+
+function scrollOrcamentoFormIntoView() {
+  if (!isCompactLayout()) return;
+  window.requestAnimationFrame(() => {
+    document.querySelector(".orcamento-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function focusSelectedOrcamentoRow() {
@@ -3418,6 +3451,13 @@ function deleteSelectedBudgetItem() {
 
 function deleteOrcamento(numero) {
   const orcamento = state.orcamentos.find((item) => Number(item.numero) === Number(numero));
+  if (isCompactLayout()) {
+    editingOrcamentoNumero = Number(numero);
+    blankNewOrcamento = false;
+    addingBudgetItem = false;
+    renderOrcamentos();
+    scrollOrcamentoFormIntoView();
+  }
   if (isOrcamentoAprovado(orcamento)) {
     return;
   }
@@ -4804,7 +4844,10 @@ document.body.addEventListener("click", (event) => {
   }
 
   const openServicoRow = event.target.closest("[data-open-servico]");
-  if (openServicoRow) editServico(openServicoRow.dataset.openServico);
+  if (openServicoRow) {
+    if (isCompactLayout()) return;
+    editServico(openServicoRow.dataset.openServico);
+  }
 
   const editUsuarioButton = event.target.closest("[data-edit-usuario]");
   if (editUsuarioButton) {

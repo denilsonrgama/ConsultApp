@@ -773,7 +773,9 @@ a.small-button {
   max-width: none;
 }
 
-.cliente-list-new-button {
+.cliente-list-new-button,
+.servico-list-new-button,
+.orcamento-list-new-button {
   display: none;
 }
 
@@ -2865,17 +2867,23 @@ th {
     white-space: nowrap;
   }
 
-  .cliente-list-new-button {
+  .cliente-list-new-button,
+  .servico-list-new-button,
+  .orcamento-list-new-button {
     display: block;
     width: 100%;
     min-height: 38px;
   }
 
-  .cliente-form-panel {
+  .cliente-form-panel,
+  .servico-form-panel,
+  .orcamento-form-panel {
     scroll-margin-top: 112px;
   }
 
-  .cliente-form-panel.is-mobile-hidden {
+  .cliente-form-panel.is-mobile-hidden,
+  .servico-form-panel.is-mobile-hidden,
+  .orcamento-form-panel.is-mobile-hidden {
     display: none;
   }
 
@@ -3577,17 +3585,23 @@ th {
     white-space: nowrap;
   }
 
-  .cliente-list-new-button {
+  .cliente-list-new-button,
+  .servico-list-new-button,
+  .orcamento-list-new-button {
     display: block;
     width: 100%;
     min-height: 34px;
   }
 
-  .cliente-form-panel {
+  .cliente-form-panel,
+  .servico-form-panel,
+  .orcamento-form-panel {
     scroll-margin-top: 76px;
   }
 
-  .cliente-form-panel.is-mobile-hidden {
+  .cliente-form-panel.is-mobile-hidden,
+  .servico-form-panel.is-mobile-hidden,
+  .orcamento-form-panel.is-mobile-hidden {
     display: none;
   }
 
