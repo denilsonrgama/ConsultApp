@@ -2557,9 +2557,9 @@ th {
 
   .files-table-wrap,
   .users-table-wrap {
-    max-height: none;
+    max-height: min(54svh, 520px);
     overflow-x: hidden;
-    overflow-y: visible;
+    overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 2px;
   }
@@ -2841,9 +2841,9 @@ th {
 
   .clientes-list-panel .table-wrap,
   .servicos-list-panel .table-wrap {
-    max-height: none;
+    max-height: min(54svh, 520px);
     overflow-x: hidden;
-    overflow-y: visible;
+    overflow-y: auto;
   }
 
   .clientes-list-panel table,
@@ -3548,9 +3548,9 @@ th {
 
   .files-table-wrap,
   .users-table-wrap {
-    max-height: none;
+    max-height: min(46svh, 260px);
     overflow-x: hidden;
-    overflow-y: visible;
+    overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 2px;
   }
