@@ -4011,7 +4011,8 @@ th {
   .files-list-refresh-button {
     bottom: auto !important;
     display: block !important;
-    margin-top: 8px !important;
+    flex: 0 0 auto !important;
+    margin-top: auto !important;
     position: static !important;
     width: 100% !important;
   }
@@ -4049,7 +4050,7 @@ th {
   #servico-list,
   #files-list,
   .users-table-wrap {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-height: 0;
   }
 
@@ -4064,10 +4065,10 @@ th {
   #servico-list > .table-wrap,
   #files-list > .table-wrap,
   .users-table-wrap {
-    flex: 1 1 auto;
-    height: 100%;
+    flex: 0 0 auto;
+    height: auto;
     max-height: none !important;
-    overflow-y: auto !important;
+    overflow: visible !important;
   }
 }
 
