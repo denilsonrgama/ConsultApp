@@ -1701,70 +1701,72 @@ function renderUsuarios() {
 
   view.innerHTML = `
     ${pageBanner()}
-    <section class="panel usuarios-list-panel">
-      <div class="toolbar">
-        <h2>Usuários cadastrados</h2>
-      </div>
-      <div class="table-wrap users-table-wrap">
-        <table>
-          <thead><tr>
-            ${sortableTableHeader("usuarios", "usuario", "Usuário")}
-            ${sortableTableHeader("usuarios", "nome", "Nome")}
-            ${sortableTableHeader("usuarios", "email", "E-mail")}
-            ${sortableTableHeader("usuarios", "perfil", "Perfil")}
-            ${sortableTableHeader("usuarios", "status", "Status")}
-            <th>Ações</th>
-          </tr></thead>
-          <tbody>
-            ${sortedUsuarios.map((usuario) => `
-              <tr class="clickable-row ${Number(editingUsuarioId) === Number(usuario.id) ? "is-selected" : ""}" data-open-usuario="${escapeHtml(usuario.id)}">
-                <td><strong>${escapeHtml(usuario.usuario)}</strong></td>
-                <td>${escapeHtml(usuario.nome)}</td>
-                <td>${escapeHtml(usuario.email)}</td>
-                <td>${escapeHtml(usuario.perfil)}</td>
-                <td><span class="badge ${usuario.ativo ? "" : "danger"}">${usuario.ativo ? "ATIVO" : "INATIVO"}</span></td>
-                <td>${editable ? `<div class="row-actions"><button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button></div>` : ""}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-      ${editable && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button>' : ""}
-    </section>
-    <section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
-      <h2>${editingUsuarioId ? "Alterar usuário" : "Novo usuário"}</h2>
-      <form class="usuario-form-grid" id="usuario-form">
-        <label>Usuário<input name="usuario" required value="${fieldValue(editingUsuario.usuario)}"></label>
-        <label>Nome<input name="nome" required value="${fieldValue(editingUsuario.nome)}"></label>
-        <label>E-mail<input name="email" type="email" required value="${fieldValue(editingUsuario.email)}"></label>
-        <label>Perfil<select name="perfil" required><option value="">Selecione</option>${options(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"], editingUsuario.perfil)}</select></label>
-        <label>Senha<input name="senha" type="password" ${editingUsuarioId ? 'placeholder="Deixe em branco para manter"' : "required"} autocomplete="new-password"></label>
-        <label class="checkbox-line"><input name="ativo" type="checkbox" ${editingUsuario.ativo === false ? "" : "checked"}> Usuário ativo</label>
-        <div class="permissions-panel">
-          <div class="toolbar">
-            <div>
-              <h3>Permissões</h3>
-              <p class="muted">Use o perfil como modelo e ajuste telas ou ações específicas deste usuário.</p>
-            </div>
-            ${editable ? `
-              <div class="permission-toolbar-actions">
-                <button class="ghost-button" type="button" id="apply-profile-permissions">Aplicar modelo do perfil</button>
-                <button class="ghost-button" type="button" id="check-all-permissions">Marcar tudo</button>
-                <button class="ghost-button" type="button" id="clear-all-permissions">Limpar tudo</button>
-              </div>
-            ` : ""}
-          </div>
-          ${permissionCheckboxes(usuarioPermissoes)}
+    <div class="usuarios-layout">
+      <section class="panel usuarios-list-panel">
+        <div class="toolbar">
+          <h2>Usuários cadastrados</h2>
         </div>
-        ${editable ? `
-          <div class="form-actions budget-form-actions">
-            <button class="primary-button" type="submit">${editingUsuarioId ? "Salvar alteração" : "Salvar usuário"}</button>
-            ${editingUsuarioId ? '<button class="success-button" type="button" id="new-usuario">Novo usuário</button>' : ""}
-            <button class="danger-button" type="button" id="cancel-usuario-edit">Cancelar</button>
+        <div class="table-wrap users-table-wrap">
+          <table>
+            <thead><tr>
+              ${sortableTableHeader("usuarios", "usuario", "Usuário")}
+              ${sortableTableHeader("usuarios", "nome", "Nome")}
+              ${sortableTableHeader("usuarios", "email", "E-mail")}
+              ${sortableTableHeader("usuarios", "perfil", "Perfil")}
+              ${sortableTableHeader("usuarios", "status", "Status")}
+              <th>Ações</th>
+            </tr></thead>
+            <tbody>
+              ${sortedUsuarios.map((usuario) => `
+                <tr class="clickable-row ${Number(editingUsuarioId) === Number(usuario.id) ? "is-selected" : ""}" data-open-usuario="${escapeHtml(usuario.id)}">
+                  <td><strong>${escapeHtml(usuario.usuario)}</strong></td>
+                  <td>${escapeHtml(usuario.nome)}</td>
+                  <td>${escapeHtml(usuario.email)}</td>
+                  <td>${escapeHtml(usuario.perfil)}</td>
+                  <td><span class="badge ${usuario.ativo ? "" : "danger"}">${usuario.ativo ? "ATIVO" : "INATIVO"}</span></td>
+                  <td>${editable ? `<div class="row-actions"><button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button></div>` : ""}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        ${editable && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button>' : ""}
+      </section>
+      <section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
+        <h2>${editingUsuarioId ? "Alterar usuário" : "Novo usuário"}</h2>
+        <form class="usuario-form-grid" id="usuario-form">
+          <label>Usuário<input name="usuario" required value="${fieldValue(editingUsuario.usuario)}"></label>
+          <label>Nome<input name="nome" required value="${fieldValue(editingUsuario.nome)}"></label>
+          <label>E-mail<input name="email" type="email" required value="${fieldValue(editingUsuario.email)}"></label>
+          <label>Perfil<select name="perfil" required><option value="">Selecione</option>${options(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"], editingUsuario.perfil)}</select></label>
+          <label>Senha<input name="senha" type="password" ${editingUsuarioId ? 'placeholder="Deixe em branco para manter"' : "required"} autocomplete="new-password"></label>
+          <label class="checkbox-line"><input name="ativo" type="checkbox" ${editingUsuario.ativo === false ? "" : "checked"}> Usuário ativo</label>
+          <div class="permissions-panel">
+            <div class="toolbar">
+              <div>
+                <h3>Permissões</h3>
+                <p class="muted">Use o perfil como modelo e ajuste telas ou ações específicas deste usuário.</p>
+              </div>
+              ${editable ? `
+                <div class="permission-toolbar-actions">
+                  <button class="ghost-button" type="button" id="apply-profile-permissions">Aplicar modelo do perfil</button>
+                  <button class="ghost-button" type="button" id="check-all-permissions">Marcar tudo</button>
+                  <button class="ghost-button" type="button" id="clear-all-permissions">Limpar tudo</button>
+                </div>
+              ` : ""}
+            </div>
+            ${permissionCheckboxes(usuarioPermissoes)}
           </div>
-        ` : '<p class="muted">Acesso somente leitura.</p>'}
-      </form>
-    </section>
+          ${editable ? `
+            <div class="form-actions budget-form-actions">
+              <button class="primary-button" type="submit">${editingUsuarioId ? "Salvar alteração" : "Salvar usuário"}</button>
+              ${editingUsuarioId ? '<button class="success-button" type="button" id="new-usuario">Novo usuário</button>' : ""}
+              <button class="danger-button" type="button" id="cancel-usuario-edit">Cancelar</button>
+            </div>
+          ` : '<p class="muted">Acesso somente leitura.</p>'}
+        </form>
+      </section>
+    </div>
   `;
 
   document.getElementById("usuario-form").addEventListener("submit", saveUsuario);
@@ -1886,7 +1888,11 @@ function scrollUsuarioFormIntoView() {
 function scrollUsuarioListIntoView() {
   if (!isCompactLayout()) return;
   window.requestAnimationFrame(() => {
-    document.querySelector(".usuarios-list-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const panel = document.querySelector(".usuarios-list-panel");
+    panel?.scrollIntoView({ behavior: "auto", block: "start" });
+    const rect = panel?.getBoundingClientRect();
+    const offset = document.querySelector(".sidebar")?.getBoundingClientRect().height || 0;
+    if (rect) window.scrollTo({ top: window.scrollY + rect.top - Math.min(offset + 8, 116), behavior: "auto" });
   });
 }
 

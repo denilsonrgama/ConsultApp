@@ -994,6 +994,12 @@ a.small-button {
   align-items: start;
 }
 
+.usuarios-layout {
+  display: grid;
+  gap: 18px;
+  align-items: start;
+}
+
 .orcamento-logo-panel img {
   width: min(238px, 100%);
 }
@@ -1699,6 +1705,7 @@ th {
   .servicos-layout,
   .servico-form-grid,
   .orcamentos-layout,
+  .usuarios-layout,
   .orcamento-form-grid {
     grid-template-columns: 1fr;
     display: grid;
@@ -1843,6 +1850,7 @@ th {
   .orcamentos-layout,
   .split-grid,
   .orcamento-form-grid,
+  .usuarios-layout,
   .usuario-form-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
@@ -2144,6 +2152,7 @@ th {
   .clientes-layout,
   .servicos-layout,
   .orcamentos-layout,
+  .usuarios-layout,
   .split-grid,
   .orcamento-form-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -3716,6 +3725,7 @@ th {
   .clientes-layout,
   .servicos-layout,
   .orcamentos-layout,
+  .usuarios-layout,
   .split-grid,
   .dashboard-charts,
   .reports-grid,
@@ -3726,6 +3736,7 @@ th {
   .clientes-layout > *,
   .servicos-layout > *,
   .orcamentos-layout > *,
+  .usuarios-layout > *,
   .split-grid > *,
   .dashboard-charts > *,
   .reports-grid > *,
