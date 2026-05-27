@@ -3993,6 +3993,8 @@ th {
   .servicos-list-panel,
   .usuarios-list-panel,
   .files-panel {
+    display: flex !important;
+    flex-direction: column !important;
     min-height: 0 !important;
     align-self: start !important;
   }
@@ -4027,6 +4029,45 @@ th {
   body.is-resetting-compact-scroll .view.is-active {
     align-content: start !important;
     gap: 8px !important;
+  }
+
+  #clientes-view.is-active,
+  #servicos-view.is-active,
+  #usuarios-view.is-active,
+  #arquivos-view.is-active {
+    min-height: calc(100dvh - 154px);
+  }
+
+  .clientes-list-panel,
+  .servicos-list-panel,
+  .usuarios-list-panel,
+  .files-panel {
+    min-height: clamp(520px, calc(100dvh - 210px), 820px) !important;
+  }
+
+  #cliente-list,
+  #servico-list,
+  #files-list,
+  .users-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  #cliente-list,
+  #servico-list,
+  #files-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #cliente-list > .table-wrap,
+  #servico-list > .table-wrap,
+  #files-list > .table-wrap,
+  .users-table-wrap {
+    flex: 1 1 auto;
+    height: 100%;
+    max-height: none !important;
+    overflow-y: auto !important;
   }
 }
 
