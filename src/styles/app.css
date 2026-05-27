@@ -834,11 +834,10 @@ a.small-button {
   }
 
   .files-list-refresh-button {
-    bottom: 8px;
     display: block;
     margin-top: 9px;
     min-height: 38px;
-    position: sticky;
+    position: static;
     width: 100%;
     z-index: 2;
   }
@@ -3977,6 +3976,39 @@ th {
     box-shadow: none;
     pointer-events: none;
     transform: translateY(calc(-100% - 2px));
+  }
+}
+
+@media (max-width: 920px) {
+  .clientes-list-panel,
+  .servicos-list-panel,
+  .usuarios-list-panel,
+  .files-panel {
+    min-height: 0 !important;
+    align-self: start !important;
+  }
+
+  .clientes-layout,
+  .servicos-layout,
+  .usuarios-layout {
+    align-items: start !important;
+  }
+
+  .cliente-list-new-button,
+  .servico-list-new-button,
+  .usuario-list-new-button,
+  .files-list-refresh-button {
+    bottom: auto !important;
+    display: block !important;
+    margin-top: 8px !important;
+    position: static !important;
+    width: 100% !important;
+  }
+
+  .cliente-form-panel.is-mobile-hidden,
+  .servico-form-panel.is-mobile-hidden,
+  .usuario-form-panel.is-mobile-hidden {
+    display: none !important;
   }
 }
 
