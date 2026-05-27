@@ -4019,7 +4019,8 @@ th {
   .cliente-list-new-button,
   .servico-list-new-button,
   .usuario-list-new-button,
-  .files-list-refresh-button {
+  .files-list-refresh-button,
+  .files-toolbar-refresh-button {
     bottom: auto !important;
     flex: 0 0 auto !important;
     display: block !important;
@@ -4049,6 +4050,17 @@ th {
   .usuarios-list-panel,
   .files-panel {
     min-height: 0 !important;
+  }
+
+  .clientes-list-panel .toolbar,
+  .servicos-list-panel .toolbar,
+  .usuarios-list-panel .toolbar,
+  .files-panel .toolbar {
+    align-items: center !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    justify-content: space-between !important;
   }
 
   .clientes-list-panel .table-wrap,
