@@ -802,12 +802,22 @@ a.small-button {
 }
 
 .clientes-list-panel .toolbar {
-  display: grid;
+  display: flex;
   gap: 12px;
+  justify-content: space-between;
 }
 
-.clientes-list-panel .toolbar input {
+.clientes-list-panel .toolbar input,
+.list-search-input {
   max-width: none;
+  width: 100%;
+}
+
+.clientes-list-panel .toolbar h2,
+.servicos-list-panel .toolbar h2,
+.usuarios-list-panel .toolbar h2,
+.files-panel .toolbar h2 {
+  margin-bottom: 0;
 }
 
 .cliente-list-new-button,
@@ -938,8 +948,9 @@ a.small-button {
 }
 
 .servicos-list-panel .toolbar {
-  display: grid;
+  display: flex;
   gap: 12px;
+  justify-content: space-between;
 }
 
 .servicos-list-panel .table-wrap {
@@ -4010,11 +4021,12 @@ th {
   .usuario-list-new-button,
   .files-list-refresh-button {
     bottom: auto !important;
-    display: block !important;
     flex: 0 0 auto !important;
-    margin-top: auto !important;
+    display: block !important;
+    margin-top: 0 !important;
+    min-width: 96px;
     position: static !important;
-    width: 100% !important;
+    width: auto !important;
   }
 
   .cliente-form-panel.is-mobile-hidden,
@@ -4032,43 +4044,16 @@ th {
     gap: 8px !important;
   }
 
-  #clientes-view.is-active,
-  #servicos-view.is-active,
-  #usuarios-view.is-active,
-  #arquivos-view.is-active {
-    min-height: calc(100dvh - 154px);
-  }
-
   .clientes-list-panel,
   .servicos-list-panel,
   .usuarios-list-panel,
   .files-panel {
-    min-height: clamp(520px, calc(100dvh - 210px), 820px) !important;
+    min-height: 0 !important;
   }
 
-  #cliente-list,
-  #servico-list,
-  #files-list,
   .users-table-wrap {
-    flex: 0 0 auto;
-    min-height: 0;
-  }
-
-  #cliente-list,
-  #servico-list,
-  #files-list {
-    display: flex;
-    flex-direction: column;
-  }
-
-  #cliente-list > .table-wrap,
-  #servico-list > .table-wrap,
-  #files-list > .table-wrap,
-  .users-table-wrap {
-    flex: 0 0 auto;
-    height: auto;
-    max-height: none !important;
-    overflow: visible !important;
+    max-height: min(54svh, 520px) !important;
+    overflow-y: auto !important;
   }
 }
 

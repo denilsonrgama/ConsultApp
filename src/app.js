@@ -1325,7 +1325,6 @@ function renderArquivos() {
         <button type="button" class="primary-button files-toolbar-refresh-button" id="refresh-files">Atualizar</button>
       </div>
       <div id="files-list">${emptyState()}</div>
-      <button type="button" class="primary-button files-list-refresh-button" id="refresh-files-list">Atualizar</button>
     </section>
   `;
 
@@ -1713,6 +1712,7 @@ function renderUsuarios() {
       <section class="panel usuarios-list-panel">
         <div class="toolbar">
           <h2>Usuários cadastrados</h2>
+          ${editable && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
         </div>
         <div class="table-wrap users-table-wrap">
           <table>
@@ -1738,7 +1738,6 @@ function renderUsuarios() {
             </tbody>
           </table>
         </div>
-        ${editable && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button>' : ""}
       </section>
       ${renderUsuarioForm ? `<section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingUsuarioId ? "Alterar usuário" : "Novo usuário"}</h2>
@@ -2116,10 +2115,10 @@ function renderClientes() {
       <section class="panel clientes-list-panel">
         <div class="toolbar">
           <h2>Clientes cadastrados</h2>
-          <input id="cliente-search" placeholder="Buscar cliente">
+          ${editable && !showClienteFormOnMobile ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo</button>' : ""}
         </div>
+        <input id="cliente-search" class="list-search-input" placeholder="Buscar cliente">
         <div id="cliente-list"></div>
-        ${editable && !showClienteFormOnMobile ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo cliente</button>' : ""}
       </section>
       ${renderClienteForm ? `<section class="panel cliente-form-panel${showClienteFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingClienteDocumento ? "Alterar cliente" : "Novo cliente"}</h2>
@@ -2891,10 +2890,10 @@ function renderServicos() {
       <section class="panel servicos-list-panel">
         <div class="toolbar">
           <h2>Serviços cadastrados</h2>
-          <input id="servico-search" placeholder="Buscar serviço">
+          ${editable && !showServicoFormOnMobile ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo</button>' : ""}
         </div>
+        <input id="servico-search" class="list-search-input" placeholder="Buscar serviço">
         <div id="servico-list"></div>
-        ${editable && !showServicoFormOnMobile ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo serviço</button>' : ""}
       </section>
       ${renderServicoForm ? `<section class="panel servico-form-panel${showServicoFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingServicoCodigo ? "Alterar serviço" : "Novo serviço"}</h2>
