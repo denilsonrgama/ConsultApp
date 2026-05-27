@@ -40,6 +40,8 @@ let editingUsuarioId = null;
 let blankNewUsuario = false;
 let explicitLogout = false;
 let openMenuGroup = "";
+let lastNavScrollY = 0;
+let navScrollTicking = false;
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -4820,6 +4822,41 @@ document.querySelectorAll("[data-sidebar-new]").forEach((button) => {
     if (view === "orcamentos") newOrcamento();
   });
 });
+
+function syncAutoHideNavigation() {
+  const sidebar = document.querySelector(".sidebar");
+  if (!sidebar) return;
+
+  const compactMenu = window.matchMedia("(max-width: 920px)").matches;
+  const currentScrollY = Math.max(0, window.scrollY || document.documentElement.scrollTop || 0);
+
+  if (!compactMenu) {
+    sidebar.classList.remove("is-hidden-on-scroll");
+    lastNavScrollY = currentScrollY;
+    return;
+  }
+
+  const delta = currentScrollY - lastNavScrollY;
+  if (currentScrollY < 36 || delta < -7) {
+    sidebar.classList.remove("is-hidden-on-scroll");
+  } else if (delta > 9 && currentScrollY > 90) {
+    sidebar.classList.add("is-hidden-on-scroll");
+  }
+  lastNavScrollY = currentScrollY;
+}
+
+function requestAutoHideNavigationSync() {
+  if (navScrollTicking) return;
+  navScrollTicking = true;
+  window.requestAnimationFrame(() => {
+    syncAutoHideNavigation();
+    navScrollTicking = false;
+  });
+}
+
+lastNavScrollY = Math.max(0, window.scrollY || document.documentElement.scrollTop || 0);
+window.addEventListener("scroll", requestAutoHideNavigationSync, { passive: true });
+window.addEventListener("resize", requestAutoHideNavigationSync);
 
 window.addEventListener("pageshow", () => {
   if (isDashboardActive()) {

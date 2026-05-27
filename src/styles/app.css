@@ -3948,6 +3948,19 @@ th {
   }
 }
 
+@media (max-width: 920px) {
+  .sidebar {
+    transition: transform 180ms ease, box-shadow 180ms ease;
+    will-change: transform;
+  }
+
+  .sidebar.is-hidden-on-scroll {
+    box-shadow: none;
+    pointer-events: none;
+    transform: translateY(calc(-100% - 2px));
+  }
+}
+
 @media print {
   @page {
     size: A4;
