@@ -2557,9 +2557,9 @@ th {
 
   .files-table-wrap,
   .users-table-wrap {
-    max-height: min(54svh, 520px);
+    max-height: none;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: visible;
     overscroll-behavior: contain;
     padding-right: 2px;
   }
@@ -2832,13 +2832,18 @@ th {
 
   .clientes-list-panel,
   .servicos-list-panel,
-  .orcamentos-list-panel {
+  .orcamentos-list-panel,
+  .usuarios-list-panel {
     min-width: 0;
+    min-height: 0;
+    align-self: start;
   }
 
   .clientes-list-panel .table-wrap,
   .servicos-list-panel .table-wrap {
+    max-height: none;
     overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .clientes-list-panel table,
@@ -3543,9 +3548,9 @@ th {
 
   .files-table-wrap,
   .users-table-wrap {
-    max-height: min(46svh, 260px);
+    max-height: none;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: visible;
     overscroll-behavior: contain;
     padding-right: 2px;
   }
