@@ -2969,12 +2969,11 @@ th {
   .orcamento-list-new-button,
   .usuario-list-new-button,
   .files-list-refresh-button {
-    bottom: 8px;
     display: block;
     width: 100%;
     margin-top: 8px;
     min-height: 38px;
-    position: sticky;
+    position: static;
     z-index: 2;
   }
 
@@ -3699,12 +3698,11 @@ th {
   .orcamento-list-new-button,
   .usuario-list-new-button,
   .files-list-refresh-button {
-    bottom: 8px;
     display: block;
     width: 100%;
     margin-top: 7px;
     min-height: 34px;
-    position: sticky;
+    position: static;
     z-index: 2;
   }
 
@@ -3867,11 +3865,10 @@ th {
   }
 
   .files-list-refresh-button {
-    bottom: 8px;
     display: block !important;
     margin-top: 9px;
     min-height: 38px;
-    position: sticky;
+    position: static;
     width: 100%;
     z-index: 2;
   }

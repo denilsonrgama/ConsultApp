@@ -1,4 +1,4 @@
-const CACHE_NAME = "consultapp-v273";
+const CACHE_NAME = "consultapp-v274";
 const ASSETS = [
   "./",
   "./index.html",
