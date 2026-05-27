@@ -1888,10 +1888,7 @@ function editUsuario(id) {
 }
 
 function scrollUsuarioFormIntoView() {
-  if (!isCompactLayout()) return;
-  window.requestAnimationFrame(() => {
-    document.querySelector(".usuario-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  scrollCompactElementIntoView(".usuario-form-panel");
 }
 
 function scrollUsuarioListIntoView() {
@@ -2396,11 +2393,20 @@ function resetCompactViewScroll() {
   });
 }
 
-function scrollClienteFormIntoView() {
+function scrollCompactElementIntoView(selector) {
   if (!isCompactLayout()) return;
+  const scrollToTarget = (behavior = "smooth") => {
+    document.querySelector(selector)?.scrollIntoView({ behavior, block: "start" });
+  };
   window.requestAnimationFrame(() => {
-    document.querySelector(".cliente-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToTarget();
+    window.setTimeout(() => scrollToTarget("auto"), 140);
+    window.setTimeout(() => scrollToTarget("auto"), 380);
   });
+}
+
+function scrollClienteFormIntoView() {
+  scrollCompactElementIntoView(".cliente-form-panel");
 }
 
 async function handleClienteDocumentoBlur(event) {
@@ -2791,7 +2797,11 @@ function isValidCnpj(cnpj) {
 function editCliente(documento) {
   editingClienteDocumento = documento;
   blankNewCliente = false;
-  setView("clientes");
+  if (document.getElementById("clientes-view")?.classList.contains("is-active")) {
+    renderClientes();
+  } else {
+    setView("clientes");
+  }
   scrollClienteFormIntoView();
 }
 
@@ -3047,15 +3057,16 @@ function cancelServico() {
 function editServico(codigo) {
   editingServicoCodigo = codigo;
   blankNewServico = false;
-  setView("servicos");
+  if (document.getElementById("servicos-view")?.classList.contains("is-active")) {
+    renderServicos();
+  } else {
+    setView("servicos");
+  }
   scrollServicoFormIntoView();
 }
 
 function scrollServicoFormIntoView() {
-  if (!isCompactLayout()) return;
-  window.requestAnimationFrame(() => {
-    document.querySelector(".servico-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  scrollCompactElementIntoView(".servico-form-panel");
 }
 
 function deleteServico(codigo) {
@@ -3099,10 +3110,10 @@ function renderOrcamentos() {
       <section class="panel orcamentos-list-panel">
         <div class="toolbar">
           <h2>Orçamentos</h2>
-          <input id="orcamento-search" placeholder="Buscar orçamento"${editingOrcamentoNumero ? " hidden" : ""}>
+          ${editable && !showOrcamentoFormOnMobile ? '<button class="success-button orcamento-list-new-button" type="button" id="show-orcamento-form">Novo</button>' : ""}
         </div>
+        <input id="orcamento-search" class="list-search-input" placeholder="Buscar orçamento"${editingOrcamentoNumero ? " hidden" : ""}>
         <div id="orcamento-list"></div>
-        ${editable && !showOrcamentoFormOnMobile ? '<button class="success-button orcamento-list-new-button" type="button" id="show-orcamento-form">Novo orçamento</button>' : ""}
       </section>
       <section class="panel orcamento-form-panel${showOrcamentoFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingOrcamentoNumero ? "Alterar orçamento" : "Novo orçamento"}</h2>
@@ -3557,10 +3568,7 @@ function openOrcamentoDetail(numero) {
 }
 
 function scrollOrcamentoFormIntoView() {
-  if (!isCompactLayout()) return;
-  window.requestAnimationFrame(() => {
-    document.querySelector(".orcamento-form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  scrollCompactElementIntoView(".orcamento-form-panel");
 }
 
 function focusSelectedOrcamentoRow() {
