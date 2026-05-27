@@ -187,11 +187,11 @@ nav > [data-menu-group="financeiro"] {
   order: 4;
 }
 
-nav > [data-submenu="financeiro"] {
+nav > [data-menu-group="administracao"] {
   order: 5;
 }
 
-nav > [data-menu-group="administracao"] {
+nav > [data-submenu="financeiro"] {
   order: 6;
 }
 
