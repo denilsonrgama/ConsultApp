@@ -1689,6 +1689,7 @@ function renderUsuarios() {
   const usuarioPermissoes = permissionsForUser(editingUsuario);
   const editable = hasPermission("usuarios.create") || hasPermission("usuarios.edit");
   const showUsuarioFormOnMobile = Boolean(editingUsuarioId || blankNewUsuario);
+  const renderUsuarioForm = !isCompactLayout() || showUsuarioFormOnMobile;
   const view = document.getElementById("usuarios-view");
   if (!view || !canManageUsers()) return;
   const sortedUsuarios = applyTableSort("usuarios", usuarios.slice(), {
@@ -1732,7 +1733,7 @@ function renderUsuarios() {
         </div>
         ${editable && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button>' : ""}
       </section>
-      <section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
+      ${renderUsuarioForm ? `<section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingUsuarioId ? "Alterar usuário" : "Novo usuário"}</h2>
         <form class="usuario-form-grid" id="usuario-form">
           <label>Usuário<input name="usuario" required value="${fieldValue(editingUsuario.usuario)}"></label>
@@ -1765,22 +1766,23 @@ function renderUsuarios() {
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
         </form>
-      </section>
+      </section>` : ""}
     </div>
   `;
 
-  document.getElementById("usuario-form").addEventListener("submit", saveUsuario);
+  const usuarioForm = document.getElementById("usuario-form");
+  usuarioForm?.addEventListener("submit", saveUsuario);
   if (editable) {
     document.getElementById("new-usuario")?.addEventListener("click", newUsuario);
     document.getElementById("show-usuario-form")?.addEventListener("click", newUsuario);
-    document.getElementById("cancel-usuario-edit").addEventListener("click", cancelUsuario);
-    document.getElementById("apply-profile-permissions").addEventListener("click", applyProfilePermissionsToForm);
-    document.getElementById("check-all-permissions").addEventListener("click", () => setAllPermissions(true));
-    document.getElementById("clear-all-permissions").addEventListener("click", () => setAllPermissions(false));
-    document.getElementById("usuario-form").addEventListener("click", handlePermissionGroupAction);
-    document.querySelector('#usuario-form [name="perfil"]').addEventListener("change", applyProfilePermissionsToForm);
-  } else {
-    setFormReadOnly(document.getElementById("usuario-form"));
+    document.getElementById("cancel-usuario-edit")?.addEventListener("click", cancelUsuario);
+    document.getElementById("apply-profile-permissions")?.addEventListener("click", applyProfilePermissionsToForm);
+    document.getElementById("check-all-permissions")?.addEventListener("click", () => setAllPermissions(true));
+    document.getElementById("clear-all-permissions")?.addEventListener("click", () => setAllPermissions(false));
+    usuarioForm?.addEventListener("click", handlePermissionGroupAction);
+    usuarioForm?.querySelector('[name="perfil"]')?.addEventListener("change", applyProfilePermissionsToForm);
+  } else if (usuarioForm) {
+    setFormReadOnly(usuarioForm);
   }
 }
 
