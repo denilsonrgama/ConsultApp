@@ -287,17 +287,20 @@ function saveState(audit = {}) {
 
 function normalizeState(value) {
   return {
-    clientes: Array.isArray(value?.clientes) ? value.clientes.map((cliente) => ({
-      ...cliente,
-      status: normalizeClienteStatus(cliente.status),
-      cidade: normalizeCidade(cliente.cidade),
-    })) : [],
+    clientes: Array.isArray(value?.clientes) ? value.clientes.map((cliente) => {
+      const { responsavelCpf, ...cleanCliente } = cliente;
+      return {
+        ...cleanCliente,
+        status: normalizeClienteStatus(cliente.status),
+        cidade: normalizeCidade(cliente.cidade),
+      };
+    }) : [],
     servicos: Array.isArray(value?.servicos) ? value.servicos : [],
     orcamentos: Array.isArray(value?.orcamentos) ? value.orcamentos.map((orcamento) => ({
       ...orcamento,
       status: normalizeOrcamentoStatus(orcamento.status),
     })) : [],
-    responsaveis: Array.isArray(value?.responsaveis) ? value.responsaveis : [],
+    responsaveis: [],
   };
 }
 
@@ -584,8 +587,7 @@ function notifySessionClosed() {
 function stateRecordCount(value) {
   return (value?.clientes?.length || 0)
     + (value?.servicos?.length || 0)
-    + (value?.orcamentos?.length || 0)
-    + (value?.responsaveis?.length || 0);
+    + (value?.orcamentos?.length || 0);
 }
 
 function parseMoney(value) {
@@ -2192,7 +2194,6 @@ function renderClientes() {
           <label class="cpf-only-fields${showCnpjFields ? " hidden" : ""}">Nome<input name="nome" value="${fieldValue(formCliente.nome)}"${showCnpjFields ? "" : " required"}></label>
           <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Razão social<input name="razaoSocial" readonly value="${fieldValue(formCliente.razaoSocial)}"></label>
           <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Nome fantasia<input name="nomeFantasia" readonly value="${fieldValue(formCliente.nomeFantasia)}"></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">CPF do responsável<input name="responsavelCpf" value="${fieldValue(formCliente.responsavelCpf)}"${showCnpjFields ? " required" : ""}></label>
           <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Responsável<input name="responsavelNome" value="${fieldValue(formCliente.responsavelNome)}"${showCnpjFields ? " required" : ""}></label>
           <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Situação CNPJ<input class="${cnpjStatusClass(formCliente.situacaoCnpj)}" name="situacaoCnpj" readonly value="${fieldValue(formCliente.situacaoCnpj)}"></label>
           <label>Status<select name="status">${options(["ATIVO", "INATIVO"], normalizeClienteStatus(formCliente.status))}</select></label>
@@ -2224,8 +2225,6 @@ function renderClientes() {
     clienteForm?.querySelector('[name="documento"]')?.addEventListener("input", handleClienteDocumentoInput);
     clienteForm?.querySelector('[name="documento"]')?.addEventListener("keydown", handleClienteDocumentoKeydown);
     clienteForm?.querySelector('[name="documento"]')?.addEventListener("blur", handleClienteDocumentoBlur);
-    clienteForm?.querySelector('[name="responsavelCpf"]')?.addEventListener("input", handleResponsavelCpfInput);
-    clienteForm?.querySelector('[name="responsavelCpf"]')?.addEventListener("blur", handleResponsavelCpfInput);
     clienteForm?.querySelector('[name="email"]')?.addEventListener("blur", focusClienteCep);
     clienteForm?.querySelector('[name="cep"]')?.addEventListener("keydown", handleClienteCepKeydown);
     clienteForm?.querySelector('[name="cep"]')?.addEventListener("blur", handleClienteCepBlur);
@@ -2244,7 +2243,7 @@ function renderClientes() {
 function renderClienteList() {
   const search = document.getElementById("cliente-search")?.value.toLowerCase() || "";
   const filteredClientes = state.clientes.filter((cliente) => {
-    return `${cliente.documento} ${cliente.nome} ${cliente.cidade} ${normalizeClienteStatus(cliente.status)}`.toLowerCase().includes(search);
+    return `${cliente.documento} ${cliente.nome} ${cliente.responsavelNome} ${cliente.cidade} ${normalizeClienteStatus(cliente.status)}`.toLowerCase().includes(search);
   });
   const clientes = applyTableSort("clientes", filteredClientes, {
     documento: (cliente) => onlyDigits(cliente.documento) || cliente.documento,
@@ -2306,12 +2305,6 @@ async function addCliente(event) {
   const form = event.currentTarget;
   const documentoDigits = onlyDigits(form.elements.documento.value);
 
-  if (documentoDigits.length === 14) {
-    handleResponsavelCpfInput({ currentTarget: form.elements.responsavelCpf, type: "submit" });
-  } else {
-    setClienteFieldsAfterResponsavelEnabled(form, true);
-  }
-
   if (!form.reportValidity()) return;
 
   const data = Object.fromEntries(new FormData(form));
@@ -2324,27 +2317,14 @@ async function addCliente(event) {
   }
 
   if (documentoDigits.length === 14) {
-    const responsavelCpf = onlyDigits(data.responsavelCpf);
     if (!isCnpjAtivo(data.situacaoCnpj)) {
       showFloatingMessage(`CNPJ com situação ${data.situacaoCnpj || "não ativa"}. Cadastro não permitido.`);
       clearClienteForm(form);
       return;
     }
     data.nome = data.nomeFantasia || data.razaoSocial || data.nome;
-    if (!data.responsavelNome || !responsavelCpf) {
-      alert("Informe o nome e o CPF do responsável pelo CNPJ.");
-      return;
-    }
-    if (!isValidCpf(responsavelCpf)) {
-      alert("Informe um CPF válido para o responsável.");
-      return;
-    }
-    if (responsavelCpfExistsAsCliente(responsavelCpf)) {
-      alert("Este CPF já existe no cadastro de clientes.");
-      return;
-    }
-    if (responsavelCpfExistsAsResponsavel(responsavelCpf, editingClienteDocumento, data.documento)) {
-      alert("Este CPF já existe no cadastro de responsáveis.");
+    if (!String(data.responsavelNome || "").trim()) {
+      alert("Informe o nome do responsável pelo CNPJ.");
       return;
     }
   } else {
@@ -2352,8 +2332,8 @@ async function addCliente(event) {
     data.nomeFantasia = "";
     data.situacaoCnpj = "";
     data.responsavelNome = "";
-    data.responsavelCpf = "";
   }
+  delete data.responsavelCpf;
 
   const duplicate = state.clientes.some((cliente) => cliente.documento === data.documento && cliente.documento !== editingClienteDocumento);
   if (duplicate) {
@@ -2389,7 +2369,6 @@ async function addCliente(event) {
   } else {
     state.clientes.push(data);
   }
-  syncResponsavelCliente(oldClienteDocumento, data);
   saveState(clienteAudit);
   const budgetDraft = pendingBudgetDraft;
   const shouldReturnToBudget = Boolean(budgetDraft);
@@ -2408,31 +2387,6 @@ async function addCliente(event) {
     }
   }
   render();
-}
-
-function responsavelCpfExistsAsCliente(cpf) {
-  return state.clientes.some((cliente) => onlyDigits(cliente.documento).length === 11 && onlyDigits(cliente.documento) === cpf);
-}
-
-function responsavelCpfExistsAsResponsavel(cpf, oldClienteDocumento, newClienteDocumento) {
-  return (state.responsaveis || []).some((responsavel) => {
-    const sameCpf = onlyDigits(responsavel.cpf) === cpf;
-    const sameCliente = responsavel.clienteDocumento === oldClienteDocumento || responsavel.clienteDocumento === newClienteDocumento;
-    return sameCpf && !sameCliente;
-  });
-}
-
-function syncResponsavelCliente(oldClienteDocumento, cliente) {
-  state.responsaveis = state.responsaveis || [];
-  state.responsaveis = state.responsaveis.filter((responsavel) => responsavel.clienteDocumento !== oldClienteDocumento && responsavel.clienteDocumento !== cliente.documento);
-
-  if (onlyDigits(cliente.documento).length === 14 && cliente.responsavelNome && cliente.responsavelCpf) {
-    state.responsaveis.push({
-      clienteDocumento: cliente.documento,
-      nome: cliente.responsavelNome,
-      cpf: cliente.responsavelCpf,
-    });
-  }
 }
 
 function newCliente() {
@@ -2598,7 +2552,7 @@ async function handleClienteDocumentoKeydown(event) {
   if (isValidCpfCnpj(digits)) {
     const form = event.currentTarget.form;
     if (digits.length === 14) {
-      form.elements.responsavelCpf?.focus();
+      form.elements.responsavelNome?.focus();
     } else {
       form.elements.nome?.focus();
     }
@@ -2626,7 +2580,6 @@ function setCnpjFieldsVisibility(form, visible) {
     field.classList.toggle("hidden", visible);
   });
   form.elements.responsavelNome.required = visible;
-  form.elements.responsavelCpf.required = visible;
   form.elements.nome.required = !visible;
 
   if (!visible) {
@@ -2635,27 +2588,12 @@ function setCnpjFieldsVisibility(form, visible) {
     form.elements.situacaoCnpj.value = "";
     form.elements.situacaoCnpj.className = "";
     form.elements.responsavelNome.value = "";
-    form.elements.responsavelCpf.value = "";
-    form.elements.responsavelCpf.setCustomValidity("");
-    setClienteFieldsAfterResponsavelEnabled(form, true);
   } else {
     form.elements.nome.value = "";
-    handleResponsavelCpfInput({ currentTarget: form.elements.responsavelCpf, type: "input" });
   }
 }
 
 function fillClienteByCpf(form, cpf) {
-  const responsavel = (state.responsaveis || []).find((item) => onlyDigits(item.cpf) === cpf);
-  if (responsavel) {
-    const clienteCnpj = state.clientes.find((item) => item.documento === responsavel.clienteDocumento);
-    if (clienteCnpj) {
-      fillClienteForm(form, clienteCnpj);
-      setCnpjFieldsVisibility(form, true);
-      showFloatingMessage("CPF encontrado como responsável. Dados do CNPJ vinculado carregados.");
-      return;
-    }
-  }
-
   const cliente = state.clientes.find((item) => onlyDigits(item.documento) === cpf && onlyDigits(item.documento).length === 11);
   if (!cliente) return;
 
@@ -2676,7 +2614,6 @@ function fillClienteForm(form, cliente) {
   form.elements.situacaoCnpj.className = cnpjStatusClass(cliente.situacaoCnpj);
   form.elements.status.value = normalizeClienteStatus(cliente.status);
   form.elements.responsavelNome.value = cliente.responsavelNome || "";
-  form.elements.responsavelCpf.value = cliente.responsavelCpf || "";
   form.elements.telefone.value = cliente.telefone || "";
   form.elements.email.value = cliente.email || "";
   form.elements.uf.value = cliente.uf || "";
@@ -2816,44 +2753,6 @@ function clearClienteForm(form) {
   blankNewCliente = true;
   form.reset();
   setCnpjFieldsVisibility(form, false);
-  setClienteFieldsAfterResponsavelEnabled(form, true);
-}
-
-function handleResponsavelCpfInput(event) {
-  const input = event.currentTarget;
-  const form = input.form;
-  const cpf = onlyDigits(input.value);
-  let validAndAvailable = false;
-  if (!cpf) {
-    input.setCustomValidity("");
-  } else if (cpf.length < 11) {
-    input.setCustomValidity("CPF incompleto.");
-  } else if (!isValidCpf(cpf)) {
-    input.setCustomValidity("CPF do responsável inválido.");
-  } else if (responsavelCpfExistsAsCliente(cpf)) {
-    input.setCustomValidity("Este CPF já existe no cadastro de clientes.");
-  } else if (responsavelCpfExistsAsResponsavel(cpf, editingClienteDocumento, input.form.elements.documento.value)) {
-    input.setCustomValidity("Este CPF já existe no cadastro de responsáveis.");
-  } else {
-    input.setCustomValidity("");
-    validAndAvailable = true;
-  }
-
-  setClienteFieldsAfterResponsavelEnabled(form, validAndAvailable);
-
-  if (event.type === "blur" && input.validationMessage) {
-    input.reportValidity();
-  }
-}
-
-function setClienteFieldsAfterResponsavelEnabled(form, enabled) {
-  const names = ["responsavelNome", "telefone", "email", "cep", "bairro", "endereco", "numero", "complemento", "uf", "cidade", "obs"];
-  names.forEach((name) => {
-    if (form.elements[name]) form.elements[name].disabled = !enabled;
-  });
-
-  const submitButton = form.querySelector('button[type="submit"]');
-  if (submitButton) submitButton.disabled = !enabled;
 }
 
 function focusClienteCep(event) {
@@ -2979,7 +2878,6 @@ async function deleteCliente(documento) {
   const authorization = await confirmClienteDeletion(cliente || { documento });
   if (!authorization) return;
   state.clientes = state.clientes.filter((cliente) => cliente.documento !== documento);
-  state.responsaveis = (state.responsaveis || []).filter((responsavel) => responsavel.clienteDocumento !== documento);
   if (editingClienteDocumento === documento) editingClienteDocumento = null;
   await saveState({
     acao: "cliente.excluir",
@@ -3347,20 +3245,12 @@ function filterBudgetClientOptions(event) {
 
   let clientes = [];
   if (digits.length === 11) {
-    const responsavelMatches = (state.responsaveis || [])
-      .filter((responsavel) => onlyDigits(responsavel.cpf) === digits)
-      .map((responsavel) => state.clientes.find((cliente) => cliente.documento === responsavel.clienteDocumento))
-      .filter((cliente) => cliente && isClienteAtivo(cliente));
-
-    clientes = responsavelMatches.length
-      ? responsavelMatches
-      : state.clientes.filter((cliente) => isClienteAtivo(cliente) && onlyDigits(cliente.documento) === digits);
+    clientes = state.clientes.filter((cliente) => isClienteAtivo(cliente) && onlyDigits(cliente.documento) === digits);
   } else {
     clientes = state.clientes.filter((cliente) => {
-    if (!isClienteAtivo(cliente)) return false;
-    const responsavel = (state.responsaveis || []).find((item) => item.clienteDocumento === cliente.documento) || {};
-    const text = normalizeSearch(`${cliente.nome} ${cliente.razaoSocial} ${cliente.nomeFantasia} ${cliente.documento} ${onlyDigits(cliente.documento)} ${cliente.responsavelNome} ${cliente.responsavelCpf} ${responsavel.nome} ${responsavel.cpf}`);
-    return text.includes(search);
+      if (!isClienteAtivo(cliente)) return false;
+      const text = normalizeSearch(`${cliente.nome} ${cliente.razaoSocial} ${cliente.nomeFantasia} ${cliente.documento} ${onlyDigits(cliente.documento)} ${cliente.responsavelNome}`);
+      return text.includes(search);
     });
   }
 

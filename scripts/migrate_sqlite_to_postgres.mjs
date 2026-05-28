@@ -47,7 +47,6 @@ try {
   console.log(`Clientes: ${state.clientes?.length || 0}`);
   console.log(`ServiÃ§os: ${state.servicos?.length || 0}`);
   console.log(`OrÃ§amentos: ${state.orcamentos?.length || 0}`);
-  console.log(`ResponsÃ¡veis: ${state.responsaveis?.length || 0}`);
 } finally {
   sqlite.close();
   await pool.end();

@@ -18,6 +18,7 @@ const pool = new Pool({
 
 try {
   await pool.query(readFileSync(join(root, "db", "postgres-schema.sql"), "utf-8"));
+  await pool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS responsavel_nome TEXT NOT NULL DEFAULT ''");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -34,7 +35,7 @@ try {
     await client.query(`
       INSERT INTO clientes (
         documento, nome, telefone, email, cep, bairro, endereco, numero, complemento,
-        uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj
+        uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj, responsavel_nome
       )
       SELECT
         c->>'documento',
@@ -51,14 +52,9 @@ try {
         COALESCE(c->>'obs', ''),
         COALESCE(c->>'razaoSocial', ''),
         COALESCE(c->>'nomeFantasia', ''),
-        COALESCE(c->>'situacaoCnpj', '')
+        COALESCE(c->>'situacaoCnpj', ''),
+        COALESCE(c->>'responsavelNome', '')
       FROM jsonb_array_elements($1::jsonb->'clientes') AS c
-    `, [JSON.stringify(state)]);
-
-    await client.query(`
-      INSERT INTO responsaveis (cpf, cliente_documento, nome)
-      SELECT r->>'cpf', r->>'clienteDocumento', r->>'nome'
-      FROM jsonb_array_elements($1::jsonb->'responsaveis') AS r
     `, [JSON.stringify(state)]);
 
     await client.query(`
@@ -103,7 +99,6 @@ try {
     const counts = await client.query(`
       SELECT
         (SELECT count(*)::integer FROM clientes) AS clientes,
-        (SELECT count(*)::integer FROM responsaveis) AS responsaveis,
         (SELECT count(*)::integer FROM servicos) AS servicos,
         (SELECT count(*)::integer FROM orcamentos) AS orcamentos,
         (SELECT count(*)::integer FROM orcamento_itens) AS itens

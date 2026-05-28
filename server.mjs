@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v292";
+const serverVersion = "v293";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -167,13 +167,16 @@ function readBody(request) {
 
 function normalizeAppState(state) {
   return {
-    clientes: Array.isArray(state?.clientes) ? state.clientes.map((cliente) => ({
-      ...cliente,
-      status: normalizeClienteStatus(cliente.status),
-    })) : [],
+    clientes: Array.isArray(state?.clientes) ? state.clientes.map((cliente) => {
+      const { responsavelCpf, ...cleanCliente } = cliente;
+      return {
+        ...cleanCliente,
+        status: normalizeClienteStatus(cliente.status),
+      };
+    }) : [],
     servicos: Array.isArray(state?.servicos) ? state.servicos : [],
     orcamentos: Array.isArray(state?.orcamentos) ? state.orcamentos : [],
-    responsaveis: Array.isArray(state?.responsaveis) ? state.responsaveis : [],
+    responsaveis: [],
   };
 }
 
@@ -383,6 +386,14 @@ function publicUser(user) {
 async function ensureAuthSchema() {
   if (postgresPool) {
     await postgresPool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ATIVO'");
+    await postgresPool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS responsavel_nome TEXT NOT NULL DEFAULT ''");
+    await postgresPool.query(`
+      UPDATE clientes AS cliente
+      SET responsavel_nome = responsavel.nome
+      FROM responsaveis AS responsavel
+      WHERE responsavel.cliente_documento = cliente.documento
+        AND COALESCE(cliente.responsavel_nome, '') = ''
+    `);
     await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''");
     await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_trocar_senha BOOLEAN NOT NULL DEFAULT FALSE");
     await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permissoes JSONB");
@@ -944,7 +955,7 @@ function validateUniqueBudgetServices(state) {
 async function readRelationalAppState() {
   const clientsResult = await postgresPool.query(`
     SELECT documento, nome, status, telefone, email, cep, bairro, endereco, numero, complemento,
-           uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj
+           uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj, responsavel_nome
     FROM clientes
     ORDER BY nome, documento
   `);
@@ -974,13 +985,8 @@ async function readRelationalAppState() {
   ]);
 
   const responsavelByCliente = new Map();
-  const responsaveis = responsaveisResult.rows.map((row) => {
+  responsaveisResult.rows.forEach((row) => {
     if (!responsavelByCliente.has(row.cliente_documento)) responsavelByCliente.set(row.cliente_documento, row);
-    return {
-      clienteDocumento: row.cliente_documento,
-      cpf: row.cpf,
-      nome: row.nome,
-    };
   });
   const itemsByBudget = new Map();
   itensResult.rows.forEach((row) => {
@@ -1014,11 +1020,10 @@ async function readRelationalAppState() {
         razaoSocial: row.razao_social,
         nomeFantasia: row.nome_fantasia,
         situacaoCnpj: row.situacao_cnpj,
-        responsavelNome: responsavel?.nome || "",
-        responsavelCpf: responsavel?.cpf || "",
+        responsavelNome: row.responsavel_nome || responsavel?.nome || "",
       };
     }),
-    responsaveis,
+    responsaveis: [],
     servicos: servicosResult.rows.map((row) => ({
       codigo: row.codigo,
       nome: row.nome,
@@ -1053,10 +1058,10 @@ async function writeRelationalAppState(state) {
       await client.query(`
         INSERT INTO clientes (
           documento, nome, status, telefone, email, cep, bairro, endereco, numero, complemento,
-          uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj
+          uf, cidade, observacoes, razao_social, nome_fantasia, situacao_cnpj, responsavel_nome
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, $16
+          $11, $12, $13, $14, $15, $16, $17
         )
       `, [
         requiredText(cliente.documento, "documento do cliente"),
@@ -1075,17 +1080,7 @@ async function writeRelationalAppState(state) {
         dbText(cliente.razaoSocial),
         dbText(cliente.nomeFantasia),
         dbText(cliente.situacaoCnpj),
-      ]);
-    }
-
-    for (const responsavel of state.responsaveis) {
-      await client.query(`
-        INSERT INTO responsaveis (cpf, cliente_documento, nome)
-        VALUES ($1, $2, $3)
-      `, [
-        requiredText(responsavel.cpf, "CPF do responsavel"),
-        requiredText(responsavel.clienteDocumento, "cliente do responsavel"),
-        requiredText(responsavel.nome, "nome do responsavel"),
+        dbText(cliente.responsavelNome),
       ]);
     }
 

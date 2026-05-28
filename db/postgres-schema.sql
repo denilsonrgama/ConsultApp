@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS clientes (
   razao_social TEXT NOT NULL DEFAULT '',
   nome_fantasia TEXT NOT NULL DEFAULT '',
   situacao_cnpj TEXT NOT NULL DEFAULT '',
+  responsavel_nome TEXT NOT NULL DEFAULT '',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
