@@ -2041,7 +2041,8 @@ function renderAjuda() {
             <li>Clique em Novo para abrir o formulário de cadastro.</li>
             <li>Informe CPF ou CNPJ. O sistema valida o documento e, para CNPJ, consulta os dados cadastrais.</li>
             <li>Para CNPJ, a situação precisa estar ativa para permitir cadastro.</li>
-            <li>Informe e-mail, CEP, bairro, endereço, número, complemento, UF, cidade e observações.</li>
+            <li>Informe e-mail e CEP. O sistema consulta a base dos Correios e preenche bairro, endereço, UF e cidade.</li>
+            <li>Após a consulta do CEP, cabe ao usuário informar apenas número, complemento quando houver e observações.</li>
             <li>Ao salvar, o sistema confirma o cadastro e pergunta se deseja criar um orçamento para o cliente.</li>
           </ol>
           <p class="help-note">Clientes inativos permanecem no histórico, mas não podem receber novos orçamentos.</p>
@@ -2065,6 +2066,7 @@ function renderAjuda() {
             <li>Use Buscar cliente para preencher os dados do cliente no orçamento.</li>
             <li>Use o botão + ao lado do campo Cliente para cadastrar um novo cliente sem perder o orçamento em andamento.</li>
             <li>Informe serviço, quantidade, valor, desconto quando houver e observações do pedido.</li>
+            <li>O valor do serviço pode ser alterado no orçamento, mas essa alteração vale apenas para o orçamento atual e não muda o valor cadastrado na tela de Serviços.</li>
             <li>Para incluir mais de um serviço no mesmo orçamento, clique em Inserir serviço. O item anterior é preservado e os campos do serviço ficam prontos para o próximo item.</li>
             <li>Clique em Salvar orçamento para gravar o orçamento completo.</li>
           </ol>
