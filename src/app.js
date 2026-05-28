@@ -2039,10 +2039,18 @@ function renderAjuda() {
 function topClientesPorValor(budgets = orcamentosEstatisticos()) {
   const totals = new Map();
   budgets.forEach((orcamento) => {
-    const label = clienteNome(orcamento.clienteDocumento);
-    totals.set(label, (totals.get(label) || 0) + totalOrcamento(orcamento));
+    const documento = String(orcamento.clienteDocumento || "");
+    const key = onlyDigits(documento) || documento || clienteNome(documento);
+    const current = totals.get(key) || {
+      label: clienteNome(documento),
+      value: 0,
+      action: "cliente",
+      target: documento,
+    };
+    current.value += totalOrcamento(orcamento);
+    totals.set(key, current);
   });
-  return sortedChartData(totals, 5);
+  return sortedChartItems([...totals.values()], 5);
 }
 
 function orcamentosPorValor(budgets = orcamentosEstatisticos()) {
@@ -2062,6 +2070,8 @@ function topOrcamentosPorValor(budgets = orcamentosEstatisticos(), limit = 5) {
     .map((orcamento) => ({
       label: `Nº ${orcamento.numero} - ${clienteNome(orcamento.clienteDocumento)}`,
       value: totalOrcamento(orcamento),
+      action: "orcamento",
+      target: String(orcamento.numero || ""),
     }))
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value || String(a.label).localeCompare(String(b.label), "pt-BR"))
@@ -2131,8 +2141,11 @@ function servicosAprovadosPorValor(budgets = orcamentosAprovados()) {
 }
 
 function sortedChartData(totals, limit) {
-  return [...totals.entries()]
-    .map(([label, value]) => ({ label, value }))
+  return sortedChartItems([...totals.entries()].map(([label, value]) => ({ label, value })), limit);
+}
+
+function sortedChartItems(items, limit) {
+  return items
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value)
     .slice(0, limit);
@@ -2178,6 +2191,16 @@ function pieChart(title, data) {
   `;
 }
 
+function chartActionAttributes(item) {
+  if (item?.action === "cliente" && item.target) {
+    return `data-report-open-cliente="${escapeHtml(item.target)}" title="Abrir cliente"`;
+  }
+  if (item?.action === "orcamento" && item.target) {
+    return `data-report-open-orcamento="${escapeHtml(item.target)}" title="Abrir orçamento"`;
+  }
+  return "";
+}
+
 function barChart(title, data) {
   const max = Math.max(...data.map((item) => item.value), 0);
   return `
@@ -2187,8 +2210,9 @@ function barChart(title, data) {
         <div class="bar-chart">
           ${data.map((item) => {
             const height = max ? Math.max(8, Math.round((item.value / max) * 100)) : 0;
+            const actionAttributes = chartActionAttributes(item);
             return `
-              <div class="bar-column">
+              <div class="bar-column ${actionAttributes ? "clickable-chart-item" : ""}" ${actionAttributes}>
                 <div class="bar-value">${currency.format(item.value)}</div>
                 <div class="bar-track"><span style="height:${height}%"></span></div>
                 <div class="bar-label" title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</div>
@@ -2858,6 +2882,14 @@ function editCliente(documento) {
   }
   focusSelectedClienteRow();
   scrollClienteFormIntoView();
+}
+
+function openReportCliente(documento) {
+  if (!canView("clientes")) {
+    showNoPermissionMessage();
+    return;
+  }
+  editCliente(documento);
 }
 
 function clienteHasBudgets(documento) {
@@ -3758,6 +3790,14 @@ function openOrcamentoDetail(numero) {
   editOrcamento(numero);
 }
 
+function openReportOrcamento(numero) {
+  if (!canView("orcamentos")) {
+    showNoPermissionMessage();
+    return;
+  }
+  openOrcamentoDetail(numero);
+}
+
 function scrollOrcamentoFormIntoView() {
   scrollCompactElementIntoView(".orcamento-form-panel");
 }
@@ -3914,12 +3954,15 @@ function chartDataTable(rows, firstColumnLabel) {
       <table>
         <thead><tr><th>${escapeHtml(firstColumnLabel)}</th><th>Valor</th></tr></thead>
         <tbody>
-          ${rows.map((row) => `
-            <tr>
+          ${rows.map((row) => {
+            const actionAttributes = chartActionAttributes(row);
+            return `
+            <tr class="${actionAttributes ? "clickable-row" : ""}" ${actionAttributes}>
               <td>${escapeHtml(row.label)}</td>
               <td>${currency.format(row.value)}</td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
     </div>`;
@@ -5231,6 +5274,20 @@ document.body.addEventListener("click", (event) => {
   const reportButton = event.target.closest("[data-export-report]");
   if (reportButton) {
     handleReportExport(reportButton.dataset.exportReport);
+    return;
+  }
+
+  const reportClienteLink = event.target.closest("[data-report-open-cliente]");
+  if (reportClienteLink) {
+    event.preventDefault();
+    openReportCliente(reportClienteLink.dataset.reportOpenCliente);
+    return;
+  }
+
+  const reportOrcamentoLink = event.target.closest("[data-report-open-orcamento]");
+  if (reportOrcamentoLink) {
+    event.preventDefault();
+    openReportOrcamento(reportOrcamentoLink.dataset.reportOpenOrcamento);
     return;
   }
 

@@ -745,6 +745,14 @@ a.small-button {
   text-align: center;
 }
 
+.clickable-chart-item {
+  cursor: pointer;
+}
+
+.clickable-chart-item:hover .bar-track {
+  box-shadow: inset 0 0 0 2px rgba(22, 90, 114, 0.18);
+}
+
 .bar-value {
   color: var(--muted);
   font-size: 0.72rem;
