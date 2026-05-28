@@ -245,6 +245,13 @@ nav > [data-view="ajuda"] {
   align-items: flex-start;
 }
 
+.help-manual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
 .help-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -252,6 +259,7 @@ nav > [data-view="ajuda"] {
   margin-top: 16px;
 }
 
+.help-section,
 .help-grid article {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -259,13 +267,61 @@ nav > [data-view="ajuda"] {
   background: #fff;
 }
 
+.help-section-wide {
+  grid-column: 1 / -1;
+}
+
+.help-section h3,
 .help-grid h3 {
   margin-bottom: 8px;
   font-size: 1rem;
 }
 
+.help-section p,
 .help-grid p {
   color: var(--muted);
+}
+
+.help-section ol,
+.help-section ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0 20px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.help-section li::marker {
+  color: var(--brand);
+  font-weight: 800;
+}
+
+.help-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--brand);
+  background: #eef8fa;
+  color: #164a59 !important;
+  font-weight: 700;
+}
+
+.help-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.help-flow span {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid #cfe2e8;
+  border-radius: 8px;
+  background: #f5fbfc;
+  color: var(--brand-dark);
+  font-weight: 800;
+  text-align: center;
 }
 
 .sidebar-tools {
@@ -3997,7 +4053,12 @@ th {
     grid-template-columns: repeat(3, minmax(86px, 1fr));
   }
 
+  .help-manual,
   .help-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .help-flow {
     grid-template-columns: 1fr;
   }
 

@@ -1999,37 +1999,159 @@ function renderAjuda() {
       <div class="toolbar">
         <div>
           <h2>Manual do ConsultApp</h2>
-          <p>Guia rápido para usar clientes, serviços, orçamentos, financeiro e administração.</p>
+          <p>Manual de utilização para cadastro, orçamento, acompanhamento financeiro, relatórios e administração.</p>
         </div>
       </div>
-      <div class="help-grid">
-        <article>
-          <h3>1. Acesso ao sistema</h3>
-          <p>Entre com usuário ou e-mail cadastrado. Perfis e permissões definem quais telas e ações ficam disponíveis.</p>
+      <div class="help-manual">
+        <article class="help-section help-section-wide">
+          <h3>1. Visão geral</h3>
+          <p>O ConsultApp centraliza clientes, serviços, orçamentos, arquivos gerados, relatórios e controle de usuários. O fluxo principal do sistema é: cadastrar cliente, manter serviços, criar orçamento, imprimir ou compartilhar, acompanhar os resultados e consultar arquivos salvos.</p>
+          <div class="help-flow">
+            <span>Cliente</span>
+            <span>Serviços</span>
+            <span>Orçamento</span>
+            <span>PDF</span>
+            <span>Relatórios</span>
+          </div>
         </article>
-        <article>
-          <h3>2. Clientes</h3>
-          <p>Cadastre CPF ou CNPJ, valide os dados, informe contato e endereço. Após salvar, o sistema pergunta se deseja abrir um novo orçamento para o cliente.</p>
+
+        <article class="help-section">
+          <h3>2. Acesso e senha</h3>
+          <ol>
+            <li>Na tela de login, informe o usuário ou o e-mail cadastrado.</li>
+            <li>Use a opção de recuperação quando esquecer a senha.</li>
+            <li>Ao receber senha temporária, acesse o sistema e altere a senha antes de continuar.</li>
+            <li>Finalize o uso pelo botão Sair para encerrar a sessão com segurança.</li>
+          </ol>
+          <p class="help-note">As telas disponíveis dependem do perfil e das permissões do usuário.</p>
         </article>
-        <article>
-          <h3>3. Serviços</h3>
-          <p>Mantenha os serviços com código, tipo, frequência, status e valor. Serviços inativos permanecem em orçamentos antigos, mas não entram em novos itens.</p>
+
+        <article class="help-section">
+          <h3>3. Dashboard</h3>
+          <ol>
+            <li>Use o Dashboard para acompanhar os principais indicadores do sistema.</li>
+            <li>Clique em um orçamento listado para abrir a tela de Orçamentos já no item escolhido.</li>
+            <li>Use os atalhos rápidos para iniciar clientes, serviços e orçamentos.</li>
+          </ol>
         </article>
-        <article>
-          <h3>4. Orçamentos</h3>
-          <p>Use Buscar cliente ou o botão + ao lado do campo Cliente. O botão + abre o cadastro de cliente e retorna ao orçamento em andamento após salvar.</p>
+
+        <article class="help-section">
+          <h3>4. Clientes</h3>
+          <ol>
+            <li>Clique em Novo para abrir o formulário de cadastro.</li>
+            <li>Informe CPF ou CNPJ. O sistema valida o documento e, para CNPJ, consulta os dados cadastrais.</li>
+            <li>Para CNPJ, a situação precisa estar ativa para permitir cadastro.</li>
+            <li>Informe e-mail, CEP, bairro, endereço, número, complemento, UF, cidade e observações.</li>
+            <li>Ao salvar, o sistema confirma o cadastro e pergunta se deseja criar um orçamento para o cliente.</li>
+          </ol>
+          <p class="help-note">Clientes inativos permanecem no histórico, mas não podem receber novos orçamentos.</p>
         </article>
-        <article>
-          <h3>5. Impressão e compartilhamento</h3>
-          <p>Ao imprimir, escolha salvar ou apenas visualizar. Orçamentos aprovados podem ser salvos no banco e compartilhados por e-mail ou WhatsApp.</p>
+
+        <article class="help-section">
+          <h3>5. Serviços</h3>
+          <ol>
+            <li>Cadastre o serviço com descrição, tipo, frequência, valor e status.</li>
+            <li>O código do serviço é controlado pelo sistema e não deve ser digitado manualmente.</li>
+            <li>Serviços inativos continuam visíveis em orçamentos antigos.</li>
+            <li>Serviços inativos não podem ser inseridos em novos orçamentos.</li>
+          </ol>
         </article>
-        <article>
-          <h3>6. Financeiro e relatórios</h3>
-          <p>Acompanhe valores, status, clientes e serviços solicitados. Em Relatórios, aplique filtros e escolha imprimir PDF ou exportar Excel.</p>
+
+        <article class="help-section help-section-wide">
+          <h3>6. Orçamentos</h3>
+          <ol>
+            <li>Clique em Novo para iniciar um orçamento. O status inicial será EM ANÁLISE.</li>
+            <li>Use Buscar orçamento para consultar registros já cadastrados.</li>
+            <li>Use Buscar cliente para preencher os dados do cliente no orçamento.</li>
+            <li>Use o botão + ao lado do campo Cliente para cadastrar um novo cliente sem perder o orçamento em andamento.</li>
+            <li>Informe serviço, quantidade, valor, desconto quando houver e observações do pedido.</li>
+            <li>Para incluir mais de um serviço no mesmo orçamento, clique em Inserir serviço. O item anterior é preservado e os campos do serviço ficam prontos para o próximo item.</li>
+            <li>Clique em Salvar orçamento para gravar o orçamento completo.</li>
+          </ol>
+          <p class="help-note">Não é permitido repetir o mesmo código de serviço dentro do mesmo orçamento.</p>
         </article>
-        <article>
-          <h3>7. Administração</h3>
-          <p>Gerencie usuários, permissões, arquivos salvos e auditoria. Operações sensíveis exigem perfil ou privilégio adequado.</p>
+
+        <article class="help-section">
+          <h3>7. Status do orçamento</h3>
+          <ol>
+            <li>Use EM ANÁLISE enquanto o orçamento ainda estiver em negociação.</li>
+            <li>Use APROVADO somente quando o cliente confirmar a contratação.</li>
+            <li>Use REPROVADO para propostas não aceitas.</li>
+            <li>Alterações de status podem exigir privilégio específico ou confirmação de administrador.</li>
+          </ol>
+          <p class="help-note">Orçamentos aprovados ficam bloqueados para edição dos campos principais, preservando o histórico.</p>
+        </article>
+
+        <article class="help-section">
+          <h3>8. Imprimir e compartilhar</h3>
+          <ol>
+            <li>No orçamento, clique em Imprimir.</li>
+            <li>Escolha Sim para salvar e imprimir, Não para apenas imprimir, ou Cancelar para voltar à tela.</li>
+            <li>Use Compartilhar para enviar por e-mail ou WhatsApp quando disponível.</li>
+            <li>PDFs aprovados podem ser salvos no banco e consultados depois em Arquivos.</li>
+          </ol>
+        </article>
+
+        <article class="help-section">
+          <h3>9. Financeiro</h3>
+          <ol>
+            <li>Acompanhe totais, status e valores dos orçamentos.</li>
+            <li>Use a listagem para abrir o detalhe de um orçamento.</li>
+            <li>Indicadores financeiros respeitam as regras de status e clientes ativos.</li>
+          </ol>
+        </article>
+
+        <article class="help-section">
+          <h3>10. Relatórios</h3>
+          <ol>
+            <li>Aplique filtros por período, status do orçamento, status do cliente e status do serviço.</li>
+            <li>Escolha Vendas, Clientes ou Serviços.</li>
+            <li>Ao solicitar o relatório, escolha imprimir em PDF ou exportar para Excel.</li>
+            <li>Clique nos 5 maiores clientes para abrir o cadastro correspondente.</li>
+            <li>Clique nos 5 maiores orçamentos para abrir o orçamento correspondente.</li>
+          </ol>
+        </article>
+
+        <article class="help-section">
+          <h3>11. Arquivos</h3>
+          <ol>
+            <li>Consulte PDFs de orçamentos e relatórios salvos.</li>
+            <li>Use Visualizar para abrir o documento.</li>
+            <li>Use Excluir apenas quando tiver certeza de que o arquivo não será mais necessário.</li>
+          </ol>
+          <p class="help-note">Exclusões de arquivos são registradas na auditoria.</p>
+        </article>
+
+        <article class="help-section">
+          <h3>12. Usuários e perfis</h3>
+          <ol>
+            <li>ADMIN: administra cadastros e rotinas do sistema, sem acesso à Auditoria técnica.</li>
+            <li>OPERADOR: usa clientes, serviços e orçamentos.</li>
+            <li>FINANCEIRO: acessa financeiro, relatórios e consulta de orçamentos.</li>
+            <li>VISUALIZADOR: apenas consulta.</li>
+            <li>SUPERADMIN: login técnico reservado para manutenção e auditoria.</li>
+          </ol>
+        </article>
+
+        <article class="help-section">
+          <h3>13. Auditoria</h3>
+          <ol>
+            <li>A Auditoria registra ações executadas pelos usuários.</li>
+            <li>Use filtros para localizar usuário, ação, módulo ou período.</li>
+            <li>A manutenção dos logs permite simular ou excluir registros antigos conforme a retenção definida.</li>
+          </ol>
+          <p class="help-note">Esta tela é técnica e fica disponível apenas para o superusuário.</p>
+        </article>
+
+        <article class="help-section help-section-wide">
+          <h3>14. Boas práticas</h3>
+          <ul>
+            <li>Mantenha clientes e serviços atualizados antes de criar orçamentos.</li>
+            <li>Evite alterar status sem conferência, principalmente ao aprovar ou reprovar propostas.</li>
+            <li>Consulte Arquivos antes de gerar novamente um PDF já aprovado.</li>
+            <li>Revise filtros antes de emitir relatórios gerenciais.</li>
+            <li>Use perfis mínimos necessários para cada usuário.</li>
+          </ul>
         </article>
       </div>
     </section>
