@@ -2311,6 +2311,7 @@ async function addCliente(event) {
   data.status = normalizeClienteStatus(data.status);
   data.cidade = normalizeCidade(data.cidade);
   const oldClienteDocumento = editingClienteDocumento;
+  const isCreatingCliente = !editingClienteDocumento;
   if (!isValidCpfCnpj(data.documento)) {
     alert("Informe um CPF ou CNPJ válido.");
     return;
@@ -2375,17 +2376,23 @@ async function addCliente(event) {
   pendingBudgetDraft = null;
   clienteFormPrefill = null;
   event.currentTarget.reset();
+  const successMessage = isCreatingCliente ? "Cliente cadastrado com sucesso." : "Cliente alterado com sucesso.";
   if (shouldReturnToBudget) {
+    showFloatingMessage(successMessage, "success");
     startNewOrcamentoForCliente(data.documento, budgetDraft);
     return;
   }
-  if (hasPermission("orcamentos.create") && canManageData() && isClienteAtivo(data)) {
-    const shouldCreateBudget = confirm("Cliente salvo. Deseja cadastrar um orçamento para este cliente?");
+  if (isCreatingCliente && hasPermission("orcamentos.create") && canManageData() && isClienteAtivo(data)) {
+    const shouldCreateBudget = await askYesNoChoice(
+      "Cliente cadastrado com sucesso",
+      "Deseja cadastrar um orçamento para este cliente?",
+    );
     if (shouldCreateBudget) {
       startNewOrcamentoForCliente(data.documento);
       return;
     }
   }
+  showFloatingMessage(successMessage, "success");
   render();
 }
 
@@ -4287,6 +4294,41 @@ function askConfirmChoice(title, message, confirmLabel = "Confirmar") {
     document.addEventListener("keydown", handleKeydown);
     document.body.append(overlay);
     overlay.querySelector('[data-choice="cancel"]').focus();
+  });
+}
+
+function askYesNoChoice(title, message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "choice-modal";
+    overlay.innerHTML = `
+      <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="yes-no-choice-title">
+        <h2 id="yes-no-choice-title">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        <div class="choice-actions">
+          <button type="button" class="success-button" data-choice="yes">Sim</button>
+          <button type="button" class="ghost-button" data-choice="no">Não</button>
+        </div>
+      </div>
+    `;
+
+    const handleKeydown = (event) => {
+      if (event.key === "Escape") close(false);
+    };
+    const close = (value) => {
+      document.removeEventListener("keydown", handleKeydown);
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close(false);
+    });
+    overlay.querySelector('[data-choice="yes"]').addEventListener("click", () => close(true));
+    overlay.querySelector('[data-choice="no"]').addEventListener("click", () => close(false));
+    document.addEventListener("keydown", handleKeydown);
+    document.body.append(overlay);
+    overlay.querySelector('[data-choice="yes"]').focus();
   });
 }
 
