@@ -102,8 +102,19 @@ const PERMISSIONS = [
   { key: "data.write", label: "Gravar alterações no banco", group: "Sistema" },
 ];
 
+const SUPER_ADMIN_LOGIN = "admin";
+const TECHNICAL_PERMISSION_KEYS = new Set(["auditoria.view", "auditoria.manage"]);
+
+function isSuperAdminUser(user = currentUser) {
+  return Boolean(user?.superAdmin) || String(user?.usuario || "").trim().toLowerCase() === SUPER_ADMIN_LOGIN;
+}
+
+function canManagePermissionKey(key) {
+  return isSuperAdminUser() || !TECHNICAL_PERMISSION_KEYS.has(key);
+}
+
 const PROFILE_PERMISSION_PRESETS = {
-  ADMIN: Object.fromEntries(PERMISSIONS.map((permission) => [permission.key, true])),
+  ADMIN: Object.fromEntries(PERMISSIONS.map((permission) => [permission.key, !permission.key.startsWith("auditoria.")])),
   OPERADOR: {
     "dashboard.view": true,
     "clientes.view": true,
@@ -157,7 +168,17 @@ function defaultPermissionsForProfile(perfil) {
 }
 
 function permissionsForUser(user = currentUser) {
-  return user?.permissoes || defaultPermissionsForProfile(user?.perfil);
+  const permissoes = { ...(user?.permissoes || defaultPermissionsForProfile(user?.perfil)) };
+  if (isSuperAdminUser(user)) {
+    PERMISSIONS.forEach((permission) => {
+      permissoes[permission.key] = true;
+    });
+    return permissoes;
+  }
+  TECHNICAL_PERMISSION_KEYS.forEach((key) => {
+    permissoes[key] = false;
+  });
+  return permissoes;
 }
 
 function hasPermission(key, user = currentUser) {
@@ -186,6 +207,10 @@ function canExportReports() {
 
 function canManageUsers() {
   return hasPermission("usuarios.view");
+}
+
+function canEditUsuarioRecord(usuario) {
+  return hasPermission("usuarios.edit") && (isSuperAdminUser() || (!usuario?.superAdmin && !usuario?.superadminLocked));
 }
 
 function showNoPermissionMessage() {
@@ -1710,7 +1735,8 @@ function renderUsuarios() {
   const renderUsuarioForm = !isCompactLayout() || showUsuarioFormOnMobile;
   const view = document.getElementById("usuarios-view");
   if (!view || !canManageUsers()) return;
-  const sortedUsuarios = applyTableSort("usuarios", usuarios.slice(), {
+  const visibleUsuarios = usuarios.filter((usuario) => isSuperAdminUser() || (!usuario.superAdmin && !usuario.superadminLocked));
+  const sortedUsuarios = applyTableSort("usuarios", visibleUsuarios.slice(), {
     usuario: (usuario) => usuario.usuario || "",
     nome: (usuario) => usuario.nome || "",
     email: (usuario) => usuario.email || "",
@@ -1744,7 +1770,7 @@ function renderUsuarios() {
                   <td>${escapeHtml(usuario.email)}</td>
                   <td>${escapeHtml(usuario.perfil)}</td>
                   <td><span class="badge ${usuario.ativo ? "" : "danger"}">${usuario.ativo ? "ATIVO" : "INATIVO"}</span></td>
-                  <td>${editable ? `<div class="row-actions"><button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button></div>` : ""}</td>
+                  <td>${editable && canEditUsuarioRecord(usuario) ? `<div class="row-actions"><button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button></div>` : ""}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -1805,7 +1831,8 @@ function renderUsuarios() {
 }
 
 function permissionCheckboxes(permissoes = {}) {
-  const groups = [...new Set(PERMISSIONS.map((permission) => permission.group))];
+  const visiblePermissions = PERMISSIONS.filter((permission) => canManagePermissionKey(permission.key));
+  const groups = [...new Set(visiblePermissions.map((permission) => permission.group))];
   return groups.map((group) => `
     <fieldset class="permission-group">
       <legend>${escapeHtml(group)}</legend>
@@ -1813,7 +1840,7 @@ function permissionCheckboxes(permissoes = {}) {
         <button type="button" class="small-button" data-permission-group-action="check" data-permission-group="${escapeHtml(group)}">Marcar módulo</button>
         <button type="button" class="small-button danger-text" data-permission-group-action="clear" data-permission-group="${escapeHtml(group)}">Limpar módulo</button>
       </div>
-      ${PERMISSIONS.filter((permission) => permission.group === group).map((permission) => `
+      ${visiblePermissions.filter((permission) => permission.group === group).map((permission) => `
         <label class="checkbox-line">
           <input type="checkbox" name="permissao" value="${escapeHtml(permission.key)}" ${permissoes[permission.key] ? "checked" : ""}>
           ${escapeHtml(permission.label)}
@@ -1834,7 +1861,7 @@ function handlePermissionGroupAction(event) {
   if (!button) return;
   const group = button.dataset.permissionGroup;
   const checked = button.dataset.permissionGroupAction === "check";
-  const keys = PERMISSIONS.filter((permission) => permission.group === group).map((permission) => permission.key);
+  const keys = PERMISSIONS.filter((permission) => permission.group === group && canManagePermissionKey(permission.key)).map((permission) => permission.key);
   document.querySelectorAll('#usuario-form input[name="permissao"]').forEach((input) => {
     if (keys.includes(input.value)) input.checked = checked;
   });
@@ -1890,6 +1917,11 @@ function cancelUsuario() {
 
 function editUsuario(id) {
   if (!hasPermission("usuarios.edit") && !hasPermission("usuarios.view")) {
+    showNoPermissionMessage();
+    return;
+  }
+  const target = usuarios.find((usuario) => Number(usuario.id) === Number(id));
+  if (!target || !canEditUsuarioRecord(target)) {
     showNoPermissionMessage();
     return;
   }
