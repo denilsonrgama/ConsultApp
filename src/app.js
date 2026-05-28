@@ -15,6 +15,7 @@ let addingBudgetItem = false;
 let clienteFormPrefill = null;
 let pendingBudgetDraft = null;
 let pendingOrcamentoFormDraft = null;
+let draftBudgetItems = [];
 let pendingSave = null;
 let currentUser = null;
 let usuarios = [];
@@ -3195,6 +3196,15 @@ function deleteServico(codigo) {
 function renderOrcamentos() {
   const editingOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero)) || {};
   const draftOrcamento = !editingOrcamentoNumero ? pendingOrcamentoFormDraft : null;
+  const draftItemsForForm = draftOrcamento?.itens?.length
+    ? draftOrcamento.itens.map(normalizeBudgetItemForDraft)
+    : [];
+  const visibleDraftItem = draftItemsForForm[draftItemsForForm.length - 1] || null;
+  if (editingOrcamentoNumero) {
+    draftBudgetItems = [];
+  } else if (draftItemsForForm.length) {
+    draftBudgetItems = draftItemsForForm.slice(0, -1);
+  }
   const approvedLocked = editingOrcamentoNumero && isOrcamentoAprovado(editingOrcamento);
   const useBlankForm = blankNewOrcamento && !editingOrcamentoNumero;
   const showOrcamentoFormOnMobile = Boolean(editingOrcamentoNumero || blankNewOrcamento);
@@ -3267,8 +3277,8 @@ function renderOrcamentos() {
     document.getElementById("orcamento-cliente-search").addEventListener("input", filterBudgetClientOptions);
   }
   document.getElementById("orcamento-search").addEventListener("input", renderOrcamentoList);
-  if (draftOrcamento?.itens?.length) {
-    addBudgetItemRow(draftOrcamento.itens[0], !draftOrcamento.itens[0].servicoCodigo);
+  if (visibleDraftItem) {
+    addBudgetItemRow(visibleDraftItem, !visibleDraftItem.servicoCodigo);
   } else if (useBlankForm) {
     addBudgetItemRow({}, true);
   } else if (!editingOrcamentoNumero) {
@@ -3425,6 +3435,7 @@ function startNewOrcamentoForCliente(documento, draft = null) {
   editingOrcamentoNumero = null;
   blankNewOrcamento = true;
   addingBudgetItem = false;
+  draftBudgetItems = [];
   pendingOrcamentoFormDraft = {
     ...(draft || {}),
     clienteDocumento: cliente.documento,
@@ -3488,6 +3499,9 @@ function addBlankBudgetItem() {
     showNoPermissionMessage();
     return;
   }
+  if (!editingOrcamentoNumero && !saveCurrentNewBudgetItemForNext()) {
+    return;
+  }
   addingBudgetItem = true;
   addBudgetItemRow({}, true);
   updateBudgetSaveButton();
@@ -3506,6 +3520,73 @@ function updateBudgetItemDeleteButton() {
   const selectedItem = document.querySelector(".budget-item");
   const hasSelectedExistingItem = selectedItem && String(selectedItem.dataset.itemIndex || "") !== "";
   button.disabled = !hasSelectedExistingItem;
+}
+
+function normalizeBudgetItemForDraft(item = {}) {
+  return {
+    servicoCodigo: String(item.servicoCodigo || "").trim(),
+    quantidade: Number(item.quantidade || 0),
+    valorUnitario: Number(item.valorUnitario || 0),
+    desconto: Number(item.desconto || 0),
+  };
+}
+
+function budgetItemFromRow(row) {
+  return {
+    servicoCodigo: row.querySelector('[name="servicoCodigo"]').value,
+    originalServicoCodigo: row.dataset.originalServicoCodigo || "",
+    itemIndex: row.dataset.itemIndex || "",
+    quantidade: Number(row.querySelector('[name="quantidade"]').value || 0),
+    valorUnitario: Number(row.querySelector('[name="valorUnitario"]').value || 0),
+    desconto: Number(row.querySelector('[name="desconto"]').value || 0),
+  };
+}
+
+function isBlankBudgetItem(item) {
+  return !String(item.servicoCodigo || "").trim()
+    && !Number(item.quantidade || 0)
+    && !Number(item.valorUnitario || 0)
+    && !Number(item.desconto || 0);
+}
+
+function visibleBudgetItems() {
+  return [...document.querySelectorAll(".budget-item")].map(budgetItemFromRow);
+}
+
+function saveCurrentNewBudgetItemForNext() {
+  const currentItem = visibleBudgetItems()[0];
+  if (!currentItem || isBlankBudgetItem(currentItem)) {
+    if (draftBudgetItems.length) return true;
+    alert("Informe o serviço antes de inserir outro.");
+    return false;
+  }
+
+  if (!currentItem.servicoCodigo) {
+    alert("Informe o serviço antes de inserir outro.");
+    return false;
+  }
+
+  if (Number(currentItem.quantidade || 0) <= 0) {
+    alert("Informe uma quantidade válida para o serviço.");
+    return false;
+  }
+
+  const service = servicoByCodigo(currentItem.servicoCodigo);
+  if (!isServicoAtivo(service)) {
+    alert("Serviços inativos não podem ser inseridos em novos itens de orçamento.");
+    return false;
+  }
+
+  const nextItems = [...draftBudgetItems, normalizeBudgetItemForDraft(currentItem)];
+  const duplicatedServiceCode = duplicatedBudgetServiceCode(nextItems);
+  if (duplicatedServiceCode) {
+    alert(`O serviço ${duplicatedServiceCode} já foi informado neste orçamento. Não é permitido duplicar serviço no mesmo orçamento.`);
+    return false;
+  }
+
+  draftBudgetItems = nextItems;
+  showFloatingMessage("Serviço incluído no orçamento. Informe o próximo serviço.", "success");
+  return true;
 }
 
 function mergeBudgetItems(currentItems, formItems) {
@@ -3529,18 +3610,21 @@ function firstServiceValue() {
 }
 
 function collectBudgetItems() {
-  const formItems = [...document.querySelectorAll(".budget-item")].map((row) => ({
-    servicoCodigo: row.querySelector('[name="servicoCodigo"]').value,
-    originalServicoCodigo: row.dataset.originalServicoCodigo || "",
-    itemIndex: row.dataset.itemIndex || "",
-    quantidade: Number(row.querySelector('[name="quantidade"]').value || 0),
-    valorUnitario: Number(row.querySelector('[name="valorUnitario"]').value || 0),
-    desconto: Number(row.querySelector('[name="desconto"]').value || 0),
-  }));
+  const formItems = visibleBudgetItems().filter((item) => !isBlankBudgetItem(item));
+  if (!editingOrcamentoNumero) {
+    return [
+      ...draftBudgetItems.map(normalizeBudgetItemForDraft),
+      ...formItems,
+    ];
+  }
   if (formItems.length || !editingOrcamentoNumero) return formItems;
 
   const editingOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero));
-  return (editingOrcamento?.itens || []).map((item) => ({ ...item, originalServicoCodigo: item.servicoCodigo }));
+  return (editingOrcamento?.itens || []).map((item, index) => ({
+    ...item,
+    originalServicoCodigo: item.servicoCodigo,
+    itemIndex: String(index),
+  }));
 }
 
 function duplicatedBudgetServiceCode(items) {
@@ -3690,6 +3774,7 @@ async function addOrcamento(event) {
   } else {
     state.orcamentos.push(payload);
   }
+  draftBudgetItems = [];
   saveState(orcamentoAudit);
   render();
 }
@@ -3698,6 +3783,7 @@ function newOrcamento() {
   editingOrcamentoNumero = null;
   blankNewOrcamento = true;
   addingBudgetItem = false;
+  draftBudgetItems = [];
   renderOrcamentos();
   scrollOrcamentoFormIntoView();
 }
@@ -3706,6 +3792,7 @@ function cancelOrcamento() {
   editingOrcamentoNumero = null;
   blankNewOrcamento = !isCompactLayout();
   addingBudgetItem = false;
+  draftBudgetItems = [];
   renderOrcamentos();
 }
 
@@ -3713,6 +3800,7 @@ function editOrcamento(numero) {
   editingOrcamentoNumero = Number(numero);
   blankNewOrcamento = false;
   addingBudgetItem = false;
+  draftBudgetItems = [];
   setView("orcamentos");
   if (isCompactLayout()) {
     scrollOrcamentoFormIntoView();
