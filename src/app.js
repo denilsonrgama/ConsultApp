@@ -2255,7 +2255,7 @@ function renderClienteList() {
           </tr></thead>
           <tbody>
             ${clientes.map((cliente) => `
-              <tr class="clickable-row" data-open-cliente="${escapeHtml(cliente.documento)}">
+              <tr class="clickable-row ${cliente.documento === editingClienteDocumento ? "is-selected" : ""}" data-open-cliente="${escapeHtml(cliente.documento)}">
                 <td>${escapeHtml(cliente.documento)}</td>
                 <td><strong>${escapeHtml(cliente.nome)}</strong><br><span class="muted">${escapeHtml(cliente.email)}</span></td>
                 <td>${escapeHtml(cliente.telefone)}</td>
@@ -2263,7 +2263,7 @@ function renderClienteList() {
                 <td><span class="badge ${normalizeClienteStatus(cliente.status) === "INATIVO" ? "danger" : ""}">${escapeHtml(normalizeClienteStatus(cliente.status))}</span></td>
                 <td>${canEditModule("clientes") || canDeleteFromModule("clientes") ? `
                   <div class="row-actions">
-                    ${canEditModule("clientes") ? `<button class="small-button" data-edit-cliente="${escapeHtml(cliente.documento)}">Alterar</button>` : ""}
+                    ${canEditModule("clientes") ? `<button class="small-button" type="button" data-edit-cliente="${escapeHtml(cliente.documento)}">Alterar</button>` : ""}
                     ${clienteDeleteActionButton(cliente)}
                   </div>
                 ` : ""}</td>
@@ -2871,6 +2871,8 @@ function isValidCnpj(cnpj) {
 function editCliente(documento) {
   editingClienteDocumento = documento;
   blankNewCliente = false;
+  clienteFormPrefill = null;
+  pendingBudgetDraft = null;
   if (document.getElementById("clientes-view")?.classList.contains("is-active")) {
     renderClientes();
   } else {
@@ -5167,6 +5169,8 @@ document.body.addEventListener("click", (event) => {
 
   const editClienteButton = event.target.closest("[data-edit-cliente]");
   if (editClienteButton) {
+    event.preventDefault();
+    event.stopPropagation();
     editCliente(editClienteButton.dataset.editCliente);
     return;
   }
@@ -5181,6 +5185,8 @@ document.body.addEventListener("click", (event) => {
 
   const editServicoButton = event.target.closest("[data-edit-servico]");
   if (editServicoButton) {
+    event.preventDefault();
+    event.stopPropagation();
     editServico(editServicoButton.dataset.editServico);
     return;
   }
