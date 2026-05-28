@@ -199,6 +199,10 @@ nav > [data-submenu="administracao"] {
   order: 7;
 }
 
+nav > [data-view="ajuda"] {
+  order: 8;
+}
+
 .nav-button {
   border: 0;
   border-radius: 8px;
@@ -235,6 +239,33 @@ nav > [data-submenu="administracao"] {
   padding: 8px 12px;
   font-size: 0.88rem;
   color: #c7dbe2;
+}
+
+.help-panel .toolbar {
+  align-items: flex-start;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.help-grid article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+}
+
+.help-grid h3 {
+  margin-bottom: 8px;
+  font-size: 1rem;
+}
+
+.help-grid p {
+  color: var(--muted);
 }
 
 .sidebar-tools {
@@ -1113,9 +1144,29 @@ a.small-button {
 
 .orcamento-form-grid .budget-client-search,
 .orcamento-form-grid .budget-items,
+.orcamento-form-grid .budget-client-line,
 .orcamento-form-grid label:has(textarea),
 .orcamento-form-grid .total-box {
   grid-column: span 2;
+}
+
+.budget-client-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.budget-client-line label {
+  min-width: 0;
+}
+
+.budget-client-add-button {
+  min-width: 42px;
+  min-height: 38px;
+  padding-inline: 0;
+  font-size: 1.15rem;
+  line-height: 1;
 }
 
 .panel,
@@ -3936,6 +3987,10 @@ th {
 
   .nav-submenu[data-submenu="administracao"] {
     grid-template-columns: repeat(3, minmax(86px, 1fr));
+  }
+
+  .help-grid {
+    grid-template-columns: 1fr;
   }
 
   .nav-button,

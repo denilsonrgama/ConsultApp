@@ -12,6 +12,9 @@ let blankNewServico = false;
 let editingOrcamentoNumero = null;
 let blankNewOrcamento = true;
 let addingBudgetItem = false;
+let clienteFormPrefill = null;
+let pendingBudgetDraft = null;
+let pendingOrcamentoFormDraft = null;
 let pendingSave = null;
 let currentUser = null;
 let usuarios = [];
@@ -64,6 +67,7 @@ const titles = {
   arquivos: "Arquivos",
   usuarios: "Usuários",
   auditoria: "Auditoria",
+  ajuda: "Ajuda",
 };
 
 const PERMISSIONS = [
@@ -782,6 +786,7 @@ function viewPermission(view) {
     arquivos: "arquivos.view",
     usuarios: "usuarios.view",
     auditoria: "auditoria.view",
+    ajuda: "",
   }[view] || "";
 }
 
@@ -834,7 +839,7 @@ function setView(view) {
     return;
   }
   openMenuGroup = menuGroupForView(view);
-  if (view === "orcamentos" && !editingOrcamentoNumero) blankNewOrcamento = !isCompactLayout();
+  if (view === "orcamentos" && !editingOrcamentoNumero && !pendingOrcamentoFormDraft) blankNewOrcamento = !isCompactLayout();
   document.querySelectorAll(".nav-button").forEach((button) => {
     const group = button.dataset.menuGroup;
     const active = group ? menuGroupForView(view) === group : button.dataset.view === view;
@@ -869,6 +874,7 @@ function render() {
   if (hasPermission("arquivos.view")) renderArquivos();
   if (canManageUsers()) renderUsuarios();
   if (hasPermission("auditoria.view")) renderAuditoria();
+  renderAjuda();
 }
 
 function renderCurrentView(view) {
@@ -903,7 +909,9 @@ function renderCurrentView(view) {
   }
   if (view === "auditoria") {
     renderAuditoria();
+    return;
   }
+  if (view === "ajuda") renderAjuda();
 }
 
 function renderSidebarPanel() {
@@ -1942,6 +1950,52 @@ function pageBanner() {
   `;
 }
 
+function renderAjuda() {
+  const view = document.getElementById("ajuda-view");
+  if (!view) return;
+  view.innerHTML = `
+    ${pageBanner()}
+    <section class="panel help-panel">
+      <div class="toolbar">
+        <div>
+          <h2>Manual do ConsultApp</h2>
+          <p>Guia rápido para usar clientes, serviços, orçamentos, financeiro e administração.</p>
+        </div>
+      </div>
+      <div class="help-grid">
+        <article>
+          <h3>1. Acesso ao sistema</h3>
+          <p>Entre com usuário ou e-mail cadastrado. Perfis e permissões definem quais telas e ações ficam disponíveis.</p>
+        </article>
+        <article>
+          <h3>2. Clientes</h3>
+          <p>Cadastre CPF ou CNPJ, valide os dados, informe contato e endereço. Após salvar, o sistema pergunta se deseja abrir um novo orçamento para o cliente.</p>
+        </article>
+        <article>
+          <h3>3. Serviços</h3>
+          <p>Mantenha os serviços com código, tipo, frequência, status e valor. Serviços inativos permanecem em orçamentos antigos, mas não entram em novos itens.</p>
+        </article>
+        <article>
+          <h3>4. Orçamentos</h3>
+          <p>Use Buscar cliente ou o botão + ao lado do campo Cliente. O botão + abre o cadastro de cliente e retorna ao orçamento em andamento após salvar.</p>
+        </article>
+        <article>
+          <h3>5. Impressão e compartilhamento</h3>
+          <p>Ao imprimir, escolha salvar ou apenas visualizar. Orçamentos aprovados podem ser salvos no banco e compartilhados por e-mail ou WhatsApp.</p>
+        </article>
+        <article>
+          <h3>6. Financeiro e relatórios</h3>
+          <p>Acompanhe valores, status, clientes e serviços solicitados. Em Relatórios, aplique filtros e escolha imprimir PDF ou exportar Excel.</p>
+        </article>
+        <article>
+          <h3>7. Administração</h3>
+          <p>Gerencie usuários, permissões, arquivos salvos e auditoria. Operações sensíveis exigem perfil ou privilégio adequado.</p>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
 function topClientesPorValor(budgets = orcamentosEstatisticos()) {
   const totals = new Map();
   budgets.forEach((orcamento) => {
@@ -2099,9 +2153,10 @@ function barChart(title, data) {
 function renderClientes() {
   const editingCliente = state.clientes.find((cliente) => cliente.documento === editingClienteDocumento) || {};
   const useBlankForm = blankNewCliente && !editingClienteDocumento;
+  const formCliente = useBlankForm ? (clienteFormPrefill || { status: "ATIVO" }) : editingCliente;
   const showClienteFormOnMobile = Boolean(editingClienteDocumento || blankNewCliente);
   const renderClienteForm = !isCompactLayout() || showClienteFormOnMobile;
-  const showCnpjFields = onlyDigits(editingCliente.documento).length === 14;
+  const showCnpjFields = onlyDigits(formCliente.documento).length === 14;
   const editable = canEditModule("clientes");
   document.getElementById("clientes-view").innerHTML = `
     ${pageBanner()}
@@ -2120,24 +2175,24 @@ function renderClientes() {
       ${renderClienteForm ? `<section class="panel cliente-form-panel${showClienteFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingClienteDocumento ? "Alterar cliente" : "Novo cliente"}</h2>
         <form class="cliente-form-grid" id="cliente-form">
-          <label>CPF/CNPJ<input name="documento" required value="${useBlankForm ? "" : fieldValue(editingCliente.documento)}"></label>
-          <label class="cpf-only-fields${showCnpjFields ? " hidden" : ""}">Nome<input name="nome" value="${fieldValue(editingCliente.nome)}"${showCnpjFields ? "" : " required"}></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Razão social<input name="razaoSocial" readonly value="${fieldValue(editingCliente.razaoSocial)}"></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Nome fantasia<input name="nomeFantasia" readonly value="${fieldValue(editingCliente.nomeFantasia)}"></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">CPF do responsável<input name="responsavelCpf" value="${fieldValue(editingCliente.responsavelCpf)}"${showCnpjFields ? " required" : ""}></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Responsável<input name="responsavelNome" value="${fieldValue(editingCliente.responsavelNome)}"${showCnpjFields ? " required" : ""}></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Situação CNPJ<input class="${cnpjStatusClass(editingCliente.situacaoCnpj)}" name="situacaoCnpj" readonly value="${fieldValue(editingCliente.situacaoCnpj)}"></label>
-          <label>Status<select name="status">${options(["ATIVO", "INATIVO"], normalizeClienteStatus(editingCliente.status))}</select></label>
-          <label>Celular<input name="telefone" value="${fieldValue(editingCliente.telefone)}"></label>
-          <label>E-mail<input name="email" type="email" value="${fieldValue(editingCliente.email)}"></label>
-          <label>CEP<input name="cep" value="${fieldValue(editingCliente.cep)}"></label>
-          <label>Bairro<input name="bairro" readonly value="${fieldValue(editingCliente.bairro)}"></label>
-          <label>Endereço<input name="endereco" readonly value="${fieldValue(editingCliente.endereco)}"></label>
-          <label>Número<input name="numero" value="${fieldValue(editingCliente.numero)}"></label>
-          <label>Complemento<input name="complemento" value="${fieldValue(editingCliente.complemento)}"></label>
-          <label>UF<input name="uf" maxlength="2" readonly value="${fieldValue(editingCliente.uf)}"></label>
-          <label>Cidade<input name="cidade" readonly value="${fieldValue(editingCliente.cidade)}"></label>
-          <label>Observações<textarea name="obs">${fieldValue(editingCliente.obs)}</textarea></label>
+          <label>CPF/CNPJ<input name="documento" required value="${fieldValue(formCliente.documento)}"></label>
+          <label class="cpf-only-fields${showCnpjFields ? " hidden" : ""}">Nome<input name="nome" value="${fieldValue(formCliente.nome)}"${showCnpjFields ? "" : " required"}></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Razão social<input name="razaoSocial" readonly value="${fieldValue(formCliente.razaoSocial)}"></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Nome fantasia<input name="nomeFantasia" readonly value="${fieldValue(formCliente.nomeFantasia)}"></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">CPF do responsável<input name="responsavelCpf" value="${fieldValue(formCliente.responsavelCpf)}"${showCnpjFields ? " required" : ""}></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Responsável<input name="responsavelNome" value="${fieldValue(formCliente.responsavelNome)}"${showCnpjFields ? " required" : ""}></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Situação CNPJ<input class="${cnpjStatusClass(formCliente.situacaoCnpj)}" name="situacaoCnpj" readonly value="${fieldValue(formCliente.situacaoCnpj)}"></label>
+          <label>Status<select name="status">${options(["ATIVO", "INATIVO"], normalizeClienteStatus(formCliente.status))}</select></label>
+          <label>Celular<input name="telefone" value="${fieldValue(formCliente.telefone)}"></label>
+          <label>E-mail<input name="email" type="email" value="${fieldValue(formCliente.email)}"></label>
+          <label>CEP<input name="cep" value="${fieldValue(formCliente.cep)}"></label>
+          <label>Bairro<input name="bairro" readonly value="${fieldValue(formCliente.bairro)}"></label>
+          <label>Endereço<input name="endereco" readonly value="${fieldValue(formCliente.endereco)}"></label>
+          <label>Número<input name="numero" value="${fieldValue(formCliente.numero)}"></label>
+          <label>Complemento<input name="complemento" value="${fieldValue(formCliente.complemento)}"></label>
+          <label>UF<input name="uf" maxlength="2" readonly value="${fieldValue(formCliente.uf)}"></label>
+          <label>Cidade<input name="cidade" readonly value="${fieldValue(formCliente.cidade)}"></label>
+          <label>Observações<textarea name="obs">${fieldValue(formCliente.obs)}</textarea></label>
           ${editable ? `
             <div class="form-actions cliente-form-actions">
               <button class="primary-button" type="submit">${editingClienteDocumento ? "Salvar alteração" : "Salvar cliente"}</button>
@@ -2323,7 +2378,22 @@ async function addCliente(event) {
   }
   syncResponsavelCliente(oldClienteDocumento, data);
   saveState(clienteAudit);
+  const budgetDraft = pendingBudgetDraft;
+  const shouldReturnToBudget = Boolean(budgetDraft);
+  pendingBudgetDraft = null;
+  clienteFormPrefill = null;
   event.currentTarget.reset();
+  if (shouldReturnToBudget) {
+    startNewOrcamentoForCliente(data.documento, budgetDraft);
+    return;
+  }
+  if (hasPermission("orcamentos.create") && canManageData() && isClienteAtivo(data)) {
+    const shouldCreateBudget = confirm("Cliente salvo. Deseja cadastrar um orçamento para este cliente?");
+    if (shouldCreateBudget) {
+      startNewOrcamentoForCliente(data.documento);
+      return;
+    }
+  }
   render();
 }
 
@@ -2355,6 +2425,8 @@ function syncResponsavelCliente(oldClienteDocumento, cliente) {
 function newCliente() {
   editingClienteDocumento = null;
   blankNewCliente = true;
+  clienteFormPrefill = null;
+  pendingBudgetDraft = null;
   renderClientes();
   scrollClienteFormIntoView();
 }
@@ -2363,6 +2435,8 @@ function cancelCliente() {
   document.activeElement?.blur();
   editingClienteDocumento = null;
   blankNewCliente = false;
+  clienteFormPrefill = null;
+  pendingBudgetDraft = null;
   renderClientes();
   resetCompactViewScroll("#clientes-view");
 }
@@ -3094,12 +3168,15 @@ function deleteServico(codigo) {
 
 function renderOrcamentos() {
   const editingOrcamento = state.orcamentos.find((orcamento) => Number(orcamento.numero) === Number(editingOrcamentoNumero)) || {};
+  const draftOrcamento = !editingOrcamentoNumero ? pendingOrcamentoFormDraft : null;
   const approvedLocked = editingOrcamentoNumero && isOrcamentoAprovado(editingOrcamento);
   const useBlankForm = blankNewOrcamento && !editingOrcamentoNumero;
   const showOrcamentoFormOnMobile = Boolean(editingOrcamentoNumero || blankNewOrcamento);
-  const numeroValue = editingOrcamentoNumero ? editingOrcamento.numero : nextBudgetNumber();
-  const dataValue = editingOrcamentoNumero ? editingOrcamento.data : (useBlankForm ? "" : new Date().toISOString().slice(0, 10));
-  const statusValue = editingOrcamentoNumero ? normalizeOrcamentoStatus(editingOrcamento.status) : "EM ANÁLISE";
+  const clienteDocumentoValue = editingOrcamentoNumero ? editingOrcamento.clienteDocumento : (draftOrcamento?.clienteDocumento || "");
+  const numeroValue = editingOrcamentoNumero ? editingOrcamento.numero : (draftOrcamento?.numero || nextBudgetNumber());
+  const dataValue = editingOrcamentoNumero ? editingOrcamento.data : (draftOrcamento?.data || (useBlankForm ? "" : new Date().toISOString().slice(0, 10)));
+  const statusValue = editingOrcamentoNumero ? normalizeOrcamentoStatus(editingOrcamento.status) : normalizeOrcamentoStatus(draftOrcamento?.status || "EM ANÁLISE");
+  const observacoesValue = editingOrcamentoNumero ? editingOrcamento.observacoes : (draftOrcamento?.observacoes || "");
   const editable = canEditModule("orcamentos");
   document.getElementById("orcamentos-view").innerHTML = `
     ${pageBanner()}
@@ -3119,17 +3196,20 @@ function renderOrcamentos() {
         <h2>${editingOrcamentoNumero ? "Alterar orçamento" : "Novo orçamento"}</h2>
         <form class="orcamento-form-grid${approvedLocked ? " approved-budget-locked" : ""}" id="orcamento-form">
           <label>Número<input name="numero" type="number" min="15000" step="1" readonly required value="${fieldValue(numeroValue)}"></label>
-          <button class="ghost-button" type="button" id="show-budget-client-search"${editingOrcamento.clienteDocumento || !editable ? " hidden" : ""}>Buscar cliente</button>
+          <button class="ghost-button" type="button" id="show-budget-client-search"${clienteDocumentoValue || !editable ? " hidden" : ""}>Buscar cliente</button>
           <div class="budget-client-search hidden" id="budget-client-search">
             <label>Digite CPF/CNPJ ou nome<input id="orcamento-cliente-search" placeholder="Digite nome, CPF ou CNPJ"></label>
             <div id="budget-client-results"></div>
           </div>
-          <label>Cliente<input id="orcamento-cliente-display" readonly${approvedLocked ? " disabled" : ""} value="${fieldValue(editingOrcamento.clienteDocumento ? clienteNome(editingOrcamento.clienteDocumento) : "")}"></label>
-          <input type="hidden" name="clienteDocumento" value="${fieldValue(editingOrcamento.clienteDocumento)}" required>
+          <div class="budget-client-line">
+            <label>Cliente<input id="orcamento-cliente-display" readonly${approvedLocked ? " disabled" : ""} value="${fieldValue(clienteDocumentoValue ? clienteNome(clienteDocumentoValue) : "")}"></label>
+            ${editable && !editingOrcamentoNumero ? '<button class="success-button budget-client-add-button" type="button" id="create-client-from-budget" title="Cadastrar cliente">+</button>' : ""}
+          </div>
+          <input type="hidden" name="clienteDocumento" value="${fieldValue(clienteDocumentoValue)}" required>
           <label>Data<input name="data" type="date" required${approvedLocked ? " disabled" : ""} value="${fieldValue(dataValue)}"></label>
           <label>Status<select name="status"><option value=""${selectedAttr(statusValue, "")}>Selecione</option>${options(["EM ANÁLISE", "APROVADO", "REPROVADO"], statusValue)}</select></label>
           <div class="budget-items" id="budget-items"></div>
-          <label>Observações<textarea name="observacoes"${approvedLocked ? " disabled" : ""}>${fieldValue(editingOrcamento.observacoes)}</textarea></label>
+          <label>Observações<textarea name="observacoes"${approvedLocked ? " disabled" : ""}>${fieldValue(observacoesValue)}</textarea></label>
           <div class="total-box"><span>Total</span><strong id="budget-total">R$ 0,00</strong></div>
           ${editable ? `
             <div class="form-actions budget-form-actions">
@@ -3156,11 +3236,14 @@ function renderOrcamentos() {
     document.getElementById("add-budget-item").addEventListener("click", addBlankBudgetItem);
     document.getElementById("delete-budget-item")?.addEventListener("click", deleteSelectedBudgetItem);
     document.getElementById("delete-current-orcamento")?.addEventListener("click", () => deleteOrcamento(editingOrcamentoNumero));
+    document.getElementById("create-client-from-budget")?.addEventListener("click", createClienteFromBudget);
     document.getElementById("show-budget-client-search").addEventListener("click", showBudgetClientSearch);
     document.getElementById("orcamento-cliente-search").addEventListener("input", filterBudgetClientOptions);
   }
   document.getElementById("orcamento-search").addEventListener("input", renderOrcamentoList);
-  if (useBlankForm) {
+  if (draftOrcamento?.itens?.length) {
+    addBudgetItemRow(draftOrcamento.itens[0], !draftOrcamento.itens[0].servicoCodigo);
+  } else if (useBlankForm) {
     addBudgetItemRow({}, true);
   } else if (!editingOrcamentoNumero) {
     addBudgetItemRow();
@@ -3170,6 +3253,7 @@ function renderOrcamentos() {
   updateBudgetItemDeleteButton();
   if (approvedLocked) lockApprovedBudgetForm();
   if (!editable) setFormReadOnly(document.getElementById("orcamento-form"));
+  pendingOrcamentoFormDraft = null;
   blankNewOrcamento = false;
   renderOrcamentoList();
 }
@@ -3273,6 +3357,54 @@ function selectBudgetClient(documento) {
   document.getElementById("orcamento-cliente-display").value = cliente.nome || cliente.razaoSocial || cliente.documento;
   document.getElementById("budget-client-search").classList.add("hidden");
   document.getElementById("show-budget-client-search").hidden = true;
+}
+
+function currentBudgetDraftFromForm() {
+  const form = document.getElementById("orcamento-form");
+  if (!form) return null;
+  const items = collectBudgetItems()
+    .map(({ originalServicoCodigo, itemIndex, ...item }) => item)
+    .filter((item) => item.servicoCodigo || item.quantidade || item.valorUnitario || item.desconto);
+  return {
+    numero: form.elements.numero?.value || nextBudgetNumber(),
+    data: form.elements.data?.value || "",
+    status: form.elements.status?.value || "EM ANÁLISE",
+    clienteDocumento: form.elements.clienteDocumento?.value || "",
+    observacoes: form.elements.observacoes?.value || "",
+    itens: items,
+  };
+}
+
+function createClienteFromBudget() {
+  if (isEditingApprovedBudget()) return;
+  if (!hasPermission("clientes.create") || !canManageData()) {
+    showNoPermissionMessage();
+    return;
+  }
+  pendingBudgetDraft = currentBudgetDraftFromForm();
+  clienteFormPrefill = { status: "ATIVO" };
+  editingClienteDocumento = null;
+  blankNewCliente = true;
+  setView("clientes");
+  scrollClienteFormIntoView();
+}
+
+function startNewOrcamentoForCliente(documento, draft = null) {
+  const cliente = state.clientes.find((item) => item.documento === documento);
+  if (!cliente || !isClienteAtivo(cliente)) {
+    alert("Cliente inativo não pode ser usado em novo orçamento.");
+    render();
+    return;
+  }
+  editingOrcamentoNumero = null;
+  blankNewOrcamento = true;
+  addingBudgetItem = false;
+  pendingOrcamentoFormDraft = {
+    ...(draft || {}),
+    clienteDocumento: cliente.documento,
+  };
+  setView("orcamentos");
+  scrollOrcamentoFormIntoView();
 }
 
 function normalizeSearch(value) {
