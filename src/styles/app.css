@@ -117,6 +117,13 @@ textarea:disabled {
   text-underline-offset: 2px;
 }
 
+.sidebar-user-actions {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .sidebar-help-link {
   display: none;
 }
@@ -2384,7 +2391,7 @@ th {
 
   .sidebar-user {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
     justify-content: initial;
@@ -2402,15 +2409,27 @@ th {
     flex: 0 0 auto;
   }
 
-  .sidebar-user .sidebar-help-link {
-    display: inline-grid;
+  .sidebar-user-actions {
+    display: inline-flex;
+    grid-column: 2;
+    grid-row: 1;
+    gap: 12px;
+    align-items: center;
     justify-self: end;
+    white-space: nowrap;
+  }
+
+  .sidebar-user .sidebar-help-link {
+    display: inline-block;
     width: auto;
     min-height: auto;
     padding: 0;
+    border: 0;
+    border-radius: 0;
     background: transparent;
     color: #f4c95d;
     font-size: 0.72rem;
+    line-height: 1.2;
     font-weight: 700;
     text-decoration: underline;
     text-underline-offset: 2px;
@@ -4108,7 +4127,7 @@ th {
 
   .sidebar-user {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
     grid-template-rows: auto !important;
     column-gap: 10px;
     align-items: center;
@@ -4124,9 +4143,16 @@ th {
   }
 
   #logout-app {
+    white-space: nowrap;
+  }
+
+  .sidebar-user-actions {
+    display: inline-flex !important;
     grid-column: 2;
     grid-row: 1;
-    justify-self: start;
+    gap: 12px;
+    align-items: center;
+    justify-self: end;
     white-space: nowrap;
   }
 
@@ -4138,12 +4164,10 @@ th {
   }
 
   .sidebar-user .sidebar-help-link {
-    display: inline-grid;
-    grid-column: 3;
-    grid-row: 1;
-    justify-self: end;
+    display: inline-block !important;
     min-height: auto;
     padding: 0;
+    border: 0;
     border-radius: 0;
     background: transparent;
     color: #f4c95d;
