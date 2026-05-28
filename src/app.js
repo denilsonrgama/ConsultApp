@@ -2483,6 +2483,29 @@ function scrollClienteFormIntoView() {
   scrollCompactElementIntoView(".cliente-form-panel");
 }
 
+function focusSelectedClienteRow() {
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    const selectedRow = document.querySelector('.clientes-list-panel [data-open-cliente].is-selected');
+    const listWrap = selectedRow?.closest(".table-wrap");
+    if (!selectedRow || !listWrap) return;
+
+    const tableHeader = listWrap.querySelector("thead");
+    const headerOffset = tableHeader ? tableHeader.getBoundingClientRect().height + 2 : 0;
+    const rowTopInsideWrap = selectedRow.getBoundingClientRect().top - listWrap.getBoundingClientRect().top;
+    listWrap.scrollTop = Math.max(0, listWrap.scrollTop + rowTopInsideWrap - headerOffset);
+    listWrap.scrollLeft = 0;
+
+    if (isCompactLayout()) return;
+
+    const stickyHeader = document.querySelector(".sidebar");
+    const stickyOffset = stickyHeader && getComputedStyle(stickyHeader).position === "sticky"
+      ? stickyHeader.getBoundingClientRect().height + 8
+      : 8;
+    const top = listWrap.getBoundingClientRect().top + window.scrollY - stickyOffset;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }));
+}
+
 async function handleClienteDocumentoBlur(event) {
   const input = event.currentTarget;
   const documento = input.value;
@@ -2878,6 +2901,7 @@ function editCliente(documento) {
   } else {
     setView("clientes");
   }
+  focusSelectedClienteRow();
   scrollClienteFormIntoView();
 }
 
