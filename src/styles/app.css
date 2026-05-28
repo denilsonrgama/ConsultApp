@@ -2383,15 +2383,19 @@ th {
   }
 
   .sidebar-user {
-    justify-content: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 10px;
+    align-items: center;
+    justify-content: initial;
     width: 100%;
     margin: 0;
     padding-left: 0;
   }
 
   .sidebar-user span {
-    max-width: calc(100vw - 146px);
-    text-align: center;
+    max-width: none;
+    text-align: left;
   }
 
   .sidebar-user button {
@@ -2400,6 +2404,7 @@ th {
 
   .sidebar-user .sidebar-help-link {
     display: inline-grid;
+    justify-self: end;
     width: auto;
     min-height: auto;
     padding: 0;
@@ -4110,6 +4115,7 @@ th {
 
   .sidebar-user .sidebar-help-link {
     display: inline-grid;
+    justify-self: end;
     min-height: auto;
     padding: 0;
     border-radius: 0;
