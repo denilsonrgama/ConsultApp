@@ -1147,7 +1147,8 @@ function renderFinanceiro() {
 
 function renderRelatorios() {
   const filteredBudgets = filteredReportBudgets();
-  const filteredServiceChartData = reportServiceChartData(filteredBudgets);
+  const topFilteredClientes = topClientesPorValor(filteredBudgets);
+  const topFilteredBudgets = topOrcamentosPorValor(filteredBudgets);
   const approvedBudgets = filteredBudgets.filter(isOrcamentoAprovado);
   const totalFiltered = filteredBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
   const totalApproved = approvedBudgets.reduce((sum, orcamento) => sum + totalOrcamento(orcamento), 0);
@@ -1206,8 +1207,8 @@ function renderRelatorios() {
     </div>
     <section class="dashboard-charts">
       ${pieChart("Orçamentos por status", orcamentosPorStatus({ budgets: filteredBudgets }))}
-      ${barChart("Maiores clientes", topClientesPorValor(filteredBudgets))}
-      ${barChart("Serviços por valor", filteredServiceChartData)}
+      ${barChart("5 maiores clientes", topFilteredClientes)}
+      ${barChart("5 maiores orçamentos", topFilteredBudgets)}
     </section>
     <section class="reports-grid">
       <article class="panel report-panel">
@@ -1215,12 +1216,12 @@ function renderRelatorios() {
         ${statusReportTable(filteredBudgets)}
       </article>
       <article class="panel report-panel">
-        <div class="toolbar"><h2>Maiores clientes</h2></div>
-        ${chartDataTable(topClientesPorValor(filteredBudgets), "Cliente")}
+        <div class="toolbar"><h2>5 maiores clientes</h2></div>
+        ${chartDataTable(topFilteredClientes, "Cliente")}
       </article>
       <article class="panel report-panel">
-        <div class="toolbar"><h2>Serviços mais relevantes</h2></div>
-        ${chartDataTable(filteredServiceChartData, "Serviço")}
+        <div class="toolbar"><h2>5 maiores orçamentos</h2></div>
+        ${chartDataTable(topFilteredBudgets, "Orçamento")}
       </article>
     </section>
   `;
@@ -2016,6 +2017,17 @@ function orcamentosPorValor(budgets = orcamentosEstatisticos()) {
       value: totalOrcamento(orcamento),
     }))
     .filter((item) => item.value > 0);
+}
+
+function topOrcamentosPorValor(budgets = orcamentosEstatisticos(), limit = 5) {
+  return budgets
+    .map((orcamento) => ({
+      label: `Nº ${orcamento.numero} - ${clienteNome(orcamento.clienteDocumento)}`,
+      value: totalOrcamento(orcamento),
+    }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value || String(a.label).localeCompare(String(b.label), "pt-BR"))
+    .slice(0, limit);
 }
 
 function servicosPorValor(budgets = orcamentosEstatisticos(), allowedCodes = null) {
