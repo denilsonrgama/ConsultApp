@@ -117,6 +117,10 @@ textarea:disabled {
   text-underline-offset: 2px;
 }
 
+.sidebar-help-link {
+  display: none;
+}
+
 .auth-screen {
   min-height: 100vh;
   display: grid;
@@ -2386,12 +2390,25 @@ th {
   }
 
   .sidebar-user span {
-    max-width: calc(100vw - 92px);
+    max-width: calc(100vw - 146px);
     text-align: center;
   }
 
   .sidebar-user button {
     flex: 0 0 auto;
+  }
+
+  .sidebar-user .sidebar-help-link {
+    display: inline-grid;
+    width: auto;
+    min-height: auto;
+    padding: 0;
+    background: transparent;
+    color: #f4c95d;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   nav {
@@ -4080,11 +4097,27 @@ th {
     gap: 4px;
   }
 
+  nav > [data-view="ajuda"] {
+    display: none !important;
+  }
+
   .nav-button,
   .nav-sub-button {
     min-height: 37px;
     padding: 5px 2px;
     font-size: 0.62rem;
+  }
+
+  .sidebar-user .sidebar-help-link {
+    display: inline-grid;
+    min-height: auto;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #f4c95d;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    text-decoration: underline;
   }
 
   .nav-submenu[data-submenu="financeiro"],
