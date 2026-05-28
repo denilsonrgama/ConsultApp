@@ -162,6 +162,10 @@ function userProfile() {
   return currentUser?.perfil || "";
 }
 
+function userProfileLabel(user = currentUser) {
+  return isSuperAdminUser(user) ? "SUPERADMIN" : (user?.perfil || "");
+}
+
 function defaultPermissionsForProfile(perfil) {
   const preset = PROFILE_PERMISSION_PRESETS[String(perfil || "").toUpperCase()] || {};
   return Object.fromEntries(PERMISSIONS.map((permission) => [permission.key, Boolean(preset[permission.key])]));
@@ -947,7 +951,7 @@ function renderSidebarPanel() {
   const userName = document.getElementById("current-user-name");
   if (userBox && userName) {
     userBox.hidden = !currentUser;
-    userName.textContent = currentUser ? `${currentUser.nome} (${currentUser.perfil})` : "";
+    userName.textContent = currentUser ? `${currentUser.nome} (${userProfileLabel(currentUser)})` : "";
   }
   document.querySelectorAll("[data-view]").forEach((element) => {
     element.hidden = !canView(element.dataset.view);
@@ -1740,7 +1744,7 @@ function renderUsuarios() {
     usuario: (usuario) => usuario.usuario || "",
     nome: (usuario) => usuario.nome || "",
     email: (usuario) => usuario.email || "",
-    perfil: (usuario) => usuario.perfil || "",
+    perfil: (usuario) => userProfileLabel(usuario),
     status: (usuario) => usuario.ativo ? "ATIVO" : "INATIVO",
   });
 
@@ -1768,7 +1772,7 @@ function renderUsuarios() {
                   <td><strong>${escapeHtml(usuario.usuario)}</strong></td>
                   <td>${escapeHtml(usuario.nome)}</td>
                   <td>${escapeHtml(usuario.email)}</td>
-                  <td>${escapeHtml(usuario.perfil)}</td>
+                  <td>${escapeHtml(userProfileLabel(usuario))}</td>
                   <td><span class="badge ${usuario.ativo ? "" : "danger"}">${usuario.ativo ? "ATIVO" : "INATIVO"}</span></td>
                   <td>${editable && canEditUsuarioRecord(usuario) ? `<div class="row-actions"><button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button></div>` : ""}</td>
                 </tr>
