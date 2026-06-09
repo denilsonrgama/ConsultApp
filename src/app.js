@@ -5585,7 +5585,6 @@ document.body.addEventListener("click", (event) => {
 
   const openClienteRow = event.target.closest("[data-open-cliente]");
   if (openClienteRow) {
-    if (isCompactLayout()) return;
     viewCliente(openClienteRow.dataset.openCliente);
     return;
   }
