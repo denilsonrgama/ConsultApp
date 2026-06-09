@@ -2406,8 +2406,8 @@ function renderClientes() {
           <label>Observações<textarea name="obs"${formDisabledAttr}>${fieldValue(formCliente.obs)}</textarea></label>
           ${isViewingCliente ? `
             <div class="form-actions cliente-form-actions">
-              ${canEditCliente ? '<button class="primary-button" type="button" id="edit-selected-cliente">Alterar</button>' : ""}
               ${canCreateBudgetForCliente ? '<button class="success-button" type="button" id="new-orcamento-for-selected-cliente">+ Orçamento</button>' : ""}
+              ${canEditCliente ? '<button class="primary-button" type="button" id="edit-selected-cliente">Alterar</button>' : ""}
               ${clienteDeleteActionButton(formCliente, { buttonClass: "danger-button" })}
               <button class="danger-button" type="button" id="cancel-cliente-edit">Cancelar</button>
             </div>
