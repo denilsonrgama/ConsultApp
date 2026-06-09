@@ -1615,6 +1615,10 @@ th {
   grid-column: 1 / -1;
 }
 
+.budget-item > .budget-service-line > label:first-child {
+  grid-column: auto;
+}
+
 .budget-item button {
   min-height: 40px;
 }
