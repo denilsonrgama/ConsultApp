@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v303";
+const serverVersion = "v304";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1996,6 +1996,18 @@ async function fetchJson(url) {
   return { apiResponse, data };
 }
 
+function cnpjAddressPayload(data = {}) {
+  return {
+    cep: onlyDigits(data.cep || ""),
+    endereco: [data.tipoLogradouro, data.logradouro].filter(Boolean).join(" ").replace(/\s+/g, " ").trim(),
+    bairro: data.bairro || "",
+    numero: data.numero || "",
+    complemento: data.complemento || "",
+    uf: data.uf || "",
+    cidade: data.cidade || "",
+  };
+}
+
 async function consultCnpj(cnpj) {
   const brasilApi = await fetchJson(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
   if (brasilApi.apiResponse.ok) {
@@ -2003,15 +2015,36 @@ async function consultCnpj(cnpj) {
       razaoSocial: brasilApi.data.razao_social || "",
       nomeFantasia: brasilApi.data.nome_fantasia || "",
       situacaoCnpj: normalizeCnpjStatus(brasilApi.data.descricao_situacao_cadastral || brasilApi.data.situacao_cadastral),
+      ...cnpjAddressPayload({
+        cep: brasilApi.data.cep,
+        tipoLogradouro: brasilApi.data.descricao_tipo_de_logradouro,
+        logradouro: brasilApi.data.logradouro,
+        bairro: brasilApi.data.bairro,
+        numero: brasilApi.data.numero,
+        complemento: brasilApi.data.complemento,
+        uf: brasilApi.data.uf,
+        cidade: brasilApi.data.municipio,
+      }),
     };
   }
 
   const cnpjWs = await fetchJson(`https://publica.cnpj.ws/cnpj/${cnpj}`);
   if (cnpjWs.apiResponse.ok) {
+    const estabelecimento = cnpjWs.data.estabelecimento || {};
     return {
       razaoSocial: cnpjWs.data.razao_social || "",
-      nomeFantasia: cnpjWs.data.estabelecimento?.nome_fantasia || "",
-      situacaoCnpj: normalizeCnpjStatus(cnpjWs.data.estabelecimento?.situacao_cadastral || cnpjWs.data.estabelecimento?.situacao_cadastral_id),
+      nomeFantasia: estabelecimento.nome_fantasia || "",
+      situacaoCnpj: normalizeCnpjStatus(estabelecimento.situacao_cadastral || estabelecimento.situacao_cadastral_id),
+      ...cnpjAddressPayload({
+        cep: estabelecimento.cep,
+        tipoLogradouro: estabelecimento.tipo_logradouro,
+        logradouro: estabelecimento.logradouro,
+        bairro: estabelecimento.bairro,
+        numero: estabelecimento.numero,
+        complemento: estabelecimento.complemento,
+        uf: estabelecimento.estado?.sigla,
+        cidade: estabelecimento.cidade?.nome,
+      }),
     };
   }
 
@@ -2776,6 +2809,13 @@ createServer(async (request, response) => {
         razaoSocial: data.razaoSocial,
         nomeFantasia: data.nomeFantasia,
         situacaoCnpj: data.situacaoCnpj,
+        cep: data.cep,
+        bairro: data.bairro,
+        endereco: data.endereco,
+        numero: data.numero,
+        complemento: data.complemento,
+        uf: data.uf,
+        cidade: data.cidade,
       }));
     } catch (error) {
       response.writeHead(error.status || 500, { "Content-Type": "application/json; charset=utf-8" });

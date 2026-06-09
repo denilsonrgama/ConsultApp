@@ -2732,6 +2732,13 @@ function applyCnpjLookupResult(form, result) {
   if (!form.elements.nome.value) {
     form.elements.nome.value = result.nomeFantasia || result.razaoSocial || "";
   }
+  form.elements.cep.value = result.cep || "";
+  form.elements.bairro.value = result.bairro || "";
+  form.elements.endereco.value = result.endereco || "";
+  form.elements.numero.value = result.numero || "";
+  form.elements.complemento.value = result.complemento || "";
+  form.elements.uf.value = result.uf || "";
+  form.elements.cidade.value = result.cidade || "";
 }
 
 async function handleClienteDocumentoKeydown(event) {
