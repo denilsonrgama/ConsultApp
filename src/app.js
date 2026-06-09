@@ -2408,6 +2408,7 @@ function renderClientes() {
             <div class="form-actions cliente-form-actions">
               ${canEditCliente ? '<button class="primary-button" type="button" id="edit-selected-cliente">Alterar</button>' : ""}
               ${canCreateBudgetForCliente ? '<button class="success-button" type="button" id="new-orcamento-for-selected-cliente">+ Orçamento</button>' : ""}
+              ${clienteDeleteActionButton(formCliente, { buttonClass: "danger-button" })}
               <button class="danger-button" type="button" id="cancel-cliente-edit">Cancelar</button>
             </div>
           ` : canSaveClienteForm ? `
@@ -2459,6 +2460,7 @@ function renderClienteList() {
     contato: (cliente) => `${cliente.telefone || ""} ${cliente.email || ""}`,
     cidade: (cliente) => `${cliente.cidade || ""} ${cliente.uf || ""}`,
     status: (cliente) => normalizeClienteStatus(cliente.status),
+    responsavel: (cliente) => cliente.responsavelNome || "",
   });
 
   document.getElementById("cliente-list").innerHTML = clientes.length
@@ -2471,7 +2473,7 @@ function renderClienteList() {
             ${sortableTableHeader("clientes", "contato", "Contato")}
             ${sortableTableHeader("clientes", "cidade", "Cidade")}
             ${sortableTableHeader("clientes", "status", "Status")}
-            <th>Ações</th>
+            ${sortableTableHeader("clientes", "responsavel", "Responsável")}
           </tr></thead>
           <tbody>
             ${clientes.map((cliente) => `
@@ -2481,12 +2483,7 @@ function renderClienteList() {
                 <td>${escapeHtml(cliente.telefone)}</td>
                 <td>${escapeHtml(cliente.cidade)} ${escapeHtml(cliente.uf)}</td>
                 <td><span class="badge ${normalizeClienteStatus(cliente.status) === "INATIVO" ? "danger" : ""}">${escapeHtml(normalizeClienteStatus(cliente.status))}</span></td>
-                <td>${canEditModule("clientes") || canDeleteFromModule("clientes") ? `
-                  <div class="row-actions">
-                    ${canEditModule("clientes") ? `<button class="small-button" type="button" data-edit-cliente="${escapeHtml(cliente.documento)}">Alterar</button>` : ""}
-                    ${clienteDeleteActionButton(cliente)}
-                  </div>
-                ` : ""}</td>
+                <td>${escapeHtml(cliente.responsavelNome || "-")}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -2495,12 +2492,13 @@ function renderClienteList() {
     : emptyState();
 }
 
-function clienteDeleteActionButton(cliente) {
+function clienteDeleteActionButton(cliente, options = {}) {
   if (!canDeleteFromModule("clientes")) return "";
   const hasBudgets = clienteHasBudgets(cliente.documento);
   const inactive = normalizeClienteStatus(cliente.status) === "INATIVO";
   if (hasBudgets && inactive) return "";
-  return `<button class="small-button danger-text" data-delete-cliente="${escapeHtml(cliente.documento)}">${hasBudgets ? "Inativar" : "Excluir"}</button>`;
+  const buttonClass = options.buttonClass || "small-button danger-text";
+  return `<button class="${escapeHtml(buttonClass)}" type="button" data-delete-cliente="${escapeHtml(cliente.documento)}">${hasBudgets ? "Inativar" : "Excluir"}</button>`;
 }
 
 function clienteOrcamentosResumo(documento) {

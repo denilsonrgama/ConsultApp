@@ -3092,7 +3092,7 @@ th {
     grid-column: 1 / -1;
   }
 
-  .clientes-list-panel tbody td:not(:last-child)::before,
+  .clientes-list-panel tbody td::before,
   .servicos-list-panel tbody td:not(:last-child)::before {
     display: block;
     margin-bottom: 2px;
@@ -3120,6 +3120,10 @@ th {
 
   .clientes-list-panel tbody td:nth-child(5)::before {
     content: "Status";
+  }
+
+  .clientes-list-panel tbody td:nth-child(6)::before {
+    content: "Responsável";
   }
 
   .servicos-list-panel tbody td:nth-child(1)::before {
