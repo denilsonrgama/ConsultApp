@@ -15,6 +15,7 @@ let blankNewOrcamento = true;
 let addingBudgetItem = false;
 let clienteFormPrefill = null;
 let pendingBudgetDraft = null;
+let pendingBudgetServiceReturn = null;
 let pendingOrcamentoFormDraft = null;
 let draftBudgetItems = [];
 let pendingSave = null;
@@ -2045,6 +2046,9 @@ function renderAjuda() {
             <li>Informe e-mail e CEP. O sistema consulta a base dos Correios e preenche bairro, endereço, UF e cidade.</li>
             <li>Após a consulta do CEP, cabe ao usuário informar apenas número, complemento quando houver e observações.</li>
             <li>Ao salvar, o sistema confirma o cadastro e pergunta se deseja criar um orçamento para o cliente.</li>
+            <li>Ao selecionar um cliente na lista, os dados ficam protegidos para consulta. Use Alterar para liberar campos editáveis conforme seu perfil.</li>
+            <li>No detalhe do cliente, use + Orçamento para iniciar um orçamento já preenchido com o cliente selecionado.</li>
+            <li>A lista inferior mostra os últimos orçamentos do cliente; clique em uma linha para abrir o orçamento correspondente.</li>
           </ol>
           <p class="help-note">Clientes inativos permanecem no histórico, mas não podem receber novos orçamentos.</p>
         </article>
@@ -2056,6 +2060,7 @@ function renderAjuda() {
             <li>O código do serviço é controlado pelo sistema e não deve ser digitado manualmente.</li>
             <li>Serviços inativos continuam visíveis em orçamentos antigos.</li>
             <li>Serviços inativos não podem ser inseridos em novos orçamentos.</li>
+            <li>O cadastro de novos serviços depende da permissão de criação de serviços do perfil.</li>
           </ol>
         </article>
 
@@ -2066,12 +2071,13 @@ function renderAjuda() {
             <li>Use Buscar orçamento para consultar registros já cadastrados.</li>
             <li>Use Buscar cliente para preencher os dados do cliente no orçamento.</li>
             <li>Use o botão + ao lado do campo Cliente para cadastrar um novo cliente sem perder o orçamento em andamento.</li>
+            <li>Use o botão + ao lado do campo Serviço para cadastrar um novo serviço sem perder o orçamento em andamento.</li>
             <li>Informe serviço, quantidade, valor, desconto quando houver e observações do pedido.</li>
             <li>O valor do serviço pode ser alterado no orçamento, mas essa alteração vale apenas para o orçamento atual e não muda o valor cadastrado na tela de Serviços.</li>
             <li>Para incluir mais de um serviço no mesmo orçamento, clique em Inserir serviço. O item anterior é preservado e os campos do serviço ficam prontos para o próximo item.</li>
             <li>Clique em Salvar orçamento para gravar o orçamento completo.</li>
           </ol>
-          <p class="help-note">Não é permitido repetir o mesmo código de serviço dentro do mesmo orçamento.</p>
+          <p class="help-note">Os botões de cliente, serviço e orçamento respeitam as permissões do perfil. Não é permitido repetir o mesmo código de serviço dentro do mesmo orçamento.</p>
         </article>
 
         <article class="help-section">
@@ -3221,6 +3227,9 @@ function renderServicos() {
   const frequenciaValue = editingServicoCodigo ? editingServico.frequencia : (useBlankForm ? "" : "UNITARIO");
   const statusValue = editingServicoCodigo ? editingServico.status : (useBlankForm ? "" : "ATIVO");
   const editable = canEditModule("servicos");
+  const canCreateServico = hasPermission("servicos.create") && canManageData();
+  const canEditServico = hasPermission("servicos.edit") && canManageData();
+  const canSaveServicoForm = editingServicoCodigo ? canEditServico : canCreateServico;
   document.getElementById("servicos-view").innerHTML = `
     ${pageBanner()}
     <div class="servicos-layout">
@@ -3230,7 +3239,7 @@ function renderServicos() {
       <section class="panel servicos-list-panel">
         <div class="toolbar">
           <h2>Serviços cadastrados</h2>
-          ${editable && !showServicoFormOnMobile ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo</button>' : ""}
+          ${canCreateServico && !showServicoFormOnMobile ? '<button class="success-button servico-list-new-button" type="button" id="show-servico-form">Novo</button>' : ""}
         </div>
         <input id="servico-search" class="list-search-input" placeholder="Buscar serviço">
         <div id="servico-list"></div>
@@ -3245,10 +3254,10 @@ function renderServicos() {
           <label>Status<select name="status"><option value=""${selectedAttr(statusValue, "")}>Selecione</option>${options(["ATIVO", "INATIVO"], statusValue)}</select></label>
           <label>Valor<input name="valor" type="number" step="0.01" required value="${fieldValue(editingServico.valor)}"></label>
           <label>Observações<textarea name="observacoes">${fieldValue(editingServico.observacoes)}</textarea></label>
-          ${editable ? `
+          ${canSaveServicoForm ? `
             <div class="form-actions budget-form-actions">
               <button class="primary-button" type="submit">${editingServicoCodigo ? "Salvar alteração" : "Salvar serviço"}</button>
-              ${editingServicoCodigo ? '<button class="success-button" type="button" id="new-servico">Novo serviço</button>' : ""}
+              ${editingServicoCodigo && canCreateServico ? '<button class="success-button" type="button" id="new-servico">Novo serviço</button>' : ""}
               <button class="danger-button" type="button" id="cancel-servico-edit">Cancelar</button>
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
@@ -3259,7 +3268,7 @@ function renderServicos() {
 
   const servicoForm = document.getElementById("servico-form");
   servicoForm?.addEventListener("submit", addServico);
-  if (editable) {
+  if (canSaveServicoForm) {
     document.getElementById("new-servico")?.addEventListener("click", newServico);
     document.getElementById("show-servico-form")?.addEventListener("click", newServico);
     document.getElementById("cancel-servico-edit")?.addEventListener("click", cancelServico);
@@ -3319,9 +3328,9 @@ function renderServicoList() {
                 <td>${escapeHtml(servico.tipo)}</td>
                 <td><span class="badge ${normalizeServicoStatus(servico.status) === "INATIVO" ? "danger" : ""}">${escapeHtml(normalizeServicoStatus(servico.status))}</span></td>
                 <td>${currency.format(Number(servico.valor || 0))}</td>
-                <td>${canEditModule("servicos") || canDeleteFromModule("servicos") ? `
+                <td>${hasPermission("servicos.edit") || canDeleteFromModule("servicos") ? `
                   <div class="row-actions">
-                    ${canEditModule("servicos") ? `<button class="small-button" data-edit-servico="${escapeHtml(servico.codigo)}">Alterar</button>` : ""}
+                    ${hasPermission("servicos.edit") ? `<button class="small-button" data-edit-servico="${escapeHtml(servico.codigo)}">Alterar</button>` : ""}
                     ${canDeleteFromModule("servicos") ? `<button class="small-button danger-text" data-delete-servico="${escapeHtml(servico.codigo)}">Excluir</button>` : ""}
                   </div>
                 ` : ""}</td>
@@ -3344,6 +3353,7 @@ function addServico(event) {
   data.valor = Number(data.valor || 0);
   data.frequencia = data.frequencia || "UNITARIO";
   data.status = data.status || "ATIVO";
+  const isCreatingServico = !editingServicoCodigo;
   const duplicate = state.servicos.some((servico) => servico.codigo === data.codigo && servico.codigo !== editingServicoCodigo);
   if (duplicate) {
     alert("Já existe um serviço com este código.");
@@ -3366,6 +3376,7 @@ function addServico(event) {
   }
   saveState(servicoAudit);
   event.currentTarget.reset();
+  if (isCreatingServico && returnToBudgetAfterServicoCreated(data)) return;
   render();
 }
 
@@ -3380,6 +3391,7 @@ function cancelServico() {
   document.activeElement?.blur();
   editingServicoCodigo = null;
   blankNewServico = !isCompactLayout();
+  pendingBudgetServiceReturn = null;
   renderServicos();
   resetCompactViewScroll("#servicos-view");
 }
@@ -3647,6 +3659,75 @@ function createClienteFromBudget() {
   scrollClienteFormIntoView();
 }
 
+function createServicoFromBudget() {
+  if (isEditingApprovedBudget()) return;
+  const canSaveBudget = editingOrcamentoNumero ? hasPermission("orcamentos.edit") : hasPermission("orcamentos.create");
+  if (!canSaveBudget || !hasPermission("servicos.create") || !canManageData() || !canView("servicos")) {
+    showNoPermissionMessage();
+    return;
+  }
+
+  pendingBudgetServiceReturn = {
+    editingNumero: editingOrcamentoNumero ? Number(editingOrcamentoNumero) : null,
+    draft: currentBudgetDraftFromForm(),
+    currentItem: visibleBudgetItems()[0] || null,
+    addingBudgetItem,
+  };
+  editingServicoCodigo = null;
+  blankNewServico = true;
+  setView("servicos");
+  scrollServicoFormIntoView();
+}
+
+function returnToBudgetAfterServicoCreated(servico) {
+  const context = pendingBudgetServiceReturn;
+  pendingBudgetServiceReturn = null;
+  if (!context) return false;
+
+  const currentItem = normalizeBudgetItemForDraft(context.currentItem || {});
+  const serviceItem = {
+    ...currentItem,
+    servicoCodigo: servico.codigo,
+    quantidade: Number(currentItem.quantidade || 0) > 0 ? Number(currentItem.quantidade) : 1,
+    valorUnitario: Number(servico.valor || currentItem.valorUnitario || 0),
+    desconto: Number(currentItem.desconto || 0),
+  };
+
+  if (context.editingNumero) {
+    editingOrcamentoNumero = Number(context.editingNumero);
+    blankNewOrcamento = false;
+    addingBudgetItem = true;
+    draftBudgetItems = [];
+    setView("orcamentos");
+    addBudgetItemRow({
+      ...serviceItem,
+      originalServicoCodigo: context.currentItem?.originalServicoCodigo || "",
+      itemIndex: context.currentItem?.itemIndex || "",
+    });
+    updateBudgetSaveButton();
+    updateBudgetItemDeleteButton();
+    scrollOrcamentoFormIntoView();
+  } else {
+    const draft = context.draft || {};
+    const items = Array.isArray(draft.itens) ? draft.itens.map(normalizeBudgetItemForDraft) : [];
+    if (items.length) {
+      items[items.length - 1] = { ...items[items.length - 1], ...serviceItem };
+    } else {
+      items.push(serviceItem);
+    }
+    pendingOrcamentoFormDraft = { ...draft, itens: items };
+    editingOrcamentoNumero = null;
+    blankNewOrcamento = true;
+    addingBudgetItem = false;
+    draftBudgetItems = [];
+    setView("orcamentos");
+    scrollOrcamentoFormIntoView();
+  }
+
+  showFloatingMessage("Serviço cadastrado e inserido no orçamento.", "success");
+  return true;
+}
+
 function startNewOrcamentoForCliente(documento, draft = null) {
   const cliente = state.clientes.find((item) => item.documento === documento);
   if (!cliente || !isClienteAtivo(cliente)) {
@@ -3695,8 +3776,16 @@ function addBudgetItemRow(item = {}, keepBlank = false) {
   row.className = "budget-item";
   row.dataset.originalServicoCodigo = item.servicoCodigo || "";
   row.dataset.itemIndex = item.itemIndex ?? "";
+  const canCreateServiceFromBudget = hasPermission("servicos.create")
+    && canManageData()
+    && canView("servicos")
+    && (editingOrcamentoNumero ? hasPermission("orcamentos.edit") : hasPermission("orcamentos.create"))
+    && !isEditingApprovedBudget();
   row.innerHTML = `
-    <label>Serviço<select name="servicoCodigo" required>${serviceOptions(item.servicoCodigo, keepBlank)}</select></label>
+    <div class="budget-service-line">
+      <label>Serviço<select name="servicoCodigo" required>${serviceOptions(item.servicoCodigo, keepBlank)}</select></label>
+      ${canCreateServiceFromBudget ? '<button class="success-button budget-service-add-button" type="button" data-create-service-from-budget title="Cadastrar serviço">+</button>' : ""}
+    </div>
     <label>Qtd<input name="quantidade" type="number" min="1" step="1" value="${keepBlank ? "" : (item.quantidade || 1)}"></label>
     <label>Valor<input name="valorUnitario" type="number" min="0" step="0.01" value="${keepBlank ? "" : (item.valorUnitario || firstServiceValue())}"></label>
     <label>Desconto<input name="desconto" type="number" min="0" step="0.01" value="${keepBlank ? "" : (item.desconto || 0)}"></label>
@@ -3709,6 +3798,7 @@ function addBudgetItemRow(item = {}, keepBlank = false) {
     updateBudgetTotal();
   });
   row.querySelectorAll("input").forEach((input) => input.addEventListener("input", updateBudgetTotal));
+  row.querySelector("[data-create-service-from-budget]")?.addEventListener("click", createServicoFromBudget);
   container.append(row);
   updateBudgetTotal();
 }

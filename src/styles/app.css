@@ -1260,11 +1260,24 @@ a.small-button {
   align-items: end;
 }
 
+.budget-service-line {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
 .budget-client-line label {
   min-width: 0;
 }
 
-.budget-client-add-button {
+.budget-service-line label {
+  min-width: 0;
+}
+
+.budget-client-add-button,
+.budget-service-add-button {
   min-width: 42px;
   min-height: 38px;
   padding-inline: 0;
