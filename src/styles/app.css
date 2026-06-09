@@ -1036,6 +1036,34 @@ a.small-button {
   min-width: 132px;
 }
 
+.cliente-orcamentos-resumo {
+  grid-column: 1 / -1;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.cliente-orcamentos-resumo h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.cliente-orcamentos-resumo .table-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.cliente-orcamentos-resumo table {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.cliente-orcamentos-resumo th,
+.cliente-orcamentos-resumo td {
+  padding: 8px 10px;
+}
+
 .servicos-layout {
   display: grid;
   grid-template-columns: minmax(220px, 250px) minmax(0, 1fr);
@@ -3128,6 +3156,69 @@ th {
     padding-inline: 9px;
     font-size: 0.84rem;
     white-space: nowrap;
+  }
+
+  .cliente-orcamentos-resumo .table-wrap {
+    max-height: min(38svh, 340px);
+    overflow-x: hidden;
+  }
+
+  .cliente-orcamentos-resumo table,
+  .cliente-orcamentos-resumo thead,
+  .cliente-orcamentos-resumo tbody,
+  .cliente-orcamentos-resumo tr,
+  .cliente-orcamentos-resumo td {
+    display: block;
+  }
+
+  .cliente-orcamentos-resumo thead {
+    display: none;
+  }
+
+  .cliente-orcamentos-resumo tbody {
+    display: grid;
+    gap: 7px;
+  }
+
+  .cliente-orcamentos-resumo tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .cliente-orcamentos-resumo tbody td {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .cliente-orcamentos-resumo tbody td::before {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .cliente-orcamentos-resumo tbody td:nth-child(1)::before {
+    content: "Orçamento";
+  }
+
+  .cliente-orcamentos-resumo tbody td:nth-child(2)::before {
+    content: "Data";
+  }
+
+  .cliente-orcamentos-resumo tbody td:nth-child(3)::before {
+    content: "Status";
+  }
+
+  .cliente-orcamentos-resumo tbody td:nth-child(4)::before {
+    content: "Total";
   }
 
   .cliente-list-new-button,

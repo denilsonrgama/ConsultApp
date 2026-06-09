@@ -2363,6 +2363,7 @@ function renderClientes() {
   const editable = canEditModule("clientes");
   const canCreateCliente = hasPermission("clientes.create") && canManageData();
   const canEditCliente = hasPermission("clientes.edit") && canManageData();
+  const canCreateBudgetForCliente = hasPermission("orcamentos.create") && canManageData() && canView("orcamentos") && isClienteAtivo(formCliente);
   const canSaveClienteForm = isEditingCliente ? canEditCliente : canCreateCliente;
   const formLocked = isViewingCliente || !editable;
   const existingClienteMode = isEditingCliente || isViewingCliente;
@@ -2406,6 +2407,7 @@ function renderClientes() {
           ${isViewingCliente ? `
             <div class="form-actions cliente-form-actions">
               ${canEditCliente ? '<button class="primary-button" type="button" id="edit-selected-cliente">Alterar</button>' : ""}
+              ${canCreateBudgetForCliente ? '<button class="success-button" type="button" id="new-orcamento-for-selected-cliente">+ Orçamento</button>' : ""}
               <button class="danger-button" type="button" id="cancel-cliente-edit">Cancelar</button>
             </div>
           ` : canSaveClienteForm ? `
@@ -2416,6 +2418,7 @@ function renderClientes() {
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
         </form>
+        ${activeClienteDocumento ? clienteOrcamentosResumo(activeClienteDocumento) : ""}
       </section>` : ""}
     </div>
   `;
@@ -2435,6 +2438,7 @@ function renderClientes() {
     document.getElementById("cancel-cliente-edit")?.addEventListener("click", cancelCliente);
   } else if (isViewingCliente) {
     document.getElementById("edit-selected-cliente")?.addEventListener("click", () => editCliente(selectedClienteDocumento));
+    document.getElementById("new-orcamento-for-selected-cliente")?.addEventListener("click", () => startNewOrcamentoForCliente(selectedClienteDocumento));
     document.getElementById("cancel-cliente-edit")?.addEventListener("click", cancelCliente);
   } else if (clienteForm) {
     setFormReadOnly(clienteForm);
@@ -2497,6 +2501,45 @@ function clienteDeleteActionButton(cliente) {
   const inactive = normalizeClienteStatus(cliente.status) === "INATIVO";
   if (hasBudgets && inactive) return "";
   return `<button class="small-button danger-text" data-delete-cliente="${escapeHtml(cliente.documento)}">${hasBudgets ? "Inativar" : "Excluir"}</button>`;
+}
+
+function clienteOrcamentosResumo(documento) {
+  if (!canView("orcamentos")) return "";
+  const digits = onlyDigits(documento);
+  const budgets = state.orcamentos
+    .filter((orcamento) => (
+      orcamento.clienteDocumento === documento
+        || (digits && onlyDigits(orcamento.clienteDocumento) === digits)
+    ))
+    .sort((a, b) => {
+      const dateCompare = String(b.data || "").localeCompare(String(a.data || ""));
+      if (dateCompare) return dateCompare;
+      return Number(b.numero || 0) - Number(a.numero || 0);
+    })
+    .slice(0, 5);
+
+  return `
+    <div class="cliente-orcamentos-resumo">
+      <h3>Últimos orçamentos deste cliente</h3>
+      ${budgets.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Número</th><th>Data</th><th>Status</th><th>Total</th></tr></thead>
+            <tbody>
+              ${budgets.map((orcamento) => `
+                <tr class="clickable-row" data-open-orcamento="${escapeHtml(orcamento.numero)}" title="Abrir orçamento">
+                  <td><strong>${escapeHtml(orcamento.numero)}</strong></td>
+                  <td>${escapeHtml(formatDate(orcamento.data))}</td>
+                  <td><span class="badge ${statusClass(orcamento.status)}">${escapeHtml(normalizeOrcamentoStatus(orcamento.status))}</span></td>
+                  <td>${currency.format(totalOrcamento(orcamento))}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      ` : '<p class="muted">Nenhum orçamento cadastrado para este cliente.</p>'}
+    </div>
+  `;
 }
 
 async function addCliente(event) {
