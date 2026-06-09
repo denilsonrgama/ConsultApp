@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v304";
+const serverVersion = "v305";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -976,6 +976,23 @@ async function requirePermission(request, response, permission) {
       detalhes: { metodo: request.method, rota: request.url },
     }).catch(() => {});
     sendJson(response, 403, { ok: false, error: "UsuÃ¡rio sem permissÃ£o para esta aÃ§Ã£o." });
+    return null;
+  }
+  return user;
+}
+
+async function requireAnyPermission(request, response, permissions) {
+  const user = await requireUser(request, response);
+  if (!user) return null;
+  if (!permissions.some((permission) => hasPermission(user, permission))) {
+    await logAudit(request, user, {
+      acao: "permissao.negada",
+      modulo: "seguranca",
+      entidadeTipo: "permissao",
+      entidadeId: permissions.join("|"),
+      detalhes: { metodo: request.method, rota: request.url },
+    }).catch(() => {});
+    sendJson(response, 403, { ok: false, error: "Usuario sem permissao para esta acao." });
     return null;
   }
   return user;
@@ -2783,7 +2800,7 @@ createServer(async (request, response) => {
   }
 
   if (request.method === "GET" && url.pathname.startsWith("/api/cnpj/")) {
-    const authUser = await requirePermission(request, response, "clientes.create");
+    const authUser = await requireAnyPermission(request, response, ["clientes.create", "clientes.edit"]);
     if (!authUser) return;
     try {
       const cnpj = onlyDigits(decodeURIComponent(url.pathname.replace("/api/cnpj/", "")));

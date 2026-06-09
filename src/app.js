@@ -2719,17 +2719,20 @@ async function handleClienteDocumentoBlur(event) {
   }
 }
 
-function applyCnpjLookupResult(form, result) {
+function applyCnpjLookupResult(form, result, options = {}) {
+  const clearOnInactive = options.clearOnInactive !== false;
   form.elements.razaoSocial.value = result.razaoSocial || "";
   form.elements.nomeFantasia.value = result.nomeFantasia || "";
   form.elements.situacaoCnpj.value = result.situacaoCnpj || "";
   form.elements.situacaoCnpj.className = cnpjStatusClass(result.situacaoCnpj);
   if (!isCnpjAtivo(result.situacaoCnpj)) {
     showFloatingMessage(`CNPJ com situação ${result.situacaoCnpj || "não ativa"}. Cadastro não permitido.`);
-    clearClienteForm(form);
-    return;
+    if (clearOnInactive) {
+      clearClienteForm(form);
+      return;
+    }
   }
-  if (!form.elements.nome.value) {
+  if (isCnpjAtivo(result.situacaoCnpj) && !form.elements.nome.value) {
     form.elements.nome.value = result.nomeFantasia || result.razaoSocial || "";
   }
   form.elements.cep.value = result.cep || "";
@@ -3013,6 +3016,35 @@ function editCliente(documento) {
   }
   focusSelectedClienteRow();
   scrollClienteFormIntoView();
+  if (hasPermission("clientes.edit")) refreshClienteCnpjDataForEdit(documento);
+}
+
+async function refreshClienteCnpjDataForEdit(documento) {
+  const digits = onlyDigits(documento);
+  if (digits.length !== 14 || !isValidCnpj(digits)) return;
+
+  const form = document.getElementById("cliente-form");
+  if (!form) return;
+
+  try {
+    const response = await fetch(`/api/cnpj/${digits}?refresh=${Date.now()}`, { cache: "no-store" });
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("Servidor desatualizado para consultar CNPJ.");
+    }
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Não foi possível atualizar os dados do CNPJ.");
+    }
+
+    if (editingClienteDocumento !== documento || onlyDigits(form.elements.documento.value) !== digits) return;
+    cnpjLookupCache.set(digits, result);
+    applyCnpjLookupResult(form, result, { clearOnInactive: false });
+    showFloatingMessage("Dados do CNPJ atualizados para alteração.", "success");
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível atualizar os dados do CNPJ.");
+  }
 }
 
 function openReportCliente(documento) {
