@@ -2043,8 +2043,8 @@ function renderAjuda() {
             <li>Clique em Novo para abrir o formulário de cadastro.</li>
             <li>Informe CPF ou CNPJ. O sistema valida o documento e, para CNPJ, consulta os dados cadastrais.</li>
             <li>Para CNPJ, a situação precisa estar ativa para permitir cadastro.</li>
-            <li>Informe e-mail e CEP. O sistema consulta a base dos Correios e preenche bairro, endereço, UF e cidade.</li>
-            <li>Após a consulta do CEP, cabe ao usuário informar apenas número, complemento quando houver e observações.</li>
+            <li>Para pessoa física (CPF), informe e-mail e CEP. O sistema consulta a base dos Correios e preenche bairro, endereço, UF e cidade.</li>
+            <li>Para pessoa física (CPF), após a consulta do CEP, cabe ao usuário informar apenas número, complemento quando houver e observações.</li>
             <li>Ao salvar, o sistema confirma o cadastro e pergunta se deseja criar um orçamento para o cliente.</li>
             <li>A listagem exibe o responsável na última coluna. Os botões de ação aparecem no detalhe do cliente selecionado.</li>
             <li>Ao selecionar um cliente na lista, os dados ficam protegidos para consulta. Use Alterar para liberar campos editáveis conforme seu perfil.</li>
