@@ -4460,6 +4460,56 @@ th {
     min-width: 108px;
     margin: 0 !important;
   }
+
+  .orcamento-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .orcamento-form-grid > *,
+  .orcamento-form-grid .budget-client-search,
+  .orcamento-form-grid .budget-client-line,
+  .orcamento-form-grid .budget-items,
+  .orcamento-form-grid label:has(textarea),
+  .orcamento-form-grid .total-box,
+  .orcamento-form-grid .budget-form-actions {
+    grid-column: 1 / -1 !important;
+    min-width: 0 !important;
+  }
+
+  .orcamento-form-grid > .ghost-button {
+    width: 100%;
+  }
+
+  .budget-item > .budget-service-line {
+    display: grid !important;
+    grid-column: 1 / -1 !important;
+    grid-template-columns: minmax(0, 1fr) 44px !important;
+    gap: 8px !important;
+    align-items: end !important;
+    width: 100% !important;
+  }
+
+  .budget-item > .budget-service-line > label {
+    grid-column: auto !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .budget-item > .budget-service-line select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .budget-item > .budget-service-line .budget-service-add-button {
+    align-self: end !important;
+    justify-self: stretch !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+  }
 }
 
 @media print {
