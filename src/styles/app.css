@@ -1272,7 +1272,7 @@ a.small-button {
   min-width: 0;
 }
 
-.budget-service-line label {
+.budget-item .budget-service-line label {
   grid-column: auto;
   min-width: 0;
 }

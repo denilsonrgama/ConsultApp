@@ -3223,7 +3223,7 @@ function renderServicos() {
   const useBlankForm = blankNewServico && !editingServicoCodigo;
   const showServicoFormOnMobile = Boolean(editingServicoCodigo || blankNewServico);
   const renderServicoForm = !isCompactLayout() || showServicoFormOnMobile;
-  const codigoValue = editingServicoCodigo ? editingServico.codigo : (useBlankForm ? "" : nextServiceCode());
+  const codigoValue = editingServicoCodigo ? editingServico.codigo : nextServiceCode();
   const frequenciaValue = editingServicoCodigo ? editingServico.frequencia : (useBlankForm ? "" : "UNITARIO");
   const statusValue = editingServicoCodigo ? editingServico.status : (useBlankForm ? "" : "ATIVO");
   const editable = canEditModule("servicos");
@@ -3385,6 +3385,7 @@ function newServico() {
   blankNewServico = true;
   renderServicos();
   scrollServicoFormIntoView();
+  focusServicoNome();
 }
 
 function cancelServico() {
@@ -3409,6 +3410,12 @@ function editServico(codigo) {
 
 function scrollServicoFormIntoView() {
   scrollCompactElementIntoView(".servico-form-panel");
+}
+
+function focusServicoNome() {
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    document.querySelector('#servico-form [name="nome"]')?.focus();
+  }));
 }
 
 function deleteServico(codigo) {
@@ -3677,6 +3684,7 @@ function createServicoFromBudget() {
   blankNewServico = true;
   setView("servicos");
   scrollServicoFormIntoView();
+  focusServicoNome();
 }
 
 function returnToBudgetAfterServicoCreated(servico) {
