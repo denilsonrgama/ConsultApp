@@ -4409,6 +4409,59 @@ th {
   }
 }
 
+@media (max-width: 920px) {
+  nav > [data-view="ajuda"] {
+    display: none !important;
+  }
+
+  .sidebar-user .sidebar-help-link {
+    display: inline-block !important;
+    width: auto;
+    min-height: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #f4c95d;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+  }
+
+  .sidebar-user-actions {
+    display: inline-flex !important;
+    gap: 12px;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .orcamentos-list-panel .toolbar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+  }
+
+  .orcamentos-list-panel .toolbar h2 {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .orcamento-list-new-button {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    align-items: center;
+    justify-content: center;
+    width: auto !important;
+    min-width: 108px;
+    margin: 0 !important;
+  }
+}
+
 @media print {
   @page {
     size: A4;
