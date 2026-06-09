@@ -2046,8 +2046,10 @@ function renderAjuda() {
             <li>Informe e-mail e CEP. O sistema consulta a base dos Correios e preenche bairro, endereço, UF e cidade.</li>
             <li>Após a consulta do CEP, cabe ao usuário informar apenas número, complemento quando houver e observações.</li>
             <li>Ao salvar, o sistema confirma o cadastro e pergunta se deseja criar um orçamento para o cliente.</li>
+            <li>A listagem exibe o responsável na última coluna. Os botões de ação aparecem no detalhe do cliente selecionado.</li>
             <li>Ao selecionar um cliente na lista, os dados ficam protegidos para consulta. Use Alterar para liberar campos editáveis conforme seu perfil.</li>
             <li>No detalhe do cliente, use + Orçamento para iniciar um orçamento já preenchido com o cliente selecionado.</li>
+            <li>No mesmo detalhe, os botões Alterar, Inativar ou Excluir aparecem conforme as permissões do perfil e a situação do cliente.</li>
             <li>A lista inferior mostra os últimos orçamentos do cliente; clique em uma linha para abrir o orçamento correspondente.</li>
           </ol>
           <p class="help-note">Clientes inativos permanecem no histórico, mas não podem receber novos orçamentos.</p>
@@ -2061,6 +2063,7 @@ function renderAjuda() {
             <li>Serviços inativos continuam visíveis em orçamentos antigos.</li>
             <li>Serviços inativos não podem ser inseridos em novos orçamentos.</li>
             <li>O cadastro de novos serviços depende da permissão de criação de serviços do perfil.</li>
+            <li>Quando um serviço é criado a partir do orçamento, o código é preenchido automaticamente e o foco vai para o campo Serviço.</li>
           </ol>
         </article>
 
@@ -2072,6 +2075,7 @@ function renderAjuda() {
             <li>Use Buscar cliente para preencher os dados do cliente no orçamento.</li>
             <li>Use o botão + ao lado do campo Cliente para cadastrar um novo cliente sem perder o orçamento em andamento.</li>
             <li>Use o botão + ao lado do campo Serviço para cadastrar um novo serviço sem perder o orçamento em andamento.</li>
+            <li>Ao salvar esse novo serviço, o sistema retorna ao orçamento e já preenche o item com o serviço cadastrado.</li>
             <li>Informe serviço, quantidade, valor, desconto quando houver e observações do pedido.</li>
             <li>O valor do serviço pode ser alterado no orçamento, mas essa alteração vale apenas para o orçamento atual e não muda o valor cadastrado na tela de Serviços.</li>
             <li>Para incluir mais de um serviço no mesmo orçamento, clique em Inserir serviço. O item anterior é preservado e os campos do serviço ficam prontos para o próximo item.</li>
