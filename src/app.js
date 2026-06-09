@@ -6,6 +6,7 @@ let state = loadState();
 let deferredInstallPrompt = null;
 let appInstalled = isAppRunningInstalled();
 let editingClienteDocumento = null;
+let selectedClienteDocumento = null;
 let blankNewCliente = false;
 let editingServicoCodigo = null;
 let blankNewServico = false;
@@ -2350,13 +2351,24 @@ function barChart(title, data) {
 }
 
 function renderClientes() {
-  const editingCliente = state.clientes.find((cliente) => cliente.documento === editingClienteDocumento) || {};
-  const useBlankForm = blankNewCliente && !editingClienteDocumento;
-  const formCliente = useBlankForm ? (clienteFormPrefill || { status: "ATIVO" }) : editingCliente;
-  const showClienteFormOnMobile = Boolean(editingClienteDocumento || blankNewCliente);
+  const activeClienteDocumento = editingClienteDocumento || selectedClienteDocumento;
+  const activeCliente = state.clientes.find((cliente) => cliente.documento === activeClienteDocumento) || {};
+  const isEditingCliente = Boolean(editingClienteDocumento);
+  const isViewingCliente = Boolean(selectedClienteDocumento && !editingClienteDocumento && !blankNewCliente);
+  const useBlankForm = blankNewCliente && !activeClienteDocumento;
+  const formCliente = useBlankForm ? (clienteFormPrefill || { status: "ATIVO" }) : activeCliente;
+  const showClienteFormOnMobile = Boolean(activeClienteDocumento || blankNewCliente);
   const renderClienteForm = !isCompactLayout() || showClienteFormOnMobile;
   const showCnpjFields = onlyDigits(formCliente.documento).length === 14;
   const editable = canEditModule("clientes");
+  const canCreateCliente = hasPermission("clientes.create") && canManageData();
+  const canEditCliente = hasPermission("clientes.edit") && canManageData();
+  const canSaveClienteForm = isEditingCliente ? canEditCliente : canCreateCliente;
+  const formLocked = isViewingCliente || !editable;
+  const existingClienteMode = isEditingCliente || isViewingCliente;
+  const formDisabledAttr = formLocked ? " disabled" : "";
+  const documentReadonlyAttr = existingClienteMode ? " readonly" : "";
+  const clienteFormTitle = isEditingCliente ? "Alterar cliente" : isViewingCliente ? "Cliente selecionado" : "Novo cliente";
   document.getElementById("clientes-view").innerHTML = `
     ${pageBanner()}
     <div class="clientes-layout">
@@ -2366,35 +2378,40 @@ function renderClientes() {
       <section class="panel clientes-list-panel">
         <div class="toolbar">
           <h2>Clientes cadastrados</h2>
-          ${editable && !showClienteFormOnMobile ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo</button>' : ""}
+          ${canCreateCliente && !showClienteFormOnMobile ? '<button class="success-button cliente-list-new-button" type="button" id="show-cliente-form">Novo</button>' : ""}
         </div>
         <input id="cliente-search" class="list-search-input" placeholder="Buscar cliente">
         <div id="cliente-list"></div>
       </section>
       ${renderClienteForm ? `<section class="panel cliente-form-panel${showClienteFormOnMobile ? "" : " is-mobile-hidden"}">
-        <h2>${editingClienteDocumento ? "Alterar cliente" : "Novo cliente"}</h2>
+        <h2>${clienteFormTitle}</h2>
         <form class="cliente-form-grid" id="cliente-form">
-          <label>CPF/CNPJ<input name="documento" required value="${fieldValue(formCliente.documento)}"></label>
-          <label class="cpf-only-fields${showCnpjFields ? " hidden" : ""}">Nome<input name="nome" value="${fieldValue(formCliente.nome)}"${showCnpjFields ? "" : " required"}></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Razão social<input name="razaoSocial" readonly value="${fieldValue(formCliente.razaoSocial)}"></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Nome fantasia<input name="nomeFantasia" readonly value="${fieldValue(formCliente.nomeFantasia)}"></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Responsável<input name="responsavelNome" value="${fieldValue(formCliente.responsavelNome)}"${showCnpjFields ? " required" : ""}></label>
-          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Situação CNPJ<input class="${cnpjStatusClass(formCliente.situacaoCnpj)}" name="situacaoCnpj" readonly value="${fieldValue(formCliente.situacaoCnpj)}"></label>
-          <label>Status<select name="status">${options(["ATIVO", "INATIVO"], normalizeClienteStatus(formCliente.status))}</select></label>
-          <label>Celular<input name="telefone" value="${fieldValue(formCliente.telefone)}"></label>
-          <label>E-mail<input name="email" type="email" value="${fieldValue(formCliente.email)}"></label>
-          <label>CEP<input name="cep" value="${fieldValue(formCliente.cep)}"></label>
-          <label>Bairro<input name="bairro" readonly value="${fieldValue(formCliente.bairro)}"></label>
-          <label>Endereço<input name="endereco" readonly value="${fieldValue(formCliente.endereco)}"></label>
-          <label>Número<input name="numero" value="${fieldValue(formCliente.numero)}"></label>
-          <label>Complemento<input name="complemento" value="${fieldValue(formCliente.complemento)}"></label>
-          <label>UF<input name="uf" maxlength="2" readonly value="${fieldValue(formCliente.uf)}"></label>
-          <label>Cidade<input name="cidade" readonly value="${fieldValue(formCliente.cidade)}"></label>
-          <label>Observações<textarea name="obs">${fieldValue(formCliente.obs)}</textarea></label>
-          ${editable ? `
+          <label>CPF/CNPJ<input name="documento" required${documentReadonlyAttr}${formDisabledAttr} value="${fieldValue(formCliente.documento)}"></label>
+          <label class="cpf-only-fields${showCnpjFields ? " hidden" : ""}">Nome<input name="nome"${formDisabledAttr} value="${fieldValue(formCliente.nome)}"${showCnpjFields ? "" : " required"}></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Razão social<input name="razaoSocial" readonly${formDisabledAttr} value="${fieldValue(formCliente.razaoSocial)}"></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Nome fantasia<input name="nomeFantasia" readonly${formDisabledAttr} value="${fieldValue(formCliente.nomeFantasia)}"></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Responsável<input name="responsavelNome"${formDisabledAttr} value="${fieldValue(formCliente.responsavelNome)}"${showCnpjFields ? " required" : ""}></label>
+          <label class="cnpj-only-fields${showCnpjFields ? "" : " hidden"}">Situação CNPJ<input class="${cnpjStatusClass(formCliente.situacaoCnpj)}" name="situacaoCnpj" readonly${formDisabledAttr} value="${fieldValue(formCliente.situacaoCnpj)}"></label>
+          <label>Status<select name="status"${formDisabledAttr}>${options(["ATIVO", "INATIVO"], normalizeClienteStatus(formCliente.status))}</select></label>
+          <label>Celular<input name="telefone"${formDisabledAttr} value="${fieldValue(formCliente.telefone)}"></label>
+          <label>E-mail<input name="email" type="email"${formDisabledAttr} value="${fieldValue(formCliente.email)}"></label>
+          <label>CEP<input name="cep"${formDisabledAttr} value="${fieldValue(formCliente.cep)}"></label>
+          <label>Bairro<input name="bairro" readonly${formDisabledAttr} value="${fieldValue(formCliente.bairro)}"></label>
+          <label>Endereço<input name="endereco" readonly${formDisabledAttr} value="${fieldValue(formCliente.endereco)}"></label>
+          <label>Número<input name="numero"${formDisabledAttr} value="${fieldValue(formCliente.numero)}"></label>
+          <label>Complemento<input name="complemento"${formDisabledAttr} value="${fieldValue(formCliente.complemento)}"></label>
+          <label>UF<input name="uf" maxlength="2" readonly${formDisabledAttr} value="${fieldValue(formCliente.uf)}"></label>
+          <label>Cidade<input name="cidade" readonly${formDisabledAttr} value="${fieldValue(formCliente.cidade)}"></label>
+          <label>Observações<textarea name="obs"${formDisabledAttr}>${fieldValue(formCliente.obs)}</textarea></label>
+          ${isViewingCliente ? `
             <div class="form-actions cliente-form-actions">
-              <button class="primary-button" type="submit">${editingClienteDocumento ? "Salvar alteração" : "Salvar cliente"}</button>
-              ${editingClienteDocumento ? '<button class="success-button" type="button" id="new-cliente">Novo cliente</button>' : ""}
+              ${canEditCliente ? '<button class="primary-button" type="button" id="edit-selected-cliente">Alterar</button>' : ""}
+              <button class="danger-button" type="button" id="cancel-cliente-edit">Cancelar</button>
+            </div>
+          ` : canSaveClienteForm ? `
+            <div class="form-actions cliente-form-actions">
+              <button class="primary-button" type="submit">${isEditingCliente ? "Salvar alteração" : "Salvar cliente"}</button>
+              ${isEditingCliente && canCreateCliente ? '<button class="success-button" type="button" id="new-cliente">Novo cliente</button>' : ""}
               <button class="danger-button" type="button" id="cancel-cliente-edit">Cancelar</button>
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
@@ -2405,7 +2422,7 @@ function renderClientes() {
 
   const clienteForm = document.getElementById("cliente-form");
   clienteForm?.addEventListener("submit", addCliente);
-  if (editable) {
+  if (canSaveClienteForm && !formLocked) {
     clienteForm?.querySelector('[name="documento"]')?.addEventListener("input", handleClienteDocumentoInput);
     clienteForm?.querySelector('[name="documento"]')?.addEventListener("keydown", handleClienteDocumentoKeydown);
     clienteForm?.querySelector('[name="documento"]')?.addEventListener("blur", handleClienteDocumentoBlur);
@@ -2415,6 +2432,9 @@ function renderClientes() {
     clienteForm?.querySelector('[name="complemento"]')?.addEventListener("keydown", handleClienteComplementoKeydown);
     document.getElementById("new-cliente")?.addEventListener("click", newCliente);
     document.getElementById("show-cliente-form")?.addEventListener("click", newCliente);
+    document.getElementById("cancel-cliente-edit")?.addEventListener("click", cancelCliente);
+  } else if (isViewingCliente) {
+    document.getElementById("edit-selected-cliente")?.addEventListener("click", () => editCliente(selectedClienteDocumento));
     document.getElementById("cancel-cliente-edit")?.addEventListener("click", cancelCliente);
   } else if (clienteForm) {
     setFormReadOnly(clienteForm);
@@ -2451,7 +2471,7 @@ function renderClienteList() {
           </tr></thead>
           <tbody>
             ${clientes.map((cliente) => `
-              <tr class="clickable-row ${cliente.documento === editingClienteDocumento ? "is-selected" : ""}" data-open-cliente="${escapeHtml(cliente.documento)}">
+              <tr class="clickable-row ${cliente.documento === (editingClienteDocumento || selectedClienteDocumento) ? "is-selected" : ""}" data-open-cliente="${escapeHtml(cliente.documento)}">
                 <td>${escapeHtml(cliente.documento)}</td>
                 <td><strong>${escapeHtml(cliente.nome)}</strong><br><span class="muted">${escapeHtml(cliente.email)}</span></td>
                 <td>${escapeHtml(cliente.telefone)}</td>
@@ -2494,7 +2514,6 @@ async function addCliente(event) {
   const data = Object.fromEntries(new FormData(form));
   data.status = normalizeClienteStatus(data.status);
   data.cidade = normalizeCidade(data.cidade);
-  const oldClienteDocumento = editingClienteDocumento;
   const isCreatingCliente = !editingClienteDocumento;
   if (!isValidCpfCnpj(data.documento)) {
     alert("Informe um CPF ou CNPJ válido.");
@@ -2551,6 +2570,7 @@ async function addCliente(event) {
         : orcamento
     ));
     editingClienteDocumento = null;
+    selectedClienteDocumento = null;
   } else {
     state.clientes.push(data);
   }
@@ -2582,6 +2602,7 @@ async function addCliente(event) {
 
 function newCliente() {
   editingClienteDocumento = null;
+  selectedClienteDocumento = null;
   blankNewCliente = true;
   clienteFormPrefill = null;
   pendingBudgetDraft = null;
@@ -2592,6 +2613,7 @@ function newCliente() {
 function cancelCliente() {
   document.activeElement?.blur();
   editingClienteDocumento = null;
+  selectedClienteDocumento = null;
   blankNewCliente = false;
   clienteFormPrefill = null;
   pendingBudgetDraft = null;
@@ -2806,7 +2828,6 @@ function findClienteByDocumentDigits(digits) {
 }
 
 function fillClienteForm(form, cliente) {
-  editingClienteDocumento = cliente.documento;
   form.elements.documento.value = cliente.documento || "";
   form.elements.nome.value = cliente.nome || "";
   form.elements.razaoSocial.value = cliente.razaoSocial || "";
@@ -2825,7 +2846,6 @@ function fillClienteForm(form, cliente) {
   form.elements.complemento.value = cliente.complemento || "";
   form.elements.cep.value = cliente.cep || "";
   form.elements.obs.value = cliente.obs || "";
-  form.querySelector('button[type="submit"]').textContent = "Salvar alteração";
 }
 
 async function handleClienteCepBlur(event) {
@@ -2951,6 +2971,7 @@ function isCnpjAtivo(value) {
 
 function clearClienteForm(form) {
   editingClienteDocumento = null;
+  selectedClienteDocumento = null;
   blankNewCliente = true;
   form.reset();
   setCnpjFieldsVisibility(form, false);
@@ -3006,6 +3027,7 @@ function isValidCnpj(cnpj) {
 
 function editCliente(documento) {
   editingClienteDocumento = documento;
+  selectedClienteDocumento = null;
   blankNewCliente = false;
   clienteFormPrefill = null;
   pendingBudgetDraft = null;
@@ -3017,6 +3039,21 @@ function editCliente(documento) {
   focusSelectedClienteRow();
   scrollClienteFormIntoView();
   if (hasPermission("clientes.edit")) refreshClienteCnpjDataForEdit(documento);
+}
+
+function viewCliente(documento) {
+  selectedClienteDocumento = documento;
+  editingClienteDocumento = null;
+  blankNewCliente = false;
+  clienteFormPrefill = null;
+  pendingBudgetDraft = null;
+  if (document.getElementById("clientes-view")?.classList.contains("is-active")) {
+    renderClientes();
+  } else {
+    setView("clientes");
+  }
+  focusSelectedClienteRow();
+  scrollClienteFormIntoView();
 }
 
 async function refreshClienteCnpjDataForEdit(documento) {
@@ -3052,7 +3089,7 @@ function openReportCliente(documento) {
     showNoPermissionMessage();
     return;
   }
-  editCliente(documento);
+  viewCliente(documento);
 }
 
 function clienteHasBudgets(documento) {
@@ -3069,7 +3106,8 @@ async function deleteCliente(documento) {
     return;
   }
   if (isCompactLayout()) {
-    editingClienteDocumento = documento;
+    selectedClienteDocumento = documento;
+    editingClienteDocumento = null;
     blankNewCliente = false;
     renderClientes();
     scrollClienteFormIntoView();
@@ -3094,6 +3132,7 @@ async function deleteCliente(documento) {
       item.documento === documento ? { ...item, status: "INATIVO" } : item
     ));
     if (editingClienteDocumento === documento) editingClienteDocumento = null;
+    if (selectedClienteDocumento === documento) selectedClienteDocumento = null;
     await saveState({
       acao: "cliente.inativar",
       modulo: "clientes",
@@ -3117,6 +3156,7 @@ async function deleteCliente(documento) {
   if (!authorization) return;
   state.clientes = state.clientes.filter((cliente) => cliente.documento !== documento);
   if (editingClienteDocumento === documento) editingClienteDocumento = null;
+  if (selectedClienteDocumento === documento) selectedClienteDocumento = null;
   await saveState({
     acao: "cliente.excluir",
     modulo: "clientes",
@@ -3560,6 +3600,7 @@ function createClienteFromBudget() {
   pendingBudgetDraft = currentBudgetDraftFromForm();
   clienteFormPrefill = { status: "ATIVO" };
   editingClienteDocumento = null;
+  selectedClienteDocumento = null;
   blankNewCliente = true;
   setView("clientes");
   scrollClienteFormIntoView();
@@ -5545,7 +5586,7 @@ document.body.addEventListener("click", (event) => {
   const openClienteRow = event.target.closest("[data-open-cliente]");
   if (openClienteRow) {
     if (isCompactLayout()) return;
-    editCliente(openClienteRow.dataset.openCliente);
+    viewCliente(openClienteRow.dataset.openCliente);
     return;
   }
 
