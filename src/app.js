@@ -1,5 +1,6 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
+const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
@@ -357,12 +358,16 @@ async function loadServerState() {
 }
 
 async function initializeApp() {
+  let welcomeStartedAt = 0;
   try {
     await destroySessionOnManualReload();
     currentUser = await fetchCurrentUser();
     if (!currentUser) {
       renderLogin();
       return;
+    }
+    if (consumeLoginWelcomeMark()) {
+      welcomeStartedAt = renderWelcomeScreen(currentUser);
     }
     if (canManageUsers()) await loadUsuarios();
 
@@ -383,7 +388,9 @@ async function initializeApp() {
     showFloatingMessage(error.message || "Usando dados locais porque o banco não respondeu.");
   }
 
+  if (welcomeStartedAt) await holdWelcomeScreen(welcomeStartedAt);
   render();
+  if (welcomeStartedAt) closeWelcomeScreen();
 }
 
 async function fetchCurrentUser() {
@@ -463,6 +470,7 @@ async function handleLogin(event) {
       return;
     }
     markNextReloadAsInternal();
+    markLoginWelcome();
     location.reload();
   } catch (error) {
     errorBox.textContent = error.message || "Não foi possível fazer login.";
@@ -476,6 +484,7 @@ async function handleGuestLogin() {
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível acessar como convidado.");
     markNextReloadAsInternal();
+    markLoginWelcome();
     location.reload();
   } catch (error) {
     errorBox.textContent = error.message || "Não foi possível acessar como convidado.";
@@ -579,6 +588,78 @@ function consumeInternalReloadMark() {
   } catch {
     return false;
   }
+}
+
+function markLoginWelcome() {
+  try {
+    sessionStorage.setItem(LOGIN_WELCOME_KEY, "1");
+  } catch {
+    // sessionStorage pode estar indisponível em navegação privada/restrita.
+  }
+}
+
+function consumeLoginWelcomeMark() {
+  try {
+    if (sessionStorage.getItem(LOGIN_WELCOME_KEY) !== "1") return false;
+    sessionStorage.removeItem(LOGIN_WELCOME_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function renderWelcomeScreen(user = currentUser) {
+  document.querySelector(".welcome-screen")?.remove();
+  document.body.classList.add("is-showing-welcome");
+  const firstName = String(user?.nome || user?.usuario || "Bem-vindo").trim().split(/\s+/)[0] || "Bem-vindo";
+  const profile = userProfileLabel(user);
+  const screen = document.createElement("main");
+  screen.className = "welcome-screen";
+  screen.setAttribute("role", "status");
+  screen.setAttribute("aria-live", "polite");
+  screen.innerHTML = `
+    <section class="welcome-card">
+      <div class="welcome-brand">
+        <img src="assets/consult-icon.png" alt="Consult">
+        <div>
+          <strong>ConsultApp</strong>
+          <span>Segurança e Medicina do Trabalho</span>
+        </div>
+      </div>
+      <div class="welcome-copy">
+        <p class="eyebrow">Acesso autorizado</p>
+        <h1>Bem-vindo, ${escapeHtml(firstName)}</h1>
+        <p>Preparando seu ambiente de trabalho, indicadores e permissões de acesso.</p>
+      </div>
+      <div class="welcome-status">
+        <span>${escapeHtml(profile)}</span>
+        <strong>Carregando dashboard</strong>
+      </div>
+      <div class="welcome-progress" aria-hidden="true"><span></span></div>
+    </section>
+  `;
+  document.body.appendChild(screen);
+  return performance.now();
+}
+
+async function holdWelcomeScreen(startedAt, minimumMs = 1800) {
+  const elapsed = performance.now() - startedAt;
+  const remaining = Math.max(0, minimumMs - elapsed);
+  if (!remaining) return;
+  await new Promise((resolve) => window.setTimeout(resolve, remaining));
+}
+
+function closeWelcomeScreen() {
+  const screen = document.querySelector(".welcome-screen");
+  if (!screen) {
+    document.body.classList.remove("is-showing-welcome");
+    return;
+  }
+  screen.classList.add("is-leaving");
+  window.setTimeout(() => {
+    screen.remove();
+    document.body.classList.remove("is-showing-welcome");
+  }, 260);
 }
 
 async function destroySessionOnManualReload() {
