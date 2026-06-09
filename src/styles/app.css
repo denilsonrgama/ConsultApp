@@ -181,6 +181,14 @@ body.is-showing-welcome {
   overflow: hidden;
 }
 
+html.has-pending-welcome body {
+  background: #102e3a;
+}
+
+html.has-pending-welcome .app-shell {
+  visibility: hidden;
+}
+
 .welcome-screen {
   position: fixed;
   inset: 0;

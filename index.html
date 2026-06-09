@@ -8,7 +8,14 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" href="assets/consult-icon.png">
     <link rel="apple-touch-icon" href="assets/consult-icon-192.png">
-    <link rel="stylesheet" href="src/styles/app.css?v=319">
+    <script>
+      try {
+        if (sessionStorage.getItem("consultapp.showWelcomeAfterLogin") === "1") {
+          document.documentElement.classList.add("has-pending-welcome");
+        }
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="src/styles/app.css?v=320">
   </head>
   <body>
     <div class="app-shell">

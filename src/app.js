@@ -642,7 +642,7 @@ function renderWelcomeScreen(user = currentUser) {
   return performance.now();
 }
 
-async function holdWelcomeScreen(startedAt, minimumMs = 1800) {
+async function holdWelcomeScreen(startedAt, minimumMs = 10000) {
   const elapsed = performance.now() - startedAt;
   const remaining = Math.max(0, minimumMs - elapsed);
   if (!remaining) return;
@@ -652,12 +652,14 @@ async function holdWelcomeScreen(startedAt, minimumMs = 1800) {
 function closeWelcomeScreen() {
   const screen = document.querySelector(".welcome-screen");
   if (!screen) {
+    document.documentElement.classList.remove("has-pending-welcome");
     document.body.classList.remove("is-showing-welcome");
     return;
   }
   screen.classList.add("is-leaving");
   window.setTimeout(() => {
     screen.remove();
+    document.documentElement.classList.remove("has-pending-welcome");
     document.body.classList.remove("is-showing-welcome");
   }, 260);
 }
