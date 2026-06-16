@@ -6,3 +6,4 @@ node-v*-win-x64.zip
 .env
 .env.*
 !.env.postgres.example
+!.env.contabo.example
