@@ -21,6 +21,8 @@ fail() {
   exit 1
 }
 
+trap 'log "ERRO: backup interrompido na linha $LINENO. Consulte as linhas anteriores do log."' ERR
+
 if [[ ! -f "$ENV_FILE" ]]; then
   fail "Arquivo .env nao encontrado em $ENV_FILE"
 fi
@@ -134,7 +136,7 @@ upload_to_r2() {
   AWS_DEFAULT_REGION="auto" \
     aws s3 cp "$file" "s3://$R2_BUCKET/$key" \
       --endpoint-url "$R2_ENDPOINT" \
-      --only-show-errors
+      --only-show-errors >> "$LOG_FILE" 2>&1
 }
 
 log "Iniciando backup do ConsultApp"
