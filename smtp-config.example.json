@@ -3,7 +3,7 @@
   "port": 587,
   "secure": false,
   "user": "seu-email@gmail.com",
-  "pass": "sua-senha-de-app",
+  "pass": "senha-de-app-sem-espacos",
   "from": "seu-email@gmail.com",
-  "fromName": "Consult - Segurança e Medicina do Trabalho"
+  "fromName": "Consult - Seguranca e Medicina do Trabalho"
 }
