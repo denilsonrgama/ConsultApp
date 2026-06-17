@@ -271,3 +271,16 @@ systemctl restart consultapp
 - E-mail SMTP.
 - Link de WhatsApp.
 - App Android abrindo pelo novo dominio.
+
+## 13. Backup automatico
+
+Depois da validacao, instale a rotina de backup diario:
+
+```bash
+cd /opt/consultapp/consult-web-app
+git pull
+sudo install -m 755 scripts/backup_contabo.sh /usr/local/bin/consultapp-backup
+sudo /usr/local/bin/consultapp-backup
+```
+
+O roteiro completo esta em `docs/backup-contabo.md`.
