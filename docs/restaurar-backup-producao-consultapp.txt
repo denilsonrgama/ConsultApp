@@ -1,0 +1,145 @@
+RESTAURAR BACKUP EM PRODUCAO - CONSULTAPP
+==========================================
+
+ATENCAO:
+Este procedimento substitui o banco de dados de producao.
+Execute somente depois de confirmar qual backup sera restaurado.
+
+Antes de restaurar, sempre gere um backup de seguranca do estado atual.
+Esse arquivo sera o plano de volta caso o backup restaurado nao seja o desejado.
+
+
+1. PARAR A APLICACAO
+--------------------
+
+sudo systemctl stop consultapp
+
+
+2. BAIXAR O BACKUP DO R2
+------------------------
+
+cd /opt/consultapp/consult-web-app
+set -a
+. ./.env
+set +a
+
+AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+AWS_DEFAULT_REGION=auto \
+aws s3 cp "s3://$R2_BUCKET/$R2_PREFIX/latest/latest-db.backup" \
+  /tmp/consultapp-restore.backup \
+  --endpoint-url "${R2_ENDPOINT:-https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com}"
+
+
+3. FAZER BACKUP DE SEGURANCA DO BANCO ATUAL
+-------------------------------------------
+
+sudo -u postgres pg_dump \
+  -Fc \
+  --no-owner \
+  --no-privileges \
+  -d consultappdb \
+  -f /tmp/consultappdb-before-restore.backup
+
+
+4. LIMPAR O BANCO ATUAL
+-----------------------
+
+sudo -u postgres psql -d consultappdb -c "
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO consultapp;
+GRANT ALL ON SCHEMA public TO public;
+"
+
+
+5. RESTAURAR O BACKUP
+---------------------
+
+sudo -u postgres pg_restore \
+  --no-owner \
+  --no-privileges \
+  --role=consultapp \
+  -d consultappdb \
+  /tmp/consultapp-restore.backup
+
+
+6. CONFERIR AS TABELAS RESTAURADAS
+----------------------------------
+
+sudo -u postgres psql -d consultappdb -c "
+select 'clientes' as tabela, count(*) from clientes
+union all select 'servicos', count(*) from servicos
+union all select 'orcamentos', count(*) from orcamentos
+union all select 'orcamento_itens', count(*) from orcamento_itens
+union all select 'usuarios', count(*) from usuarios
+union all select 'arquivos', count(*) from arquivos
+union all select 'auditoria_logs', count(*) from auditoria_logs
+order by tabela;
+"
+
+
+7. SUBIR A APLICACAO
+--------------------
+
+sudo systemctl start consultapp
+sudo systemctl status consultapp --no-pager
+
+
+8. TESTAR O SISTEMA
+-------------------
+
+curl https://gamadeveloper.com.br/api/status
+
+Resposta esperada:
+
+{"ok":true}
+
+Depois, abrir o sistema no navegador e conferir:
+- login;
+- clientes;
+- servicos;
+- orcamentos;
+- relatorios;
+- arquivos salvos.
+
+
+9. LIMPAR ARQUIVOS TEMPORARIOS
+------------------------------
+
+Quando tiver certeza de que a restauracao ficou correta:
+
+rm -f /tmp/consultapp-restore.backup
+
+Recomendacao:
+Mantenha o arquivo abaixo por algumas horas ou alguns dias:
+
+/tmp/consultappdb-before-restore.backup
+
+Esse arquivo permite voltar ao estado anterior caso o backup restaurado nao seja o desejado.
+
+
+10. COMO VOLTAR AO ESTADO ANTERIOR, SE NECESSARIO
+-------------------------------------------------
+
+Se precisar desfazer a restauracao e voltar ao banco que existia antes dela:
+
+sudo systemctl stop consultapp
+
+sudo -u postgres psql -d consultappdb -c "
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO consultapp;
+GRANT ALL ON SCHEMA public TO public;
+"
+
+sudo -u postgres pg_restore \
+  --no-owner \
+  --no-privileges \
+  --role=consultapp \
+  -d consultappdb \
+  /tmp/consultappdb-before-restore.backup
+
+sudo systemctl start consultapp
+sudo systemctl status consultapp --no-pager
+
