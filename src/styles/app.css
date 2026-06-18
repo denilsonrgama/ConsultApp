@@ -81,6 +81,23 @@ textarea:disabled {
   display: block;
 }
 
+.app-version {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  margin-left: 5px;
+  padding: 2px 6px;
+  border: 1px solid rgba(244, 201, 93, 0.42);
+  border-radius: 999px;
+  background: rgba(244, 201, 93, 0.12);
+  color: #f4c95d;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .brand small {
   color: #b8ced5;
   margin-top: 3px;
@@ -149,6 +166,12 @@ textarea:disabled {
 
 .auth-card h1 {
   font-size: 1.45rem;
+}
+
+.auth-card .app-version {
+  border-color: #c8dfe5;
+  background: #e8f4f5;
+  color: var(--brand);
 }
 
 .auth-card form {
@@ -244,6 +267,15 @@ html.has-pending-welcome .app-shell {
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.welcome-brand .app-version {
+  display: inline-flex;
+  margin-top: 0;
+  border-color: #c8dfe5;
+  background: #e8f4f5;
+  color: var(--brand);
+  font-size: 0.68rem;
 }
 
 .welcome-copy {

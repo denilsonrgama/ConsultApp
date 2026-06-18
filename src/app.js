@@ -1,9 +1,11 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
+const APP_FALLBACK_VERSION = "v321";
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
+let appVersion = APP_FALLBACK_VERSION;
 let deferredInstallPrompt = null;
 let appInstalled = isAppRunningInstalled();
 let editingClienteDocumento = null;
@@ -357,9 +359,41 @@ async function loadServerState() {
   return result.state ? normalizeState(result.state) : null;
 }
 
+function setAppVersion(version) {
+  appVersion = String(version || APP_FALLBACK_VERSION).trim() || APP_FALLBACK_VERSION;
+  document.title = `ConsultApp ${appVersion}`;
+  document.querySelectorAll("[data-app-version]").forEach((element) => {
+    element.textContent = appVersion;
+  });
+}
+
+function renderAppVersionBadge() {
+  return `<span class="app-version" data-app-version>${escapeHtml(appVersion)}</span>`;
+}
+
+async function loadAppStatus() {
+  if (location.protocol === "file:") {
+    setAppVersion(APP_FALLBACK_VERSION);
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/status");
+    const result = await response.json();
+    if (response.ok && result.version) {
+      setAppVersion(result.version);
+      return;
+    }
+  } catch {
+    // Mantem a versao embarcada quando o status nao puder ser consultado.
+  }
+  setAppVersion(APP_FALLBACK_VERSION);
+}
+
 async function initializeApp() {
   let welcomeStartedAt = 0;
   try {
+    await loadAppStatus();
     await destroySessionOnManualReload();
     currentUser = await fetchCurrentUser();
     if (!currentUser) {
@@ -390,6 +424,7 @@ async function initializeApp() {
 
   if (welcomeStartedAt) await holdWelcomeScreen(welcomeStartedAt);
   render();
+  setAppVersion(appVersion);
   if (welcomeStartedAt) closeWelcomeScreen();
 }
 
@@ -406,7 +441,7 @@ function renderLogin(message = "") {
       <section class="auth-card">
         <div>
           <p class="eyebrow">Acesso seguro</p>
-          <h1>ConsultApp</h1>
+          <h1>ConsultApp ${renderAppVersionBadge()}</h1>
         </div>
         <form id="login-form">
           <label>Usuário ou e-mail<input name="usuario" autocomplete="username" required></label>
@@ -431,7 +466,7 @@ function renderForgotPassword(message = "") {
       <section class="auth-card">
         <div>
           <p class="eyebrow">Recuperação de acesso</p>
-          <h1>ConsultApp</h1>
+          <h1>ConsultApp ${renderAppVersionBadge()}</h1>
         </div>
         <form id="forgot-form">
           <label>Usuário ou e-mail<input name="usuario" autocomplete="username" required></label>
@@ -622,7 +657,7 @@ function renderWelcomeScreen(user = currentUser) {
       <div class="welcome-brand">
         <img src="assets/consult-icon.png" alt="Consult">
         <div>
-          <strong>ConsultApp</strong>
+          <strong>ConsultApp ${renderAppVersionBadge()}</strong>
           <span>Segurança e Medicina do Trabalho</span>
         </div>
       </div>
