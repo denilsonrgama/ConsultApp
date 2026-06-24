@@ -130,4 +130,3 @@ CREATE TABLE IF NOT EXISTS arquivos (
 );
 
 CREATE INDEX IF NOT EXISTS arquivos_categoria_idx ON arquivos(categoria);
-CREATE UNIQUE INDEX IF NOT EXISTS arquivos_public_token_unique_idx ON arquivos(public_token) WHERE public_token <> '';
