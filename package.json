@@ -5,7 +5,6 @@
   "scripts": {
     "start": "node server.mjs",
     "postinstall": "node scripts/install_puppeteer_chrome.mjs",
-    "migrate:postgres": "node scripts/migrate_sqlite_to_postgres.mjs",
     "migrate:relational": "node scripts/migrate_app_state_to_relational.mjs"
   },
   "dependencies": {

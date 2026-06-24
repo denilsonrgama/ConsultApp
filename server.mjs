@@ -1,18 +1,17 @@
-import { createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+﻿import { createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { connect as netConnect } from "node:net";
 import { homedir } from "node:os";
 import path, { extname, join, normalize, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { connect as tlsConnect } from "node:tls";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 
 /*
 ========================================
-CORREÇÃO RENDER / LINUX
+CORREÃ‡ÃƒO RENDER / LINUX
 ========================================
 */
 
@@ -24,7 +23,7 @@ process.env.PUPPETEER_CACHE_DIR ||= puppeteerCacheDir;
 
 /*
 ========================================
-CONFIGURAÇÕES
+CONFIGURAÃ‡Ã•ES
 ========================================
 */
 
@@ -32,7 +31,6 @@ loadEnvFile(resolve(root, ".env"));
 
 const budgetsDir = resolve(root, "Orcamentos");
 const reportsDir = resolve(root, "Relatorios");
-const databasePath = resolve(root, "consultapp.sqlite");
 const smtpConfigPath = resolve(root, "smtp-config.json");
 
 const pythonExe =
@@ -50,94 +48,10 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v327";
+const serverVersion = "v328";
 
 const postgresConnectionString = databaseConnectionString();
-
-const databaseBackend = String(
-  process.env.DB_BACKEND ||
-  (postgresConnectionString ? "postgres" : "sqlite")
-).toLowerCase();
-
-const sqliteDb =
-  databaseBackend === "sqlite"
-    ? new DatabaseSync(databasePath)
-    : null;
-
-let postgresPool = null;
-
-if (sqliteDb) {
-  sqliteDb.exec(`
-    CREATE TABLE IF NOT EXISTS app_state (
-      id TEXT PRIMARY KEY,
-      data TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS usuarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      usuario TEXT NOT NULL UNIQUE,
-      nome TEXT NOT NULL,
-      email TEXT NOT NULL DEFAULT '',
-      perfil TEXT NOT NULL DEFAULT 'OPERADOR',
-      permissoes TEXT,
-      senha_hash TEXT NOT NULL,
-      deve_trocar_senha INTEGER NOT NULL DEFAULT 0,
-      ativo INTEGER NOT NULL DEFAULT 1,
-      superadmin_locked INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS sessoes (
-      token_hash TEXT PRIMARY KEY,
-      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-      expires_at TEXT NOT NULL,
-      csrf_token TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS auditoria_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
-      usuario TEXT NOT NULL DEFAULT '',
-      perfil TEXT NOT NULL DEFAULT '',
-      acao TEXT NOT NULL,
-      modulo TEXT NOT NULL DEFAULT '',
-      entidade_tipo TEXT NOT NULL DEFAULT '',
-      entidade_id TEXT NOT NULL DEFAULT '',
-      detalhes TEXT NOT NULL DEFAULT '{}',
-      ip TEXT NOT NULL DEFAULT '',
-      user_agent TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS arquivos (
-      categoria TEXT NOT NULL,
-      nome TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      conteudo BLOB NOT NULL,
-      tamanho INTEGER NOT NULL DEFAULT 0,
-      public_token TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (categoria, nome)
-    );
-
-    CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao);
-    CREATE UNIQUE INDEX IF NOT EXISTS arquivos_public_token_unique_idx ON arquivos(public_token) WHERE public_token <> '';
-  `);
-}
-
-if (databaseBackend === "postgres") {
-  postgresPool = await createPostgresPool();
-} else if (databaseBackend !== "sqlite") {
-  throw new Error(`Banco ${databaseBackend} nÃ£o suportado. Use sqlite ou postgres.`);
-}
+const postgresPool = await createPostgresPool();
 
 await ensureAuthSchema();
 await ensureInitialAdminUser();
@@ -197,7 +111,7 @@ async function createPostgresPool() {
   try {
     ({ Pool } = await import("pg"));
   } catch {
-    throw new Error("DependÃªncia pg nÃ£o instalada. Rode npm install antes de usar PostgreSQL.");
+    throw new Error("DependÃƒÂªncia pg nÃƒÂ£o instalada. Rode npm install antes de usar PostgreSQL.");
   }
 
   const pool = new Pool({
@@ -409,79 +323,43 @@ function publicUser(user) {
 }
 
 async function ensureAuthSchema() {
-  if (postgresPool) {
-    await postgresPool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ATIVO'");
-    await postgresPool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS responsavel_nome TEXT NOT NULL DEFAULT ''");
-    await postgresPool.query(`
-      UPDATE clientes AS cliente
-      SET responsavel_nome = responsavel.nome
-      FROM responsaveis AS responsavel
-      WHERE responsavel.cliente_documento = cliente.documento
-        AND COALESCE(cliente.responsavel_nome, '') = ''
-    `);
-    await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''");
-    await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_trocar_senha BOOLEAN NOT NULL DEFAULT FALSE");
-    await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permissoes JSONB");
-    await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS superadmin_locked BOOLEAN NOT NULL DEFAULT FALSE");
-    await postgresPool.query("ALTER TABLE sessoes ADD COLUMN IF NOT EXISTS csrf_token TEXT NOT NULL DEFAULT ''");
-    await postgresPool.query("ALTER TABLE arquivos ADD COLUMN IF NOT EXISTS public_token TEXT NOT NULL DEFAULT ''");
-    await postgresPool.query("CREATE UNIQUE INDEX IF NOT EXISTS arquivos_public_token_unique_idx ON arquivos(public_token) WHERE public_token <> ''");
-    await postgresPool.query(`
-      CREATE TABLE IF NOT EXISTS auditoria_logs (
-        id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-        usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
-        usuario TEXT NOT NULL DEFAULT '',
-        perfil TEXT NOT NULL DEFAULT '',
-        acao TEXT NOT NULL,
-        modulo TEXT NOT NULL DEFAULT '',
-        entidade_tipo TEXT NOT NULL DEFAULT '',
-        entidade_id TEXT NOT NULL DEFAULT '',
-        detalhes JSONB NOT NULL DEFAULT '{}'::jsonb,
-        ip TEXT NOT NULL DEFAULT '',
-        user_agent TEXT NOT NULL DEFAULT '',
-        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at)");
-    await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id)");
-    await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario)");
-    await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo)");
-    await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao)");
-    return;
-  }
-
-  const columns = sqliteDb.prepare("PRAGMA table_info(usuarios)").all().map((column) => column.name);
-  if (!columns.includes("email")) {
-    sqliteDb.prepare("ALTER TABLE usuarios ADD COLUMN email TEXT NOT NULL DEFAULT ''").run();
-  }
-  if (!columns.includes("deve_trocar_senha")) {
-    sqliteDb.prepare("ALTER TABLE usuarios ADD COLUMN deve_trocar_senha INTEGER NOT NULL DEFAULT 0").run();
-  }
-  if (!columns.includes("permissoes")) {
-    sqliteDb.prepare("ALTER TABLE usuarios ADD COLUMN permissoes TEXT").run();
-  }
-  if (!columns.includes("superadmin_locked")) {
-    sqliteDb.prepare("ALTER TABLE usuarios ADD COLUMN superadmin_locked INTEGER NOT NULL DEFAULT 0").run();
-  }
-
-  const sessionColumns = sqliteDb.prepare("PRAGMA table_info(sessoes)").all().map((column) => column.name);
-  if (!sessionColumns.includes("csrf_token")) {
-    sqliteDb.prepare("ALTER TABLE sessoes ADD COLUMN csrf_token TEXT NOT NULL DEFAULT ''").run();
-  }
-
-  const fileColumns = sqliteDb.prepare("PRAGMA table_info(arquivos)").all().map((column) => column.name);
-  if (!fileColumns.includes("public_token")) {
-    sqliteDb.prepare("ALTER TABLE arquivos ADD COLUMN public_token TEXT NOT NULL DEFAULT ''").run();
-  }
-
-  sqliteDb.exec(`
-    CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo);
-    CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao);
-    CREATE UNIQUE INDEX IF NOT EXISTS arquivos_public_token_unique_idx ON arquivos(public_token) WHERE public_token <> '';
+  await postgresPool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ATIVO'");
+  await postgresPool.query("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS responsavel_nome TEXT NOT NULL DEFAULT ''");
+  await postgresPool.query(`
+    UPDATE clientes AS cliente
+    SET responsavel_nome = responsavel.nome
+    FROM responsaveis AS responsavel
+    WHERE responsavel.cliente_documento = cliente.documento
+      AND COALESCE(cliente.responsavel_nome, '') = ''
   `);
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_trocar_senha BOOLEAN NOT NULL DEFAULT FALSE");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permissoes JSONB");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS superadmin_locked BOOLEAN NOT NULL DEFAULT FALSE");
+  await postgresPool.query("ALTER TABLE sessoes ADD COLUMN IF NOT EXISTS csrf_token TEXT NOT NULL DEFAULT ''");
+  await postgresPool.query("ALTER TABLE arquivos ADD COLUMN IF NOT EXISTS public_token TEXT NOT NULL DEFAULT ''");
+  await postgresPool.query("CREATE UNIQUE INDEX IF NOT EXISTS arquivos_public_token_unique_idx ON arquivos(public_token) WHERE public_token <> ''");
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS auditoria_logs (
+      id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+      usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+      usuario TEXT NOT NULL DEFAULT '',
+      perfil TEXT NOT NULL DEFAULT '',
+      acao TEXT NOT NULL,
+      modulo TEXT NOT NULL DEFAULT '',
+      entidade_tipo TEXT NOT NULL DEFAULT '',
+      entidade_id TEXT NOT NULL DEFAULT '',
+      detalhes JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ip TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_created_at_idx ON auditoria_logs(created_at)");
+  await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_id_idx ON auditoria_logs(usuario_id)");
+  await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_usuario_idx ON auditoria_logs(usuario)");
+  await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_modulo_idx ON auditoria_logs(modulo)");
+  await postgresPool.query("CREATE INDEX IF NOT EXISTS auditoria_logs_acao_idx ON auditoria_logs(acao)");
 }
 
 async function ensureInitialAdminUser() {
@@ -489,20 +367,12 @@ async function ensureInitialAdminUser() {
   const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
   const adminEmail = process.env.ADMIN_EMAIL || "";
 
-  if (postgresPool) {
-    const result = await postgresPool.query("SELECT COUNT(*)::int AS total FROM usuarios");
-    if (Number(result.rows[0]?.total || 0) > 0) return;
-    await postgresPool.query(
-      "INSERT INTO usuarios (usuario, nome, email, perfil, senha_hash, ativo) VALUES ($1, $2, $3, $4, $5, TRUE)",
-      [adminUser, "Administrador", adminEmail, "ADMIN", passwordHash(adminPassword)],
-    );
-    return;
-  }
-
-  const row = sqliteDb.prepare("SELECT COUNT(*) AS total FROM usuarios").get();
-  if (Number(row?.total || 0) > 0) return;
-  sqliteDb.prepare("INSERT INTO usuarios (usuario, nome, email, perfil, senha_hash, ativo) VALUES (?, ?, ?, ?, ?, 1)")
-    .run(adminUser, "Administrador", adminEmail, "ADMIN", passwordHash(adminPassword));
+  const result = await postgresPool.query("SELECT COUNT(*)::int AS total FROM usuarios");
+  if (Number(result.rows[0]?.total || 0) > 0) return;
+  await postgresPool.query(
+    "INSERT INTO usuarios (usuario, nome, email, perfil, senha_hash, ativo) VALUES ($1, $2, $3, $4, $5, TRUE)",
+    [adminUser, "Administrador", adminEmail, "ADMIN", passwordHash(adminPassword)],
+  );
 }
 
 async function ensureGuestUser() {
@@ -512,40 +382,26 @@ async function ensureGuestUser() {
 
   if (await findUserByLogin(guestUser)) return;
 
-  if (postgresPool) {
-    await postgresPool.query(
-      "INSERT INTO usuarios (usuario, nome, email, perfil, senha_hash, ativo) VALUES ($1, $2, $3, $4, $5, TRUE)",
-      [guestUser, "Convidado", guestEmail, "CONVIDADO", passwordHash(guestPassword)],
-    );
-    return;
-  }
-
-  sqliteDb.prepare("INSERT INTO usuarios (usuario, nome, email, perfil, senha_hash, ativo) VALUES (?, ?, ?, ?, ?, 1)")
-    .run(guestUser, "Convidado", guestEmail, "CONVIDADO", passwordHash(guestPassword));
+  await postgresPool.query(
+    "INSERT INTO usuarios (usuario, nome, email, perfil, senha_hash, ativo) VALUES ($1, $2, $3, $4, $5, TRUE)",
+    [guestUser, "Convidado", guestEmail, "CONVIDADO", passwordHash(guestPassword)],
+  );
 }
 
 async function findUserByLogin(usuario) {
-  if (postgresPool) {
-    const result = await postgresPool.query(
-      "SELECT id, usuario, nome, email, perfil, permissoes, senha_hash, deve_trocar_senha, ativo, superadmin_locked FROM usuarios WHERE lower(usuario) = lower($1) OR lower(email) = lower($1) LIMIT 1",
-      [usuario],
-    );
-    return result.rows[0] || null;
-  }
-
-  return sqliteDb.prepare("SELECT id, usuario, nome, email, perfil, permissoes, senha_hash, deve_trocar_senha, ativo, superadmin_locked FROM usuarios WHERE lower(usuario) = lower(?) OR lower(email) = lower(?) LIMIT 1").get(usuario, usuario) || null;
+  const result = await postgresPool.query(
+    "SELECT id, usuario, nome, email, perfil, permissoes, senha_hash, deve_trocar_senha, ativo, superadmin_locked FROM usuarios WHERE lower(usuario) = lower($1) OR lower(email) = lower($1) LIMIT 1",
+    [usuario],
+  );
+  return result.rows[0] || null;
 }
 
 async function findUserById(id) {
-  if (postgresPool) {
-    const result = await postgresPool.query(
-      "SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked FROM usuarios WHERE id = $1 LIMIT 1",
-      [Number(id)],
-    );
-    return result.rows[0] || null;
-  }
-
-  return sqliteDb.prepare("SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked FROM usuarios WHERE id = ? LIMIT 1").get(Number(id)) || null;
+  const result = await postgresPool.query(
+    "SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked FROM usuarios WHERE id = $1 LIMIT 1",
+    [Number(id)],
+  );
+  return result.rows[0] || null;
 }
 
 function canSeeManagedUser(actor, user) {
@@ -553,23 +409,16 @@ function canSeeManagedUser(actor, user) {
 }
 
 function isSuperAdminLocked(user) {
-  return postgresPool ? user?.superadmin_locked === true : Number(user?.superadmin_locked || 0) === 1;
+  return user?.superadmin_locked === true;
 }
 
 async function listUsers(actor) {
-  if (postgresPool) {
-    const result = await postgresPool.query(`
-      SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked
-      FROM usuarios
-      ORDER BY nome, usuario
-    `);
-    return result.rows.filter((user) => canSeeManagedUser(actor, user)).map(publicUserAdmin);
-  }
-
-  return sqliteDb.prepare("SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked FROM usuarios ORDER BY nome, usuario")
-    .all()
-    .filter((user) => canSeeManagedUser(actor, user))
-    .map(publicUserAdmin);
+  const result = await postgresPool.query(`
+    SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked
+    FROM usuarios
+    ORDER BY nome, usuario
+  `);
+  return result.rows.filter((user) => canSeeManagedUser(actor, user)).map(publicUserAdmin);
 }
 
 function publicUserAdmin(user) {
@@ -580,7 +429,7 @@ function publicUserAdmin(user) {
     email: user.email || "",
     perfil: user.perfil,
     permissoes: effectivePermissions(user),
-    ativo: postgresPool ? user.ativo === true : Number(user.ativo || 0) === 1,
+    ativo: user.ativo === true,
     superAdmin: isSuperAdminUser(user),
     superadminLocked: isSuperAdminLocked(user),
   };
@@ -683,18 +532,10 @@ async function logAudit(request, user, audit = {}) {
     userAgent: request ? String(request.headers["user-agent"] || "").slice(0, 500) : "",
   };
 
-  if (postgresPool) {
-    await postgresPool.query(`
-      INSERT INTO auditoria_logs (usuario_id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
-    `, [row.usuarioId, row.usuario, row.perfil, row.acao, row.modulo, row.entidadeTipo, row.entidadeId, JSON.stringify(row.detalhes), row.ip, row.userAgent]);
-    return;
-  }
-
-  sqliteDb.prepare(`
+  await postgresPool.query(`
     INSERT INTO auditoria_logs (usuario_id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(row.usuarioId, row.usuario, row.perfil, row.acao, row.modulo, row.entidadeTipo, row.entidadeId, JSON.stringify(row.detalhes), row.ip, row.userAgent);
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+  `, [row.usuarioId, row.usuario, row.perfil, row.acao, row.modulo, row.entidadeTipo, row.entidadeId, JSON.stringify(row.detalhes), row.ip, row.userAgent]);
 }
 
 function boundedNumber(value, fallback, min, max) {
@@ -711,7 +552,7 @@ async function listAuditLogs(filters = {}) {
   const params = [];
   const addFilter = (sql, value) => {
     params.push(value);
-    where.push(sql.replace("?", postgresPool ? `$${params.length}` : "?"));
+    where.push(sql.replace("?", `$${params.length}`));
   };
 
   if (filters.usuario) addFilter("lower(usuario) LIKE lower(?)", `%${String(filters.usuario).trim()}%`);
@@ -721,46 +562,26 @@ async function listAuditLogs(filters = {}) {
   if (filters.dataFim) addFilter("created_at < ?", `${String(filters.dataFim)} 23:59:59`);
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  if (postgresPool) {
-    const totalResult = await postgresPool.query(`
-      SELECT COUNT(*)::int AS total
-      FROM auditoria_logs
-      ${whereSql}
-    `, params);
-    const total = Number(totalResult.rows[0]?.total || 0);
-    const queryParams = params.slice();
-    queryParams.push(limit, offset);
-    const result = await postgresPool.query(`
-      SELECT id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent, created_at
-      FROM auditoria_logs
-      ${whereSql}
-      ORDER BY created_at DESC, id DESC
-      LIMIT $${queryParams.length - 1}
-      OFFSET $${queryParams.length}
-    `, queryParams);
-    const logs = result.rows.map((row) => ({
-      ...row,
-      detalhes: row.detalhes || {},
-      created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-    }));
-    return { logs, total, page, limit, pages: Math.max(Math.ceil(total / limit), 1) };
-  }
-
-  const totalRow = sqliteDb.prepare(`
-    SELECT COUNT(*) AS total
+  const totalResult = await postgresPool.query(`
+    SELECT COUNT(*)::int AS total
     FROM auditoria_logs
     ${whereSql}
-  `).get(...params);
-  const total = Number(totalRow?.total || 0);
-  const logs = sqliteDb.prepare(`
+  `, params);
+  const total = Number(totalResult.rows[0]?.total || 0);
+  const queryParams = params.slice();
+  queryParams.push(limit, offset);
+  const result = await postgresPool.query(`
     SELECT id, usuario, perfil, acao, modulo, entidade_tipo, entidade_id, detalhes, ip, user_agent, created_at
     FROM auditoria_logs
     ${whereSql}
     ORDER BY created_at DESC, id DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, limit, offset).map((row) => ({
+    LIMIT $${queryParams.length - 1}
+    OFFSET $${queryParams.length}
+  `, queryParams);
+  const logs = result.rows.map((row) => ({
     ...row,
-    detalhes: JSON.parse(row.detalhes || "{}"),
+    detalhes: row.detalhes || {},
+    created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
   }));
   return { logs, total, page, limit, pages: Math.max(Math.ceil(total / limit), 1) };
 }
@@ -778,21 +599,12 @@ async function maintainAuditLogs({ olderThanDays = 365, deleteOld = false } = {}
   const days = normalizeAuditRetentionDays(olderThanDays);
   const cutoff = auditRetentionCutoff(days);
 
-  if (postgresPool) {
-    if (!deleteOld) {
-      const result = await postgresPool.query("SELECT COUNT(*)::int AS total FROM auditoria_logs WHERE created_at < $1", [cutoff]);
-      return { olderThanDays: days, cutoff, total: Number(result.rows[0]?.total || 0), deleted: 0 };
-    }
-    const result = await postgresPool.query("DELETE FROM auditoria_logs WHERE created_at < $1", [cutoff]);
-    return { olderThanDays: days, cutoff, total: Number(result.rowCount || 0), deleted: Number(result.rowCount || 0) };
-  }
-
   if (!deleteOld) {
-    const row = sqliteDb.prepare("SELECT COUNT(*) AS total FROM auditoria_logs WHERE created_at < ?").get(cutoff);
-    return { olderThanDays: days, cutoff, total: Number(row?.total || 0), deleted: 0 };
+    const result = await postgresPool.query("SELECT COUNT(*)::int AS total FROM auditoria_logs WHERE created_at < $1", [cutoff]);
+    return { olderThanDays: days, cutoff, total: Number(result.rows[0]?.total || 0), deleted: 0 };
   }
-  const result = sqliteDb.prepare("DELETE FROM auditoria_logs WHERE created_at < ?").run(cutoff);
-  return { olderThanDays: days, cutoff, total: Number(result.changes || 0), deleted: Number(result.changes || 0) };
+  const result = await postgresPool.query("DELETE FROM auditoria_logs WHERE created_at < $1", [cutoff]);
+  return { olderThanDays: days, cutoff, total: Number(result.rowCount || 0), deleted: Number(result.rowCount || 0) };
 }
 
 function validateUserPayload(payload, isUpdate = false, targetUser = null) {
@@ -803,10 +615,10 @@ function validateUserPayload(payload, isUpdate = false, targetUser = null) {
   const senha = String(payload.senha || "");
   const allowedProfiles = new Set(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"]);
 
-  if (!usuario) throw new Error("Informe o usuário.");
+  if (!usuario) throw new Error("Informe o usuÃ¡rio.");
   if (!nome) throw new Error("Informe o nome.");
-  if (!email) throw new Error("Informe um e-mail válido.");
-  if (!allowedProfiles.has(perfil)) throw new Error("Perfil inválido.");
+  if (!email) throw new Error("Informe um e-mail vÃ¡lido.");
+  if (!allowedProfiles.has(perfil)) throw new Error("Perfil invÃ¡lido.");
   if (!isUpdate && senha.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
   if (isUpdate && senha && senha.length < 6) throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
 
@@ -827,18 +639,12 @@ async function createUser(payload, authUser) {
     throw new Error("Somente o superusuario pode cadastrar o login tecnico.");
   }
   const superadminLocked = isSuperAdminUser(authUser) && !isSuperAdminLogin(user.usuario);
-  if (postgresPool) {
-    const result = await postgresPool.query(`
-      INSERT INTO usuarios (usuario, nome, email, perfil, permissoes, senha_hash, ativo, superadmin_locked)
-      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
-      RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked
-    `, [user.usuario, user.nome, user.email, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo, superadminLocked]);
-    return publicUserAdmin(result.rows[0]);
-  }
-
-  const result = sqliteDb.prepare("INSERT INTO usuarios (usuario, nome, email, perfil, permissoes, senha_hash, ativo, superadmin_locked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(user.usuario, user.nome, user.email, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo ? 1 : 0, superadminLocked ? 1 : 0);
-  return publicUserAdmin(sqliteDb.prepare("SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked FROM usuarios WHERE id = ?").get(result.lastInsertRowid));
+  const result = await postgresPool.query(`
+    INSERT INTO usuarios (usuario, nome, email, perfil, permissoes, senha_hash, ativo, superadmin_locked)
+    VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+    RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked
+  `, [user.usuario, user.nome, user.email, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo, superadminLocked]);
+  return publicUserAdmin(result.rows[0]);
 }
 
 async function updateUser(id, payload, authUser) {
@@ -855,46 +661,26 @@ async function updateUser(id, payload, authUser) {
     throw new Error("Somente o superusuario pode alterar o login tecnico.");
   }
   if (Number(id) === Number(authUser?.id) && !user.ativo) {
-    throw new Error("Você não pode inativar o próprio usuário.");
+    throw new Error("VocÃª nÃ£o pode inativar o prÃ³prio usuÃ¡rio.");
   }
 
   const superadminLocked = isSuperAdminUser(authUser) && !isSuperAdminLogin(user.usuario)
     ? true
     : isSuperAdminLocked(existing);
 
-  if (postgresPool) {
-    const params = [user.usuario, user.nome, user.email, user.perfil, user.ativo, Number(id), JSON.stringify(user.permissoes), superadminLocked];
-    let sql = `
-      UPDATE usuarios
-      SET usuario = $1, nome = $2, email = $3, perfil = $4, ativo = $5, permissoes = $7::jsonb, superadmin_locked = $8, updated_at = CURRENT_TIMESTAMP
-    `;
-    if (user.senha) {
-      params.push(passwordHash(user.senha));
-      sql += `, senha_hash = $9`;
-    }
-    sql += ` WHERE id = $6 RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked`;
-    const result = await postgresPool.query(sql, params);
-    if (!result.rowCount) throw new Error("Usuário não encontrado.");
-    return publicUserAdmin(result.rows[0]);
-  }
-
+  const params = [user.usuario, user.nome, user.email, user.perfil, user.ativo, Number(id), JSON.stringify(user.permissoes), superadminLocked];
+  let sql = `
+    UPDATE usuarios
+    SET usuario = $1, nome = $2, email = $3, perfil = $4, ativo = $5, permissoes = $7::jsonb, superadmin_locked = $8, updated_at = CURRENT_TIMESTAMP
+  `;
   if (user.senha) {
-    sqliteDb.prepare(`
-      UPDATE usuarios
-      SET usuario = ?, nome = ?, email = ?, perfil = ?, ativo = ?, permissoes = ?, superadmin_locked = ?, senha_hash = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(user.usuario, user.nome, user.email, user.perfil, user.ativo ? 1 : 0, JSON.stringify(user.permissoes), superadminLocked ? 1 : 0, passwordHash(user.senha), Number(id));
-  } else {
-    sqliteDb.prepare(`
-      UPDATE usuarios
-      SET usuario = ?, nome = ?, email = ?, perfil = ?, ativo = ?, permissoes = ?, superadmin_locked = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(user.usuario, user.nome, user.email, user.perfil, user.ativo ? 1 : 0, JSON.stringify(user.permissoes), superadminLocked ? 1 : 0, Number(id));
+    params.push(passwordHash(user.senha));
+    sql += `, senha_hash = $9`;
   }
-
-  const updated = sqliteDb.prepare("SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked FROM usuarios WHERE id = ?").get(Number(id));
-  if (!updated) throw new Error("Usuário não encontrado.");
-  return publicUserAdmin(updated);
+  sql += ` WHERE id = $6 RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked`;
+  const result = await postgresPool.query(sql, params);
+  if (!result.rowCount) throw new Error("UsuÃ¡rio nÃ£o encontrado.");
+  return publicUserAdmin(result.rows[0]);
 }
 
 function temporaryPassword() {
@@ -911,31 +697,26 @@ async function resetUserPasswordByEmail(usuario, email) {
   const targetEmail = safeNormalizeEmail(email);
   if (!login || !targetEmail) return false;
   const user = await findUserByLogin(login);
-  const active = postgresPool ? user?.ativo === true : Number(user?.ativo || 0) === 1;
+  const active = user?.ativo === true;
   if (!user || !active || normalizeEmail(user.email || "") !== targetEmail) return false;
 
   const newPassword = temporaryPassword();
-  if (postgresPool) {
-    await postgresPool.query(
-      "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [passwordHash(newPassword), user.id],
-    );
-  } else {
-    sqliteDb.prepare("UPDATE usuarios SET senha_hash = ?, deve_trocar_senha = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(passwordHash(newPassword), user.id);
-  }
+  await postgresPool.query(
+    "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [passwordHash(newPassword), user.id],
+  );
 
   await sendSmtpMail({
     to: targetEmail,
-    subject: "ConsultApp - Recuperação de senha",
-    text: `Olá, ${user.nome}.\r\n\r\nFoi solicitada a recuperação de acesso ao ConsultApp.\r\n\r\nUsuário: ${user.usuario}\r\nSenha temporária: ${newPassword}\r\n\r\nApós entrar no sistema, altere sua senha com o administrador.\r\n\r\nSe você não solicitou esta recuperação, informe o administrador do sistema.`,
+    subject: "ConsultApp - RecuperaÃ§Ã£o de senha",
+    text: `OlÃ¡, ${user.nome}.\r\n\r\nFoi solicitada a recuperaÃ§Ã£o de acesso ao ConsultApp.\r\n\r\nUsuÃ¡rio: ${user.usuario}\r\nSenha temporÃ¡ria: ${newPassword}\r\n\r\nApÃ³s entrar no sistema, altere sua senha com o administrador.\r\n\r\nSe vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, informe o administrador do sistema.`,
     html: `
-      <p>Olá, ${escapeHtmlEmail(user.nome)}.</p>
-      <p>Foi solicitada a recuperação de acesso ao ConsultApp.</p>
-      <p><strong>Usuário:</strong> ${escapeHtmlEmail(user.usuario)}<br>
-      <strong>Senha temporária:</strong> ${escapeHtmlEmail(newPassword)}</p>
-      <p>Após entrar no sistema, altere sua senha com o administrador.</p>
-      <p>Se você não solicitou esta recuperação, informe o administrador do sistema.</p>
+      <p>OlÃ¡, ${escapeHtmlEmail(user.nome)}.</p>
+      <p>Foi solicitada a recuperaÃ§Ã£o de acesso ao ConsultApp.</p>
+      <p><strong>UsuÃ¡rio:</strong> ${escapeHtmlEmail(user.usuario)}<br>
+      <strong>Senha temporÃ¡ria:</strong> ${escapeHtmlEmail(newPassword)}</p>
+      <p>ApÃ³s entrar no sistema, altere sua senha com o administrador.</p>
+      <p>Se vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, informe o administrador do sistema.</p>
     `,
   });
 
@@ -943,31 +724,26 @@ async function resetUserPasswordByEmail(usuario, email) {
 }
 
 function userMustChangePassword(user) {
-  return postgresPool ? user?.deve_trocar_senha === true : Number(user?.deve_trocar_senha || 0) === 1;
+  return user?.deve_trocar_senha === true;
 }
 
 async function changeTemporaryPassword(usuario, senhaTemporaria, novaSenha) {
   const user = await findUserByLogin(String(usuario || ""));
-  const active = postgresPool ? user?.ativo === true : Number(user?.ativo || 0) === 1;
+  const active = user?.ativo === true;
   if (!user || !active || !userMustChangePassword(user) || !verifyPassword(senhaTemporaria || "", user.senha_hash)) {
-    throw new Error("Usuário ou senha temporária inválidos.");
+    throw new Error("UsuÃ¡rio ou senha temporÃ¡ria invÃ¡lidos.");
   }
   if (String(novaSenha || "").length < 6) {
     throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
   }
   if (String(novaSenha) === String(senhaTemporaria || "")) {
-    throw new Error("A nova senha deve ser diferente da senha temporária.");
+    throw new Error("A nova senha deve ser diferente da senha temporÃ¡ria.");
   }
 
-  if (postgresPool) {
-    await postgresPool.query(
-      "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [passwordHash(novaSenha), user.id],
-    );
-  } else {
-    sqliteDb.prepare("UPDATE usuarios SET senha_hash = ?, deve_trocar_senha = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(passwordHash(novaSenha), user.id);
-  }
+  await postgresPool.query(
+    "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [passwordHash(novaSenha), user.id],
+  );
 }
 
 async function createSession(userId) {
@@ -976,17 +752,11 @@ async function createSession(userId) {
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12);
 
-  if (postgresPool) {
-    await postgresPool.query("DELETE FROM sessoes WHERE expires_at < CURRENT_TIMESTAMP");
-    await postgresPool.query(
-      "INSERT INTO sessoes (token_hash, usuario_id, expires_at, csrf_token) VALUES ($1, $2, $3, $4)",
-      [tokenHash, userId, expiresAt, csrfToken],
-    );
-  } else {
-    sqliteDb.prepare("DELETE FROM sessoes WHERE expires_at < datetime('now')").run();
-    sqliteDb.prepare("INSERT INTO sessoes (token_hash, usuario_id, expires_at, csrf_token) VALUES (?, ?, ?, ?)")
-      .run(tokenHash, userId, expiresAt.toISOString(), csrfToken);
-  }
+  await postgresPool.query("DELETE FROM sessoes WHERE expires_at < CURRENT_TIMESTAMP");
+  await postgresPool.query(
+    "INSERT INTO sessoes (token_hash, usuario_id, expires_at, csrf_token) VALUES ($1, $2, $3, $4)",
+    [tokenHash, userId, expiresAt, csrfToken],
+  );
 
   return { token, csrfToken };
 }
@@ -994,11 +764,7 @@ async function createSession(userId) {
 async function destroySession(token) {
   if (!token) return;
   const tokenHash = hashToken(token);
-  if (postgresPool) {
-    await postgresPool.query("DELETE FROM sessoes WHERE token_hash = $1", [tokenHash]);
-  } else {
-    sqliteDb.prepare("DELETE FROM sessoes WHERE token_hash = ?").run(tokenHash);
-  }
+  await postgresPool.query("DELETE FROM sessoes WHERE token_hash = $1", [tokenHash]);
 }
 
 async function currentUser(request) {
@@ -1006,28 +772,16 @@ async function currentUser(request) {
   if (!token) return null;
   const tokenHash = hashToken(token);
 
-  if (postgresPool) {
-    const result = await postgresPool.query(`
-      SELECT u.id, u.usuario, u.nome, u.email, u.perfil, u.permissoes, u.superadmin_locked
-      FROM sessoes s
-      JOIN usuarios u ON u.id = s.usuario_id
-      WHERE s.token_hash = $1
-        AND s.expires_at > CURRENT_TIMESTAMP
-        AND u.ativo = TRUE
-      LIMIT 1
-    `, [tokenHash]);
-    return result.rows[0] || null;
-  }
-
-  return sqliteDb.prepare(`
+  const result = await postgresPool.query(`
     SELECT u.id, u.usuario, u.nome, u.email, u.perfil, u.permissoes, u.superadmin_locked
     FROM sessoes s
     JOIN usuarios u ON u.id = s.usuario_id
-    WHERE s.token_hash = ?
-      AND s.expires_at > datetime('now')
-      AND u.ativo = 1
+    WHERE s.token_hash = $1
+      AND s.expires_at > CURRENT_TIMESTAMP
+      AND u.ativo = TRUE
     LIMIT 1
-  `).get(tokenHash) || null;
+  `, [tokenHash]);
+  return result.rows[0] || null;
 }
 
 async function sessionCsrfToken(request, createIfMissing = false) {
@@ -1035,25 +789,14 @@ async function sessionCsrfToken(request, createIfMissing = false) {
   if (!token) return "";
   const tokenHash = hashToken(token);
 
-  if (postgresPool) {
-    const result = await postgresPool.query(
-      "SELECT csrf_token FROM sessoes WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP LIMIT 1",
-      [tokenHash],
-    );
-    let csrfToken = String(result.rows[0]?.csrf_token || "");
-    if (!csrfToken && createIfMissing && result.rows.length) {
-      csrfToken = randomBytes(32).toString("base64url");
-      await postgresPool.query("UPDATE sessoes SET csrf_token = $1 WHERE token_hash = $2", [csrfToken, tokenHash]);
-    }
-    return csrfToken;
-  }
-
-  const row = sqliteDb.prepare("SELECT csrf_token FROM sessoes WHERE token_hash = ? AND expires_at > datetime('now') LIMIT 1")
-    .get(tokenHash);
-  let csrfToken = String(row?.csrf_token || "");
-  if (!csrfToken && createIfMissing && row) {
+  const result = await postgresPool.query(
+    "SELECT csrf_token FROM sessoes WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP LIMIT 1",
+    [tokenHash],
+  );
+  let csrfToken = String(result.rows[0]?.csrf_token || "");
+  if (!csrfToken && createIfMissing && result.rows.length) {
     csrfToken = randomBytes(32).toString("base64url");
-    sqliteDb.prepare("UPDATE sessoes SET csrf_token = ? WHERE token_hash = ?").run(csrfToken, tokenHash);
+    await postgresPool.query("UPDATE sessoes SET csrf_token = $1 WHERE token_hash = $2", [csrfToken, tokenHash]);
   }
   return csrfToken;
 }
@@ -1166,11 +909,11 @@ function isAllowedStaticPath(requested) {
 async function requireUser(request, response, allowedProfiles = []) {
   const user = await currentUser(request);
   if (!user) {
-    sendJson(response, 401, { ok: false, error: "Usuário não autenticado." });
+    sendJson(response, 401, { ok: false, error: "UsuÃ¡rio nÃ£o autenticado." });
     return null;
   }
   if (allowedProfiles.length && !allowedProfiles.includes(user.perfil)) {
-    sendJson(response, 403, { ok: false, error: "Usuário sem permissão para esta ação." });
+    sendJson(response, 403, { ok: false, error: "UsuÃ¡rio sem permissÃ£o para esta aÃ§Ã£o." });
     return null;
   }
   return user;
@@ -1187,7 +930,7 @@ async function requirePermission(request, response, permission) {
       entidadeId: permission,
       detalhes: { metodo: request.method, rota: request.url },
     }).catch(() => {});
-    sendJson(response, 403, { ok: false, error: "UsuÃ¡rio sem permissÃ£o para esta aÃ§Ã£o." });
+    sendJson(response, 403, { ok: false, error: "UsuÃƒÂ¡rio sem permissÃƒÂ£o para esta aÃƒÂ§ÃƒÂ£o." });
     return null;
   }
   return user;
@@ -1211,27 +954,13 @@ async function requireAnyPermission(request, response, permissions) {
 }
 
 async function readAppState() {
-  if (postgresPool) {
-    return readRelationalAppState();
-  }
-
-  const row = sqliteDb.prepare("SELECT data FROM app_state WHERE id = ?").get("main");
-  return row ? normalizeAppState(JSON.parse(row.data)) : null;
+  return readRelationalAppState();
 }
 
 async function writeAppState(state) {
   const normalized = normalizeAppState(state);
   validateUniqueBudgetServices(normalized);
-  if (postgresPool) {
-    await writeRelationalAppState(normalized);
-    return normalized;
-  }
-
-  sqliteDb.prepare(`
-    INSERT INTO app_state (id, data, updated_at)
-    VALUES (?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = CURRENT_TIMESTAMP
-  `).run("main", JSON.stringify(normalized));
+  await writeRelationalAppState(normalized);
   return normalized;
 }
 
@@ -1242,7 +971,7 @@ function validateUniqueBudgetServices(state) {
       const code = String(item.servicoCodigo || "").trim();
       if (!code) continue;
       if (seen.has(code)) {
-        throw new Error(`O serviço ${code} está duplicado no orçamento ${orcamento.numero}.`);
+        throw new Error(`O serviÃ§o ${code} estÃ¡ duplicado no orÃ§amento ${orcamento.numero}.`);
       }
       seen.add(code);
     }
@@ -1404,7 +1133,7 @@ async function writeRelationalAppState(state) {
         Number(orcamento.numero),
         requiredText(orcamento.clienteDocumento, "cliente do orcamento"),
         requiredText(orcamento.data, "data do orcamento"),
-        dbText(orcamento.status || "EM ANÁLISE"),
+        dbText(orcamento.status || "EM ANÃLISE"),
         dbText(orcamento.observacoes),
       ]);
 
@@ -1634,27 +1363,16 @@ async function ensureStoredFileToken(categoria, nome, currentToken = "") {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const token = createPublicFileToken();
     try {
-      if (postgresPool) {
-        const updated = await postgresPool.query(
-          "UPDATE arquivos SET public_token = $1 WHERE categoria = $2 AND nome = $3 AND COALESCE(public_token, '') = '' RETURNING public_token",
-          [token, categoria, nome],
-        );
-        if (updated.rows[0]?.public_token) return updated.rows[0].public_token;
-        const selected = await postgresPool.query(
-          "SELECT public_token FROM arquivos WHERE categoria = $1 AND nome = $2 LIMIT 1",
-          [categoria, nome],
-        );
-        const selectedToken = normalizePublicFileToken(selected.rows[0]?.public_token);
-        if (selectedToken) return selectedToken;
-        return "";
-      }
-
-      const updated = sqliteDb.prepare(
-        "UPDATE arquivos SET public_token = ? WHERE categoria = ? AND nome = ? AND COALESCE(public_token, '') = ''",
-      ).run(token, categoria, nome);
-      if (Number(updated.changes || 0) > 0) return token;
-      const row = sqliteDb.prepare("SELECT public_token FROM arquivos WHERE categoria = ? AND nome = ? LIMIT 1").get(categoria, nome);
-      const selectedToken = normalizePublicFileToken(row?.public_token);
+      const updated = await postgresPool.query(
+        "UPDATE arquivos SET public_token = $1 WHERE categoria = $2 AND nome = $3 AND COALESCE(public_token, '') = '' RETURNING public_token",
+        [token, categoria, nome],
+      );
+      if (updated.rows[0]?.public_token) return updated.rows[0].public_token;
+      const selected = await postgresPool.query(
+        "SELECT public_token FROM arquivos WHERE categoria = $1 AND nome = $2 LIMIT 1",
+        [categoria, nome],
+      );
+      const selectedToken = normalizePublicFileToken(selected.rows[0]?.public_token);
       if (selectedToken) return selectedToken;
       return "";
     } catch (error) {
@@ -1662,76 +1380,38 @@ async function ensureStoredFileToken(categoria, nome, currentToken = "") {
     }
   }
 
-  throw new Error("Não foi possível gerar link seguro para o arquivo.");
+  throw new Error("NÃ£o foi possÃ­vel gerar link seguro para o arquivo.");
 }
 
 async function saveStoredFile({ categoria, nome, mimeType, conteudo }) {
   const buffer = Buffer.isBuffer(conteudo) ? conteudo : Buffer.from(conteudo);
   const publicToken = createPublicFileToken();
-  if (postgresPool) {
-    const result = await postgresPool.query(
-      `INSERT INTO arquivos (categoria, nome, mime_type, conteudo, tamanho, public_token, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-       ON CONFLICT (categoria, nome)
-       DO UPDATE SET mime_type = EXCLUDED.mime_type,
-                      conteudo = EXCLUDED.conteudo,
-                      tamanho = EXCLUDED.tamanho,
-                      public_token = CASE
-                        WHEN COALESCE(arquivos.public_token, '') = '' THEN EXCLUDED.public_token
-                        ELSE arquivos.public_token
-                      END,
-                      updated_at = CURRENT_TIMESTAMP
-       RETURNING public_token`,
-      [categoria, nome, mimeType, buffer, buffer.length, publicToken],
-    );
-    const token = await ensureStoredFileToken(categoria, nome, result.rows[0]?.public_token);
-    const url = publicFileRoute(token);
-    return { token, url, publicUrl: publicFileUrl(url) };
-  }
-
-  sqliteDb.prepare(`
-    INSERT INTO arquivos (categoria, nome, mime_type, conteudo, tamanho, public_token, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(categoria, nome)
-    DO UPDATE SET mime_type = excluded.mime_type,
-                  conteudo = excluded.conteudo,
-                  tamanho = excluded.tamanho,
-                  public_token = CASE
-                    WHEN COALESCE(arquivos.public_token, '') = '' THEN excluded.public_token
-                    ELSE arquivos.public_token
-                  END,
-                  updated_at = CURRENT_TIMESTAMP
-  `).run(categoria, nome, mimeType, buffer, buffer.length, publicToken);
-  const token = await ensureStoredFileToken(categoria, nome);
+  const result = await postgresPool.query(
+    `INSERT INTO arquivos (categoria, nome, mime_type, conteudo, tamanho, public_token, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+     ON CONFLICT (categoria, nome)
+     DO UPDATE SET mime_type = EXCLUDED.mime_type,
+                    conteudo = EXCLUDED.conteudo,
+                    tamanho = EXCLUDED.tamanho,
+                    public_token = CASE
+                      WHEN COALESCE(arquivos.public_token, '') = '' THEN EXCLUDED.public_token
+                      ELSE arquivos.public_token
+                    END,
+                    updated_at = CURRENT_TIMESTAMP
+     RETURNING public_token`,
+    [categoria, nome, mimeType, buffer, buffer.length, publicToken],
+  );
+  const token = await ensureStoredFileToken(categoria, nome, result.rows[0]?.public_token);
   const url = publicFileRoute(token);
   return { token, url, publicUrl: publicFileUrl(url) };
 }
 
 async function readStoredFile(categoria, nome) {
-  if (postgresPool) {
-    const result = await postgresPool.query(
-      "SELECT categoria, nome, mime_type, conteudo, tamanho, public_token FROM arquivos WHERE categoria = $1 AND nome = $2",
-      [categoria, nome],
-    );
-    const row = result.rows[0];
-    if (!row) return null;
-    const token = await ensureStoredFileToken(row.categoria, row.nome, row.public_token);
-    const url = publicFileRoute(token);
-    return {
-      categoria: row.categoria,
-      nome: row.nome,
-      mimeType: row.mime_type,
-      conteudo: Buffer.from(row.conteudo),
-      tamanho: Number(row.tamanho || row.conteudo?.length || 0),
-      publicToken: token,
-      url,
-      publicUrl: publicFileUrl(url),
-    };
-  }
-
-  const row = sqliteDb.prepare(
-    "SELECT categoria, nome, mime_type, conteudo, tamanho, public_token FROM arquivos WHERE categoria = ? AND nome = ?",
-  ).get(categoria, nome);
+  const result = await postgresPool.query(
+    "SELECT categoria, nome, mime_type, conteudo, tamanho, public_token FROM arquivos WHERE categoria = $1 AND nome = $2",
+    [categoria, nome],
+  );
+  const row = result.rows[0];
   if (!row) return null;
   const token = await ensureStoredFileToken(row.categoria, row.nome, row.public_token);
   const url = publicFileRoute(token);
@@ -1751,25 +1431,11 @@ async function readStoredFileByPublicToken(token) {
   const cleanToken = normalizePublicFileToken(token);
   if (!cleanToken) return null;
 
-  if (postgresPool) {
-    const result = await postgresPool.query(
-      "SELECT categoria, nome, mime_type, conteudo, tamanho, public_token FROM arquivos WHERE public_token = $1 LIMIT 1",
-      [cleanToken],
-    );
-    const row = result.rows[0];
-    return row ? {
-      categoria: row.categoria,
-      nome: row.nome,
-      mimeType: row.mime_type,
-      conteudo: Buffer.from(row.conteudo),
-      tamanho: Number(row.tamanho || row.conteudo?.length || 0),
-      publicToken: row.public_token,
-    } : null;
-  }
-
-  const row = sqliteDb.prepare(
-    "SELECT categoria, nome, mime_type, conteudo, tamanho, public_token FROM arquivos WHERE public_token = ? LIMIT 1",
-  ).get(cleanToken);
+  const result = await postgresPool.query(
+    "SELECT categoria, nome, mime_type, conteudo, tamanho, public_token FROM arquivos WHERE public_token = $1 LIMIT 1",
+    [cleanToken],
+  );
+  const row = result.rows[0];
   return row ? {
     categoria: row.categoria,
     nome: row.nome,
@@ -1781,40 +1447,14 @@ async function readStoredFileByPublicToken(token) {
 }
 
 async function listStoredPdfFiles() {
-  if (postgresPool) {
-    const result = await postgresPool.query(`
-      SELECT categoria, nome, mime_type, tamanho, public_token, created_at, updated_at
-      FROM arquivos
-      WHERE mime_type = 'application/pdf'
-      ORDER BY updated_at DESC, nome
-    `);
-    const files = [];
-    for (const row of result.rows) {
-      const token = await ensureStoredFileToken(row.categoria, row.nome, row.public_token);
-      const fileUrl = publicFileRoute(token);
-      files.push({
-        categoria: row.categoria,
-        nome: row.nome,
-        mimeType: row.mime_type,
-        tamanho: Number(row.tamanho || 0),
-        createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-        updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
-        publicToken: token,
-        url: fileUrl,
-        publicUrl: publicFileUrl(fileUrl),
-      });
-    }
-    return files;
-  }
-
-  const rows = sqliteDb.prepare(`
+  const result = await postgresPool.query(`
     SELECT categoria, nome, mime_type, tamanho, public_token, created_at, updated_at
     FROM arquivos
     WHERE mime_type = 'application/pdf'
     ORDER BY updated_at DESC, nome
-  `).all();
+  `);
   const files = [];
-  for (const row of rows) {
+  for (const row of result.rows) {
     const token = await ensureStoredFileToken(row.categoria, row.nome, row.public_token);
     const fileUrl = publicFileRoute(token);
     files.push({
@@ -1822,8 +1462,8 @@ async function listStoredPdfFiles() {
       nome: row.nome,
       mimeType: row.mime_type,
       tamanho: Number(row.tamanho || 0),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+      updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
       publicToken: token,
       url: fileUrl,
       publicUrl: publicFileUrl(fileUrl),
@@ -1833,16 +1473,11 @@ async function listStoredPdfFiles() {
 }
 
 async function deleteStoredFile(categoria, nome) {
-  if (postgresPool) {
-    const result = await postgresPool.query(
-      "DELETE FROM arquivos WHERE categoria = $1 AND nome = $2 RETURNING tamanho",
-      [categoria, nome],
-    );
-    return result.rowCount > 0;
-  }
-
-  const result = sqliteDb.prepare("DELETE FROM arquivos WHERE categoria = ? AND nome = ?").run(categoria, nome);
-  return Number(result.changes || 0) > 0;
+  const result = await postgresPool.query(
+    "DELETE FROM arquivos WHERE categoria = $1 AND nome = $2 RETURNING tamanho",
+    [categoria, nome],
+  );
+  return result.rowCount > 0;
 }
 
 function loadSmtpConfig() {
@@ -1858,7 +1493,7 @@ function loadSmtpConfig() {
   };
 
   if (!config.host || !config.user || !config.pass || !config.from) {
-    throw new Error("SMTP não configurado. Preencha o arquivo smtp-config.json.");
+    throw new Error("SMTP nÃ£o configurado. Preencha o arquivo smtp-config.json.");
   }
   return config;
 }
@@ -1870,7 +1505,7 @@ function encodeHeader(value) {
 function normalizeEmail(value) {
   const text = String(value || "").trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
-    throw new Error("E-mail de destino inválido.");
+    throw new Error("E-mail de destino invÃ¡lido.");
   }
   return text;
 }
@@ -1886,9 +1521,9 @@ function escapeHtmlEmail(value) {
 function friendlySmtpError(error) {
   const message = String(error?.message || error || "");
   if (message.includes("535") || message.toLowerCase().includes("badcredentials")) {
-    return "Falha de autenticação no Gmail. Use uma senha de app do Google no campo pass do smtp-config.json, não a senha normal da conta.";
+    return "Falha de autenticaÃ§Ã£o no Gmail. Use uma senha de app do Google no campo pass do smtp-config.json, nÃ£o a senha normal da conta.";
   }
-  if (message.toLowerCase().includes("smtp não configurado")) return message;
+  if (message.toLowerCase().includes("smtp nÃ£o configurado")) return message;
   return message || "Falha ao enviar e-mail.";
 }
 
@@ -2057,7 +1692,7 @@ function chromiumPath() {
 function printHtmlToPdf(html, target) {
   const browserExe = chromiumPath();
   if (!browserExe) {
-    throw new Error("Chrome ou Edge nÃ£o encontrado para gerar o PDF.");
+    throw new Error("Chrome ou Edge nÃƒÂ£o encontrado para gerar o PDF.");
   }
 
   const tempDir = mkdtempSync(join(root, ".pdf-temp-"));
@@ -2076,7 +1711,7 @@ function printHtmlToPdf(html, target) {
     ], { encoding: "utf-8" });
 
     if (result.status !== 0 || !existsSync(target)) {
-      throw new Error(result.stderr || "Falha ao converter o orÃ§amento para PDF.");
+      throw new Error(result.stderr || "Falha ao converter o orÃƒÂ§amento para PDF.");
     }
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
@@ -2157,7 +1792,7 @@ async function printHtmlToPdfPortable(html, target, documentTitle = "ConsultApp"
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 300));
     await page.pdf({ path: target, printBackground: true, preferCSSPageSize: true, timeout: 120000 });
     if (!existsSync(target) || statSync(target).size < 1024) {
-      throw new Error("PDF gerado vazio ou inválido.");
+      throw new Error("PDF gerado vazio ou invÃ¡lido.");
     }
   } catch (error) {
     throw new Error(`Falha ao gerar o PDF no servidor. Detalhe: ${error.message}`);
@@ -2284,11 +1919,11 @@ function createReportXlsx(report) {
   const columns = Array.isArray(report?.columns) ? report.columns : [];
   const summary = Array.isArray(report?.summary) ? report.summary : [];
   const rows = Array.isArray(report?.rows) ? report.rows : [];
-  if (!columns.length) throw new Error("Relatório inválido.");
+  if (!columns.length) throw new Error("RelatÃ³rio invÃ¡lido.");
 
   const width = Math.max(columns.length, 2);
   const sheetRows = [
-    [report.title || "Relatório"],
+    [report.title || "RelatÃ³rio"],
     [report.subtitle || ""],
     [],
     ...summary.map((item) => [item.label || "", item.value || ""]),
@@ -2335,7 +1970,7 @@ function createReportXlsx(report) {
       name: "xl/workbook.xml",
       data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="Relatório" sheetId="1" r:id="rId1"/></sheets>
+  <sheets><sheet name="RelatÃ³rio" sheetId="1" r:id="rId1"/></sheets>
 </workbook>`,
     },
     {
@@ -2363,7 +1998,7 @@ function createReportXlsx(report) {
       name: "docProps/core.xml",
       data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>${xmlEscape(report.title || "Relatório")}</dc:title>
+  <dc:title>${xmlEscape(report.title || "RelatÃ³rio")}</dc:title>
   <dc:creator>ConsultApp</dc:creator>
   <dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
 </cp:coreProperties>`,
@@ -2547,7 +2182,7 @@ async function consultCnpj(cnpj) {
     };
   }
 
-  const message = brasilApi.data.message || brasilApi.data.type || cnpjWs.data?.detalhes || cnpjWs.data?.message || "CNPJ não encontrado.";
+  const message = brasilApi.data.message || brasilApi.data.type || cnpjWs.data?.detalhes || cnpjWs.data?.message || "CNPJ nÃ£o encontrado.";
   const error = new Error(message);
   error.status = brasilApi.apiResponse.status || cnpjWs.apiResponse.status || 404;
   throw error;
@@ -2556,7 +2191,7 @@ async function consultCnpj(cnpj) {
 async function consultCep(cep) {
   const viaCep = await fetchJson(`https://viacep.com.br/ws/${cep}/json/`);
   if (!viaCep.apiResponse.ok || viaCep.data.erro) {
-    const error = new Error("CEP não encontrado.");
+    const error = new Error("CEP nÃ£o encontrado.");
     error.status = viaCep.apiResponse.status || 404;
     throw error;
   }
@@ -2581,12 +2216,12 @@ createServer(async (request, response) => {
   };
 
   if (isStateChangingApiRequest(request, url) && !isAllowedRequestOrigin(request)) {
-    sendJson(response, 403, { ok: false, error: "Origem da solicitação não autorizada." });
+    sendJson(response, 403, { ok: false, error: "Origem da solicitaÃ§Ã£o nÃ£o autorizada." });
     return;
   }
 
   if (requiresCsrfToken(request, url) && !(await validateCsrfToken(request))) {
-    sendJson(response, 403, { ok: false, error: "Sessão expirada ou solicitação inválida. Recarregue a página e tente novamente." });
+    sendJson(response, 403, { ok: false, error: "SessÃ£o expirada ou solicitaÃ§Ã£o invÃ¡lida. Recarregue a pÃ¡gina e tente novamente." });
     return;
   }
 
@@ -2601,7 +2236,7 @@ createServer(async (request, response) => {
       }
 
       const user = await findUserByLogin(loginIdentity);
-      const active = postgresPool ? user?.ativo === true : Number(user?.ativo || 0) === 1;
+      const active = user?.ativo === true;
       if (!user || !active || !verifyPassword(payload.senha || "", user.senha_hash)) {
         recordRateLimitAttempt("login", request, loginIdentity);
         await logAudit(request, user, {
@@ -2611,7 +2246,7 @@ createServer(async (request, response) => {
           entidadeId: String(payload.usuario || ""),
           detalhes: { motivo: "credenciais_invalidas" },
         }).catch(() => {});
-        sendJson(response, 401, { ok: false, error: "Usuário ou senha inválidos." });
+        sendJson(response, 401, { ok: false, error: "UsuÃ¡rio ou senha invÃ¡lidos." });
         return;
       }
 
@@ -2650,9 +2285,9 @@ createServer(async (request, response) => {
       }
 
       const user = await findUserByLogin(guestUser);
-      const active = postgresPool ? user?.ativo === true : Number(user?.ativo || 0) === 1;
+      const active = user?.ativo === true;
       if (!user || !active || user.perfil !== "CONVIDADO") {
-        sendJson(response, 403, { ok: false, error: "Acesso de convidado indisponível." });
+        sendJson(response, 403, { ok: false, error: "Acesso de convidado indisponÃ­vel." });
         return;
       }
 
@@ -2699,7 +2334,7 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/confirm-password") {
     const user = await currentUser(request);
     if (!user) {
-      sendJson(response, 401, { ok: false, error: "UsuÃ¡rio nÃ£o autenticado." });
+      sendJson(response, 401, { ok: false, error: "UsuÃƒÂ¡rio nÃƒÂ£o autenticado." });
       return;
     }
     try {
@@ -2709,7 +2344,7 @@ createServer(async (request, response) => {
       const authorizer = String(payload.usuario || "").trim()
         ? await findUserByLogin(String(payload.usuario || ""))
         : await findUserByLogin(user.usuario);
-      const authorizerActive = postgresPool ? authorizer?.ativo === true : Number(authorizer?.ativo || 0) === 1;
+      const authorizerActive = authorizer?.ativo === true;
       const authorizerPerfil = String(authorizer?.perfil || "").toUpperCase();
 
       if (!authorizer || !authorizerActive || !verifyPassword(payload.senha || "", authorizer.senha_hash)) {
@@ -2720,7 +2355,7 @@ createServer(async (request, response) => {
           entidadeId: user.usuario,
           detalhes: { permissao: permission, autorizador: String(payload.usuario || "") },
         }).catch(() => {});
-        sendJson(response, 401, { ok: false, error: "Credenciais invÃ¡lidas." });
+        sendJson(response, 401, { ok: false, error: "Credenciais invÃƒÂ¡lidas." });
         return;
       }
 
@@ -2732,7 +2367,7 @@ createServer(async (request, response) => {
           entidadeId: user.usuario,
           detalhes: { permissao: permission, autorizador: authorizer.usuario, motivo: "autorizador_nao_admin" },
         }).catch(() => {});
-        sendJson(response, 403, { ok: false, error: "Somente um administrador pode autorizar esta alteraÃ§Ã£o." });
+        sendJson(response, 403, { ok: false, error: "Somente um administrador pode autorizar esta alteraÃƒÂ§ÃƒÂ£o." });
         return;
       }
 
@@ -2744,7 +2379,7 @@ createServer(async (request, response) => {
           entidadeId: user.usuario,
           detalhes: { permissao: permission, autorizador: authorizer.usuario, motivo: "sem_permissao" },
         }).catch(() => {});
-        sendJson(response, 403, { ok: false, error: "Administrador sem permissÃ£o para esta confirmaÃ§Ã£o." });
+        sendJson(response, 403, { ok: false, error: "Administrador sem permissÃƒÂ£o para esta confirmaÃƒÂ§ÃƒÂ£o." });
         return;
       }
 
@@ -2786,7 +2421,7 @@ createServer(async (request, response) => {
         entidadeId: String(payload.usuario || ""),
         detalhes: { email: safeNormalizeEmail(payload.email) },
       }).catch(() => {});
-      sendJson(response, 200, { ok: true, message: "Se os dados estiverem corretos, enviaremos uma senha temporária para o e-mail cadastrado." });
+      sendJson(response, 200, { ok: true, message: "Se os dados estiverem corretos, enviaremos uma senha temporÃ¡ria para o e-mail cadastrado." });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: friendlySmtpError(error) });
     }
@@ -2803,7 +2438,7 @@ createServer(async (request, response) => {
         entidadeTipo: "usuario",
         entidadeId: String(payload.usuario || ""),
       }).catch(() => {});
-      sendJson(response, 200, { ok: true, message: "Senha alterada com sucesso. Faça login novamente com a nova senha." });
+      sendJson(response, 200, { ok: true, message: "Senha alterada com sucesso. FaÃ§a login novamente com a nova senha." });
     } catch (error) {
       sendJson(response, 400, { ok: false, error: error.message });
     }
@@ -2912,7 +2547,7 @@ createServer(async (request, response) => {
       const allowedCategories = new Set(["orcamentos", "relatorios"]);
 
       if (!allowedCategories.has(categoria) || !nome) {
-        sendJson(response, 400, { ok: false, error: "Arquivo inválido." });
+        sendJson(response, 400, { ok: false, error: "Arquivo invÃ¡lido." });
         return;
       }
 
@@ -2960,7 +2595,7 @@ createServer(async (request, response) => {
       sendJson(response, 200, { ok: true, usuario });
     } catch (error) {
       const duplicate = String(error.message || "").includes("duplicate") || String(error.message || "").includes("UNIQUE");
-      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "Usuário já cadastrado." : error.message });
+      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "UsuÃ¡rio jÃ¡ cadastrado." : error.message });
     }
     return;
   }
@@ -2982,7 +2617,7 @@ createServer(async (request, response) => {
       sendJson(response, 200, { ok: true, usuario });
     } catch (error) {
       const duplicate = String(error.message || "").includes("duplicate") || String(error.message || "").includes("UNIQUE");
-      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "Usuário já cadastrado." : error.message });
+      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "UsuÃ¡rio jÃ¡ cadastrado." : error.message });
     }
     return;
   }
@@ -3034,7 +2669,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".html" || !html) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Arquivo inválido." }));
+        response.end(JSON.stringify({ ok: false, error: "Arquivo invÃ¡lido." }));
         return;
       }
 
@@ -3042,7 +2677,7 @@ createServer(async (request, response) => {
       const target = resolve(budgetsDir, fileName);
       if (!target.startsWith(budgetsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho inválido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho invÃ¡lido." }));
         return;
       }
 
@@ -3083,7 +2718,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".pdf") {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Arquivo inválido." }));
+        response.end(JSON.stringify({ ok: false, error: "Arquivo invÃ¡lido." }));
         return;
       }
 
@@ -3111,7 +2746,7 @@ createServer(async (request, response) => {
       const target = resolve(budgetsDir, fileName);
       if (!target.startsWith(budgetsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho inválido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho invÃ¡lido." }));
         return;
       }
 
@@ -3182,7 +2817,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".pdf" || (!html && !report)) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "RelatÃ³rio invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "RelatÃƒÂ³rio invÃƒÂ¡lido." }));
         return;
       }
 
@@ -3190,7 +2825,7 @@ createServer(async (request, response) => {
       const target = resolve(reportsDir, fileName);
       if (!target.startsWith(reportsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho invÃƒÂ¡lido." }));
         return;
       }
 
@@ -3240,7 +2875,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".xlsx") {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "RelatÃƒÂ³rio invÃƒÂ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "RelatÃƒÆ’Ã‚Â³rio invÃƒÆ’Ã‚Â¡lido." }));
         return;
       }
 
@@ -3248,7 +2883,7 @@ createServer(async (request, response) => {
       const target = resolve(reportsDir, fileName);
       if (!target.startsWith(reportsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho invÃƒÂ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho invÃƒÆ’Ã‚Â¡lido." }));
         return;
       }
 
@@ -3286,7 +2921,7 @@ createServer(async (request, response) => {
       const hasLocalAttachment = attachmentPath.startsWith(budgetsDir) && existsSync(attachmentPath);
       if (!storedAttachment && !hasLocalAttachment) {
         response.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "PDF do orçamento não encontrado. Salve o orçamento novamente." }));
+        response.end(JSON.stringify({ ok: false, error: "PDF do orÃ§amento nÃ£o encontrado. Salve o orÃ§amento novamente." }));
         return;
       }
 
@@ -3295,16 +2930,16 @@ createServer(async (request, response) => {
         publicPdfTitle({ categoria: "orcamentos" }),
       );
       const clientName = String(payload.cliente || "cliente");
-      const text = `Prezado cliente: ${clientName}\r\n\r\nConforme solicitado, enviamos o orçamento referente aos serviços de Medicina e Segurança do Trabalho.\r\n\r\nEm caso de dúvidas, estamos à disposição.`;
+      const text = `Prezado cliente: ${clientName}\r\n\r\nConforme solicitado, enviamos o orÃ§amento referente aos serviÃ§os de Medicina e SeguranÃ§a do Trabalho.\r\n\r\nEm caso de dÃºvidas, estamos Ã  disposiÃ§Ã£o.`;
       const html = `
         <p>Prezado cliente: ${escapeHtmlEmail(clientName)}</p>
-        <p>Conforme solicitado, enviamos o orçamento referente aos serviços de Medicina e Segurança do Trabalho.</p>
-        <p>Em caso de dúvidas, estamos à disposição.</p>
+        <p>Conforme solicitado, enviamos o orÃ§amento referente aos serviÃ§os de Medicina e SeguranÃ§a do Trabalho.</p>
+        <p>Em caso de dÃºvidas, estamos Ã  disposiÃ§Ã£o.</p>
         `;
 
       await sendSmtpMail({
         to: payload.to,
-        subject: String(payload.subject || "Orçamento"),
+        subject: String(payload.subject || "OrÃ§amento"),
         text,
         html,
         attachmentPath: "",
@@ -3331,7 +2966,7 @@ createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/api/status") {
     response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ ok: true, version: serverVersion, saveBudget: true, database: databaseBackend }));
+    response.end(JSON.stringify({ ok: true, version: serverVersion, saveBudget: true, database: "postgres" }));
     return;
   }
 
@@ -3342,7 +2977,7 @@ createServer(async (request, response) => {
       const cnpj = onlyDigits(decodeURIComponent(url.pathname.replace("/api/cnpj/", "")));
       if (cnpj.length !== 14) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "CNPJ inválido." }));
+        response.end(JSON.stringify({ ok: false, error: "CNPJ invÃ¡lido." }));
         return;
       }
 
@@ -3384,7 +3019,7 @@ createServer(async (request, response) => {
       const cep = onlyDigits(decodeURIComponent(url.pathname.replace("/api/cep/", "")));
       if (cep.length !== 8) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "CEP inválido." }));
+        response.end(JSON.stringify({ ok: false, error: "CEP invÃ¡lido." }));
         return;
       }
 
