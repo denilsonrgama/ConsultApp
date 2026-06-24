@@ -1,11 +1,12 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v323";
+const APP_FALLBACK_VERSION = "v324";
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
 let appVersion = APP_FALLBACK_VERSION;
+let csrfToken = "";
 let deferredInstallPrompt = null;
 let appInstalled = isAppRunningInstalled();
 let editingClienteDocumento = null;
@@ -304,12 +305,23 @@ function seedState() {
   return { clientes, servicos, orcamentos, responsaveis: [] };
 }
 
+function csrfHeaders(headers = {}) {
+  return csrfToken ? { ...headers, "X-CSRF-Token": csrfToken } : { ...headers };
+}
+
+function csrfFetch(resource, options = {}) {
+  return fetch(resource, {
+    ...options,
+    headers: csrfHeaders(options.headers || {}),
+  });
+}
+
 function saveState(audit = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (location.protocol === "file:") return Promise.resolve({ ok: true });
   if (currentUser && !canManageData()) return Promise.resolve({ ok: true });
 
-  pendingSave = fetch("/api/data", {
+  pendingSave = csrfFetch("/api/data", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ state, audit }),
@@ -432,6 +444,7 @@ async function fetchCurrentUser() {
   if (location.protocol === "file:") return { usuario: "local", nome: "Usuário local", perfil: "ADMIN" };
   const response = await fetch("/api/auth/me");
   const result = await response.json().catch(() => ({ ok: false }));
+  csrfToken = result.csrfToken || "";
   return result.ok ? result.user : null;
 }
 
@@ -493,7 +506,7 @@ async function handleLogin(event) {
   };
 
   try {
-    const response = await fetch("/api/auth/login", {
+    const response = await csrfFetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -515,7 +528,7 @@ async function handleLogin(event) {
 async function handleGuestLogin() {
   const errorBox = document.getElementById("login-error");
   try {
-    const response = await fetch("/api/auth/guest", { method: "POST" });
+    const response = await csrfFetch("/api/auth/guest", { method: "POST" });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível acessar como convidado.");
     markNextReloadAsInternal();
@@ -564,7 +577,7 @@ async function handleTemporaryPasswordChange(event, usuario, senhaTemporaria) {
   }
 
   try {
-    const response = await fetch("/api/auth/change-temporary-password", {
+    const response = await csrfFetch("/api/auth/change-temporary-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ usuario, senhaTemporaria, novaSenha }),
@@ -587,7 +600,7 @@ async function handleForgotPassword(event) {
   };
 
   try {
-    const response = await fetch("/api/auth/forgot-password", {
+    const response = await csrfFetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -703,7 +716,7 @@ async function destroySessionOnManualReload() {
   if (location.protocol === "file:" || !isManualReloadNavigation()) return;
   if (consumeInternalReloadMark()) return;
 
-  await fetch("/api/auth/close", {
+  await csrfFetch("/api/auth/close", {
     method: "POST",
     body: "{}",
     headers: { "Content-Type": "application/json" },
@@ -713,19 +726,14 @@ async function destroySessionOnManualReload() {
 
 async function logoutApp() {
   explicitLogout = true;
-  await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+  await csrfFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
 }
 
 function notifySessionClosed() {
   if (!currentUser || explicitLogout || location.protocol === "file:") return;
-  const payload = new Blob(["{}"], { type: "application/json" });
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon("/api/auth/close", payload);
-    return;
-  }
-  fetch("/api/auth/close", {
+  csrfFetch("/api/auth/close", {
     method: "POST",
     body: "{}",
     headers: { "Content-Type": "application/json" },
@@ -1574,7 +1582,7 @@ async function deleteArquivo(categoria, nome) {
   if (!confirm(`Excluir o arquivo "${nome}"?`)) return;
 
   try {
-    const response = await fetch(`/api/arquivos/${encodeURIComponent(categoria)}/${encodeURIComponent(nome)}`, {
+    const response = await csrfFetch(`/api/arquivos/${encodeURIComponent(categoria)}/${encodeURIComponent(nome)}`, {
       method: "DELETE",
     });
     const result = await response.json();
@@ -1767,7 +1775,7 @@ function auditMaintenancePanel() {
 }
 
 async function requestAuditMaintenance(mode, olderThanDays) {
-  const response = await fetch("/api/auditoria/manutencao", {
+  const response = await csrfFetch("/api/auditoria/manutencao", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode, olderThanDays }),
@@ -2082,7 +2090,7 @@ async function saveUsuario(event) {
   };
 
   try {
-    const response = await fetch(editingUsuarioId ? `/api/usuarios/${editingUsuarioId}` : "/api/usuarios", {
+    const response = await csrfFetch(editingUsuarioId ? `/api/usuarios/${editingUsuarioId}` : "/api/usuarios", {
       method: editingUsuarioId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -4580,7 +4588,7 @@ async function shareBudget(numero) {
 async function sendBudgetEmail(payload) {
   const closeProcessing = showProcessingMessage("Enviando e-mail com o orçamento...");
   try {
-    const response = await fetch("/api/orcamentos/enviar-email", {
+    const response = await csrfFetch("/api/orcamentos/enviar-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -4663,7 +4671,7 @@ async function confirmBudgetStatusChange(orcamento, newStatus) {
   if (!credentials) return null;
 
   try {
-    const response = await fetch("/api/auth/confirm-password", {
+    const response = await csrfFetch("/api/auth/confirm-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4702,7 +4710,7 @@ async function confirmClienteInactivation(cliente) {
   if (!credentials) return null;
 
   try {
-    const response = await fetch("/api/auth/confirm-password", {
+    const response = await csrfFetch("/api/auth/confirm-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4741,7 +4749,7 @@ async function confirmClienteDeletion(cliente) {
   if (!credentials) return null;
 
   try {
-    const response = await fetch("/api/auth/confirm-password", {
+    const response = await csrfFetch("/api/auth/confirm-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4988,7 +4996,7 @@ async function saveBudgetAsPrinted(numero, options = {}) {
 
   const closeProcessing = showProcessingMessage("Gerando PDF do orçamento...");
   try {
-    const response = await fetch("/api/orcamentos/salvar-pdf", {
+    const response = await csrfFetch("/api/orcamentos/salvar-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -5034,7 +5042,7 @@ async function exportReportPdf(type) {
 
   const closeProcessing = showProcessingMessage("Gerando relatório em PDF...");
   try {
-    const response = await fetch("/api/relatorios/salvar-pdf", {
+    const response = await csrfFetch("/api/relatorios/salvar-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -5159,7 +5167,7 @@ async function exportReportExcel(type) {
 
   const closeProcessing = showProcessingMessage("Exportando relatório para Excel...");
   try {
-    const response = await fetch("/api/relatorios/salvar-xlsx", {
+    const response = await csrfFetch("/api/relatorios/salvar-xlsx", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
