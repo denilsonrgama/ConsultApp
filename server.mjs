@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v326";
+const serverVersion = "v327";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -1467,6 +1467,62 @@ function safePdfFileName(value) {
   return clean.toLowerCase().endsWith(".pdf") ? clean : `${clean}.pdf`;
 }
 
+function safeDispositionPdfFileName(value, fallback = "consult-documento.pdf") {
+  const fileName = safePdfFileName(value || fallback);
+  return fileName === ".pdf" ? fallback : fileName;
+}
+
+function publicPdfFileName(file) {
+  const category = String(file?.categoria || "").toLowerCase();
+  if (category === "orcamentos") return "consult-orcamento.pdf";
+  if (category === "relatorios") return "consult-relatorio.pdf";
+  return "consult-documento.pdf";
+}
+
+function publicPdfTitle(file) {
+  const category = String(file?.categoria || "").toLowerCase();
+  if (category === "orcamentos") return "Consult Orcamento";
+  if (category === "relatorios") return "Consult Relatorio";
+  return "Consult Documento";
+}
+
+function inlinePdfDisposition(fileName) {
+  const safeName = safeDispositionPdfFileName(fileName);
+  return `inline; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(safeName)}`;
+}
+
+function sanitizePdfTitle(content, title) {
+  const source = Buffer.isBuffer(content) ? content : Buffer.from(content || "");
+  const marker = Buffer.from("/Title (", "ascii");
+  const start = source.indexOf(marker);
+  if (start < 0) return source;
+
+  const titleStart = start + marker.length;
+  let titleEnd = titleStart;
+  while (titleEnd < source.length) {
+    const byte = source[titleEnd];
+    if (byte === 0x5c) {
+      titleEnd += 2;
+      continue;
+    }
+    if (byte === 0x29) break;
+    titleEnd += 1;
+  }
+  if (titleEnd <= titleStart || titleEnd >= source.length) return source;
+
+  const output = Buffer.from(source);
+  const maxLength = titleEnd - titleStart;
+  const neutralTitle = String(title || "Consult Documento")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[()\\]/g, " ")
+    .slice(0, maxLength);
+  const neutralBytes = Buffer.from(neutralTitle, "ascii");
+  output.fill(0x20, titleStart, titleEnd);
+  neutralBytes.copy(output, titleStart, 0, Math.min(neutralBytes.length, maxLength));
+  return output;
+}
+
 function isApprovedStatus(value) {
   return String(value || "").toUpperCase().includes("APROV");
 }
@@ -1496,14 +1552,31 @@ function temporaryFileRoute(token) {
   return `/arquivo-temporario/${encodeURIComponent(token)}`;
 }
 
-function publicFileResponse(file) {
-  const fileName = safePdfFileName(file.nome || "documento.pdf");
+function publicFileContent(file) {
+  const storageFileName = safeDispositionPdfFileName(file.nome || "documento.pdf");
+  const mimeType = file.mimeType || contentTypeForFile(storageFileName);
+  if (mimeType === "application/pdf" || storageFileName.toLowerCase().endsWith(".pdf")) {
+    return sanitizePdfTitle(file.conteudo, publicPdfTitle(file));
+  }
+  return file.conteudo;
+}
+
+function publicFileResponse(file, content = file.conteudo) {
+  const storageFileName = safeDispositionPdfFileName(file.nome || "documento.pdf");
+  const body = Buffer.isBuffer(content) ? content : Buffer.from(content || "");
+  const publicName = safeDispositionPdfFileName(file.publicName || publicPdfFileName(file));
   return {
-    "Content-Type": file.mimeType || contentTypeForFile(fileName),
-    "Content-Length": file.conteudo.length,
-    "Content-Disposition": `inline; filename="${fileName}"`,
+    "Content-Type": file.mimeType || contentTypeForFile(storageFileName),
+    "Content-Length": body.length,
+    "Content-Disposition": inlinePdfDisposition(publicName),
     "Cache-Control": "private, no-store",
   };
+}
+
+function sendPublicFile(response, file) {
+  const content = publicFileContent(file);
+  response.writeHead(200, publicFileResponse(file, content));
+  response.end(content);
 }
 
 function cleanupTemporaryPublicFiles(now = Date.now()) {
@@ -2044,7 +2117,7 @@ function installPuppeteerChrome() {
   }
 }
 
-async function printHtmlToPdfPortable(html, target) {
+async function printHtmlToPdfPortable(html, target, documentTitle = "ConsultApp") {
   let browser;
   try {
     const puppeteer = await import("puppeteer");
@@ -2068,6 +2141,9 @@ async function printHtmlToPdfPortable(html, target) {
     await page.setViewport({ width: 1280, height: 1800, deviceScaleFactor: 1 });
     await page.emulateMediaType("print");
     await page.setContent(html, { waitUntil: ["domcontentloaded", "networkidle0"], timeout: 120000 });
+    await page.evaluate((title) => {
+      document.title = title;
+    }, String(documentTitle || "ConsultApp").slice(0, 120));
     await page.evaluate(async () => {
       if (document.fonts?.ready) await document.fonts.ready;
       await Promise.all([...document.images].map((image) => {
@@ -3040,7 +3116,7 @@ createServer(async (request, response) => {
       }
 
       if (payload.html) {
-        await printHtmlToPdfPortable(String(payload.html), target);
+        await printHtmlToPdfPortable(String(payload.html), target, "Consult Orcamento");
       } else {
         const generatorPayload = { ...payload, output: target };
         const result = spawnSync(pythonExe, [join(root, "scripts", "generate_budget_pdf.py")], {
@@ -3122,7 +3198,7 @@ createServer(async (request, response) => {
       if (generatedPdf) {
         writeFileSync(target, generatedPdf);
       } else {
-        await printHtmlToPdfPortable(html, target);
+        await printHtmlToPdfPortable(html, target, "Consult Relatorio");
       }
       const pdfBuffer = generatedPdf || readFileSync(target);
       const fileLink = await saveStoredFile({
@@ -3204,6 +3280,7 @@ createServer(async (request, response) => {
     try {
       const payload = JSON.parse(await readBody(request));
       const fileName = safePdfFileName(payload.fileName);
+      const attachmentName = publicPdfFileName({ categoria: "orcamentos" });
       const attachmentPath = resolve(budgetsDir, fileName);
       const storedAttachment = await readStoredFile("orcamentos", fileName);
       const hasLocalAttachment = attachmentPath.startsWith(budgetsDir) && existsSync(attachmentPath);
@@ -3213,7 +3290,10 @@ createServer(async (request, response) => {
         return;
       }
 
-      const pdfUrl = String(payload.url || "");
+      const attachmentContent = sanitizePdfTitle(
+        storedAttachment?.conteudo || readFileSync(attachmentPath),
+        publicPdfTitle({ categoria: "orcamentos" }),
+      );
       const clientName = String(payload.cliente || "cliente");
       const text = `Prezado cliente: ${clientName}\r\n\r\nConforme solicitado, enviamos o orçamento referente aos serviços de Medicina e Segurança do Trabalho.\r\n\r\nEm caso de dúvidas, estamos à disposição.`;
       const html = `
@@ -3227,10 +3307,10 @@ createServer(async (request, response) => {
         subject: String(payload.subject || "Orçamento"),
         text,
         html,
-        attachmentPath: storedAttachment ? "" : attachmentPath,
-        attachmentContent: storedAttachment?.conteudo,
-        attachmentMimeType: storedAttachment?.mimeType,
-        attachmentName: fileName,
+        attachmentPath: "",
+        attachmentContent,
+        attachmentMimeType: storedAttachment?.mimeType || "application/pdf",
+        attachmentName,
       });
 
       await logAudit(request, authUser, {
@@ -3335,8 +3415,7 @@ createServer(async (request, response) => {
       return;
     }
 
-    response.writeHead(200, publicFileResponse(storedFile));
-    response.end(storedFile.conteudo);
+    sendPublicFile(response, storedFile);
     return;
   }
 
@@ -3350,8 +3429,7 @@ createServer(async (request, response) => {
       return;
     }
 
-    response.writeHead(200, publicFileResponse(temporaryFile));
-    response.end(temporaryFile.conteudo);
+    sendPublicFile(response, temporaryFile);
     return;
   }
 
@@ -3367,8 +3445,7 @@ createServer(async (request, response) => {
     const storedFile = await readStoredFile("orcamentos", fileName);
 
     if (storedFile) {
-      response.writeHead(200, publicFileResponse(storedFile));
-      response.end(storedFile.conteudo);
+      sendPublicFile(response, storedFile);
       return;
     }
 
@@ -3378,8 +3455,12 @@ createServer(async (request, response) => {
       return;
     }
 
-    response.writeHead(200, { "Content-Type": contentTypeForFile(filePath) });
-    createReadStream(filePath).pipe(response);
+    sendPublicFile(response, {
+      categoria: "orcamentos",
+      nome: fileName,
+      mimeType: contentTypeForFile(filePath),
+      conteudo: readFileSync(filePath),
+    });
     return;
   }
 
@@ -3395,8 +3476,7 @@ createServer(async (request, response) => {
     const storedFile = await readStoredFile("relatorios", fileName);
 
     if (storedFile) {
-      response.writeHead(200, publicFileResponse(storedFile));
-      response.end(storedFile.conteudo);
+      sendPublicFile(response, storedFile);
       return;
     }
 
@@ -3406,8 +3486,12 @@ createServer(async (request, response) => {
       return;
     }
 
-    response.writeHead(200, { "Content-Type": contentTypeForFile(filePath) });
-    createReadStream(filePath).pipe(response);
+    sendPublicFile(response, {
+      categoria: "relatorios",
+      nome: fileName,
+      mimeType: contentTypeForFile(filePath),
+      conteudo: readFileSync(filePath),
+    });
     return;
   }
 
