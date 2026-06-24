@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v328";
+const APP_FALLBACK_VERSION = "v329";
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
@@ -29,6 +29,7 @@ let auditoriaLogs = [];
 let auditoriaLoaded = false;
 let auditoriaFilters = { usuario: "", acao: "", modulo: "", dataInicio: "", dataFim: "", limit: "100", page: 1 };
 let auditoriaMeta = { total: 0, page: 1, limit: 100, pages: 1 };
+let documentationFilters = { query: "", title: "", subtitle: "", tag: "" };
 let arquivos = [];
 const cnpjLookupCache = new Map();
 const tableSorts = {
@@ -74,8 +75,151 @@ const titles = {
   arquivos: "Arquivos",
   usuarios: "Usuários",
   auditoria: "Auditoria",
+  documentacao: "Documentação",
   ajuda: "Ajuda",
 };
+
+const DOCUMENTATION_RECORDS = [
+  {
+    title: "Acesso e segurança",
+    subtitle: "Login, sessão e recuperação de senha",
+    tags: ["segurança", "login", "senha", "sessão"],
+    summary: "Regras de autenticação, troca de senha temporária, convidado e encerramento de sessão.",
+    items: [
+      "O acesso aceita usuário ou e-mail cadastrado.",
+      "A recuperação de senha envia senha temporária por SMTP e exige troca antes de liberar o sistema.",
+      "O link de convidado entra sem senha, mas opera com permissões somente de consulta.",
+      "Sessões são encerradas no logout e notificadas ao fechar/atualizar a página quando o navegador permite.",
+      "Cookies seguros, proteção por origem/CSRF e limitação de tentativas protegem rotas sensíveis.",
+    ],
+  },
+  {
+    title: "Clientes",
+    subtitle: "Cadastro, consulta fiscal, CEP e últimos orçamentos",
+    tags: ["clientes", "cnpj", "cpf", "cep", "orçamento"],
+    summary: "Fluxo de cadastro e manutenção de clientes com dados protegidos e integração com orçamento.",
+    items: [
+      "CPF e CNPJ são validados antes do cadastro.",
+      "CNPJ consulta a base cadastral, preenche razão social, nome fantasia, situação e endereço quando retornado pela consulta.",
+      "Pessoa jurídica exige situação ativa para cadastro; situação baixada, suspensa ou inativa bloqueia o fluxo.",
+      "Cliente selecionado permanece bloqueado para edição até clicar em Alterar.",
+      "Campos preenchidos por consulta cadastral ou CEP não devem ser editados manualmente.",
+      "CEP consulta a base dos Correios; para CPF, cabe ao usuário informar número e complemento.",
+      "Após salvar um cliente, o sistema confirma sucesso e pergunta se deseja criar orçamento.",
+      "O detalhe do cliente mostra últimos orçamentos clicáveis e o botão + Orçamento.",
+      "Cliente inativo permanece no histórico, mas não pode receber novo orçamento.",
+    ],
+  },
+  {
+    title: "Serviços",
+    subtitle: "Cadastro, status e criação a partir do orçamento",
+    tags: ["serviços", "status", "orçamento", "valor"],
+    summary: "Regras para serviços ativos/inativos, numeração automática e uso em orçamentos.",
+    items: [
+      "O código do serviço é automático e não pode ser digitado.",
+      "O campo Tipo é seleção controlada.",
+      "Serviço inativo permanece em orçamentos antigos, mas não pode ser inserido em novos.",
+      "Ao criar serviço pelo botão + do orçamento, o sistema gera o próximo código e posiciona o foco no nome.",
+      "O valor cadastrado em Serviços é referência; alterações no orçamento valem apenas para aquele orçamento.",
+    ],
+  },
+  {
+    title: "Orçamentos",
+    subtitle: "Novo orçamento, itens, aprovação, PDF e compartilhamento",
+    tags: ["orçamentos", "pdf", "email", "whatsapp", "aprovação"],
+    summary: "Fluxo principal de orçamento com cliente, serviços, status, PDF e arquivos salvos.",
+    items: [
+      "Novo orçamento inicia com número automático a partir de 15000, sem duplicidade.",
+      "Não é permitido salvar orçamento sem cliente.",
+      "Não é permitido repetir o mesmo código de serviço no mesmo orçamento.",
+      "Inserir serviço em orçamento novo preserva o item anterior e limpa apenas os campos do próximo serviço.",
+      "O botão + ao lado de Cliente permite cadastrar cliente e retornar ao orçamento em andamento.",
+      "O botão + ao lado de Serviço permite cadastrar serviço e retornar ao orçamento em andamento.",
+      "Status APROVADO bloqueia campos principais; alteração de status exige privilégio ou confirmação administrativa.",
+      "Somente orçamentos aprovados são salvos como PDF definitivo no banco.",
+      "PDFs compartilhados usam token público não adivinhável e evitam expor dados sensíveis no título/nome do arquivo.",
+    ],
+  },
+  {
+    title: "Financeiro e relatórios",
+    subtitle: "Indicadores, filtros, PDF e Excel",
+    tags: ["financeiro", "relatórios", "filtros", "excel", "pdf"],
+    summary: "Critérios de cálculo, relatórios filtrados e navegação pelos maiores clientes/orçamentos.",
+    items: [
+      "Indicadores ignoram orçamentos reprovados quando a regra estatística exige base válida.",
+      "Clientes inativos não entram em gráficos gerais, exceto quando filtro específico pedir exibição.",
+      "Relatórios permitem filtro por período, status do orçamento, status do cliente e status do serviço.",
+      "O PDF exibe os filtros aplicados; quando não houver filtros, mostra Nenhum filtro selecionado.",
+      "Excel é baixado pelo navegador e não precisa ser salvo no servidor.",
+      "A tela mostra 5 maiores clientes e 5 maiores orçamentos conforme filtros; as linhas são clicáveis.",
+    ],
+  },
+  {
+    title: "Arquivos",
+    subtitle: "PDFs salvos, consulta e exclusão",
+    tags: ["arquivos", "pdf", "auditoria"],
+    summary: "Consulta dos documentos salvos no banco e controle de exclusão.",
+    items: [
+      "Arquivos salvos ficam disponíveis na tela Arquivos.",
+      "Visualizar abre o documento em nova aba quando possível.",
+      "Excluir arquivo exige permissão específica.",
+      "Toda exclusão de arquivo é registrada na auditoria.",
+    ],
+  },
+  {
+    title: "Usuários e permissões",
+    subtitle: "Perfis, superadmin e bloqueios técnicos",
+    tags: ["usuários", "perfis", "superadmin", "permissões"],
+    summary: "Modelo de acesso por perfil com ajustes finos por tela e ação.",
+    items: [
+      "ADMIN administra cadastros e rotinas, mas não acessa Auditoria técnica.",
+      "OPERADOR usa clientes, serviços e orçamentos sem financeiro sensível.",
+      "FINANCEIRO acessa financeiro, relatórios e consulta de orçamentos.",
+      "VISUALIZADOR e CONVIDADO operam apenas em consulta.",
+      "SUPERADMIN é o login técnico reservado para auditoria, documentação e manutenção.",
+      "Perfis alterados pelo superadmin ficam protegidos contra reversão por administradores comuns.",
+      "Permissões podem bloquear tela inteira ou ações específicas dentro da tela.",
+    ],
+  },
+  {
+    title: "Auditoria",
+    subtitle: "Rastreabilidade e retenção de logs",
+    tags: ["auditoria", "logs", "retenção", "segurança"],
+    summary: "Registro de ações e manutenção dos logs operacionais.",
+    items: [
+      "A auditoria registra usuário, perfil, ação, módulo, item, detalhes, IP e data/hora.",
+      "Filtros localizam registros por usuário, ação, módulo e período.",
+      "A manutenção permite simular e excluir logs antigos conforme período de retenção.",
+      "A tela é técnica e deve ficar visível apenas para o superadmin.",
+    ],
+  },
+  {
+    title: "Infraestrutura",
+    subtitle: "Produção, PostgreSQL, backups e versão",
+    tags: ["produção", "postgres", "backup", "versão", "vps"],
+    summary: "Itens técnicos de operação em produção na VPS.",
+    items: [
+      "A aplicação em produção usa PostgreSQL como banco único.",
+      "A versão exibida no cabeçalho acompanha o backend e ajuda a confirmar publicação/cache.",
+      "Backups geram banco, arquivos e configurações sensíveis com envio para Cloudflare R2.",
+      "O timer de backup está previsto para sexta-feira às 23:30.",
+      "Restauração em produção deve ser feita com serviço parado, backup validado e conferência das tabelas.",
+    ],
+  },
+  {
+    title: "Mobile, Android e PWA",
+    subtitle: "Experiência compacta e app instalado",
+    tags: ["mobile", "android", "pwa", "layout"],
+    summary: "Comportamentos específicos para telas pequenas e app Android WebView/PWA.",
+    items: [
+      "Menus compactos agrupam Financeiro e Administração com submenus sob demanda.",
+      "Formulários de cliente, serviço, orçamento e usuário são exibidos apenas no fluxo de novo/alterar em telas compactas.",
+      "Botões Novo/Atualizar ficam próximos ao título da lista para evitar espaço vazio no fim da tela.",
+      "O app Android abre a aplicação publicada e depende do backend ativo.",
+      "PDFs e relatórios no Android usam abertura em nova aba/janela quando disponível.",
+    ],
+  },
+];
 
 const PERMISSIONS = [
   { key: "dashboard.view", label: "Dashboard", group: "Telas" },
@@ -946,11 +1090,13 @@ function viewPermission(view) {
     arquivos: "arquivos.view",
     usuarios: "usuarios.view",
     auditoria: "auditoria.view",
+    documentacao: "",
     ajuda: "",
   }[view] || "";
 }
 
 function canView(view) {
+  if (view === "documentacao") return isSuperAdminUser();
   const permission = viewPermission(view);
   return !permission || hasPermission(permission);
 }
@@ -958,7 +1104,7 @@ function canView(view) {
 function menuViewsForGroup(group) {
   return {
     financeiro: ["orcamentos", "relatorios"],
-    administracao: ["usuarios", "arquivos", "auditoria"],
+    administracao: ["usuarios", "arquivos", "auditoria", "documentacao"],
   }[group] || [];
 }
 
@@ -1034,6 +1180,7 @@ function render() {
   if (hasPermission("arquivos.view")) renderArquivos();
   if (canManageUsers()) renderUsuarios();
   if (hasPermission("auditoria.view")) renderAuditoria();
+  if (isSuperAdminUser()) renderDocumentacao();
   renderAjuda();
 }
 
@@ -1069,6 +1216,10 @@ function renderCurrentView(view) {
   }
   if (view === "auditoria") {
     renderAuditoria();
+    return;
+  }
+  if (view === "documentacao") {
+    renderDocumentacao();
     return;
   }
   if (view === "ajuda") renderAjuda();
@@ -1194,6 +1345,14 @@ function sidebarSummaryForView(view) {
       { label: "Logs filtrados", value: String(auditoriaMeta.total || auditoriaLogs.length) },
       { label: "Página", value: `${auditoriaMeta.page || 1}/${auditoriaMeta.pages || 1}` },
       { label: "Usuários", value: String(new Set(auditoriaLogs.map((log) => log.usuario).filter(Boolean)).size) },
+    ];
+  }
+
+  if (view === "documentacao") {
+    return [
+      { label: "Registros", value: String(DOCUMENTATION_RECORDS.length) },
+      { label: "Títulos", value: String(documentationUniqueValues("title").length) },
+      { label: "Tags", value: String(documentationUniqueValues("tag").length) },
     ];
   }
 
@@ -2167,13 +2326,15 @@ function renderAjuda() {
           <h3>4. Clientes</h3>
           <ol>
             <li>Clique em Novo para abrir o formulário de cadastro.</li>
-            <li>Informe CPF ou CNPJ. O sistema valida o documento e, para CNPJ, consulta os dados cadastrais.</li>
+            <li>Informe CPF ou CNPJ. O sistema valida o documento e, para CNPJ, consulta os dados cadastrais e endereço quando a base retornar essas informações.</li>
             <li>Para CNPJ, a situação precisa estar ativa para permitir cadastro.</li>
             <li>Para pessoa física (CPF), informe e-mail e CEP. O sistema consulta a base dos Correios e preenche bairro, endereço, UF e cidade.</li>
             <li>Para pessoa física (CPF), após a consulta do CEP, cabe ao usuário informar apenas número, complemento quando houver e observações.</li>
             <li>Ao salvar, o sistema confirma o cadastro e pergunta se deseja criar um orçamento para o cliente.</li>
             <li>A listagem exibe o responsável na última coluna. Os botões de ação aparecem no detalhe do cliente selecionado.</li>
             <li>Ao selecionar um cliente na lista, os dados ficam protegidos para consulta. Use Alterar para liberar campos editáveis conforme seu perfil.</li>
+            <li>Ao alterar um cliente, o sistema pode executar nova consulta cadastral para atualizar dados oficiais antes da gravação.</li>
+            <li>Campos preenchidos por consulta cadastral ou CEP permanecem protegidos contra alteração manual.</li>
             <li>No detalhe do cliente, use + Orçamento para iniciar um orçamento já preenchido com o cliente selecionado.</li>
             <li>No mesmo detalhe, os botões Alterar, Inativar ou Excluir aparecem conforme as permissões do perfil e a situação do cliente.</li>
             <li>A lista inferior mostra os últimos orçamentos do cliente; clique em uma linha para abrir o orçamento correspondente.</li>
@@ -2294,6 +2455,130 @@ function renderAjuda() {
         </article>
       </div>
     </section>
+  `;
+}
+
+function renderDocumentacao() {
+  const view = document.getElementById("documentacao-view");
+  if (!view || !isSuperAdminUser()) return;
+  const records = filteredDocumentationRecords();
+  view.innerHTML = `
+    ${pageBanner()}
+    <section class="panel documentation-panel">
+      <div class="toolbar documentation-toolbar">
+        <div>
+          <h2>Documentação técnica do ConsultApp</h2>
+          <p>Base de consulta do superadmin para regras, fluxos, permissões e operação do sistema.</p>
+        </div>
+        <button type="button" class="ghost-button" id="clear-documentation-filters">Limpar filtros</button>
+      </div>
+
+      <div class="documentation-layout">
+        <aside class="documentation-index" aria-label="Filtros da documentação">
+          <label>Buscar na documentação
+            <input id="documentation-search" type="search" value="${escapeHtml(documentationFilters.query)}" placeholder="Ex.: orçamento, CNPJ, backup">
+          </label>
+          ${documentationFilterGroup("Título", "title", documentationUniqueValues("title"))}
+          ${documentationFilterGroup("Subtítulo", "subtitle", documentationUniqueValues("subtitle"))}
+          ${documentationFilterGroup("Tag", "tag", documentationUniqueValues("tag"))}
+        </aside>
+
+        <div class="documentation-results">
+          <div class="documentation-result-summary">
+            <strong>${records.length}</strong>
+            <span>${records.length === 1 ? "registro encontrado" : "registros encontrados"}</span>
+          </div>
+          ${documentationActiveFilters()}
+          <div class="documentation-card-grid">
+            ${records.length ? records.map(documentationCard).join("") : `<div class="empty-state"><h2>Nenhum registro encontrado</h2><p>Limpe os filtros ou pesquise por outro termo.</p></div>`}
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+
+  document.getElementById("documentation-search")?.addEventListener("input", (event) => {
+    documentationFilters = { ...documentationFilters, query: event.target.value };
+    renderDocumentacao();
+    document.getElementById("documentation-search")?.focus();
+  });
+  document.getElementById("clear-documentation-filters")?.addEventListener("click", () => {
+    documentationFilters = { query: "", title: "", subtitle: "", tag: "" };
+    renderDocumentacao();
+  });
+}
+
+function filteredDocumentationRecords() {
+  const query = normalizeSearch(documentationFilters.query);
+  return DOCUMENTATION_RECORDS.filter((record) => {
+    if (documentationFilters.title && record.title !== documentationFilters.title) return false;
+    if (documentationFilters.subtitle && record.subtitle !== documentationFilters.subtitle) return false;
+    if (documentationFilters.tag && !record.tags.includes(documentationFilters.tag)) return false;
+    if (!query) return true;
+    return normalizeSearch(`${record.title} ${record.subtitle} ${record.summary} ${record.tags.join(" ")} ${record.items.join(" ")}`).includes(query);
+  });
+}
+
+function documentationUniqueValues(type) {
+  if (type === "tag") {
+    return [...new Set(DOCUMENTATION_RECORDS.flatMap((record) => record.tags))].sort((a, b) => sortCollator.compare(a, b));
+  }
+  return [...new Set(DOCUMENTATION_RECORDS.map((record) => record[type]).filter(Boolean))].sort((a, b) => sortCollator.compare(a, b));
+}
+
+function documentationFilterGroup(label, type, values) {
+  const currentValue = documentationFilters[type] || "";
+  return `
+    <div class="documentation-filter-group">
+      <h3>${escapeHtml(label)}</h3>
+      <div class="documentation-filter-links">
+        ${values.map((value) => {
+          const active = currentValue === value;
+          return `<button type="button" class="${active ? "is-active" : ""}" data-documentation-filter="${escapeHtml(type)}" data-documentation-value="${escapeHtml(value)}">${escapeHtml(value)}</button>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function documentationActiveFilters() {
+  const filters = [
+    ["title", "Título"],
+    ["subtitle", "Subtítulo"],
+    ["tag", "Tag"],
+  ]
+    .filter(([key]) => documentationFilters[key])
+    .map(([key, label]) => `
+      <button type="button" class="documentation-filter-chip" data-documentation-filter="${escapeHtml(key)}" data-documentation-value="">
+        ${escapeHtml(label)}: ${escapeHtml(documentationFilters[key])} ×
+      </button>
+    `)
+    .join("");
+
+  if (!filters && !documentationFilters.query) return "";
+  return `
+    <div class="documentation-active-filters">
+      ${documentationFilters.query ? `<button type="button" class="documentation-filter-chip" data-documentation-filter="query" data-documentation-value="">Busca: ${escapeHtml(documentationFilters.query)} ×</button>` : ""}
+      ${filters}
+    </div>
+  `;
+}
+
+function documentationCard(record) {
+  return `
+    <article class="documentation-card">
+      <div>
+        <p class="eyebrow">${escapeHtml(record.title)}</p>
+        <h3>${escapeHtml(record.subtitle)}</h3>
+        <p>${escapeHtml(record.summary)}</p>
+      </div>
+      <div class="documentation-tags">
+        ${record.tags.map((tag) => `<button type="button" data-documentation-filter="tag" data-documentation-value="${escapeHtml(tag)}">${escapeHtml(tag)}</button>`).join("")}
+      </div>
+      <ul>
+        ${record.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </article>
   `;
 }
 
@@ -5738,6 +6023,16 @@ document.addEventListener("visibilitychange", () => {
 });
 
 document.body.addEventListener("click", (event) => {
+  const documentationFilterButton = event.target.closest("[data-documentation-filter]");
+  if (documentationFilterButton) {
+    const key = documentationFilterButton.dataset.documentationFilter;
+    if (Object.prototype.hasOwnProperty.call(documentationFilters, key)) {
+      documentationFilters = { ...documentationFilters, [key]: documentationFilterButton.dataset.documentationValue || "" };
+      renderDocumentacao();
+    }
+    return;
+  }
+
   const applyProfileButton = event.target.closest("#apply-profile-permissions");
   if (applyProfileButton) {
     applyProfilePermissionsToForm(event);

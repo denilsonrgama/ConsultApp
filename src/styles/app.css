@@ -547,6 +547,138 @@ nav > [data-view="ajuda"] {
   text-align: center;
 }
 
+.documentation-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.documentation-toolbar {
+  align-items: center;
+}
+
+.documentation-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.documentation-index {
+  align-self: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  background: #f7fafb;
+}
+
+.documentation-index label {
+  display: grid;
+  gap: 6px;
+  color: #52656c;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.documentation-index input {
+  width: 100%;
+}
+
+.documentation-filter-group {
+  display: grid;
+  gap: 8px;
+}
+
+.documentation-filter-group h3 {
+  margin: 0;
+  color: var(--brand-dark);
+  font-size: 0.86rem;
+}
+
+.documentation-filter-links,
+.documentation-tags,
+.documentation-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.documentation-filter-links button,
+.documentation-tags button,
+.documentation-filter-chip {
+  border: 1px solid #cfe2e8;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff;
+  color: var(--brand-dark);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.documentation-filter-links button:hover,
+.documentation-filter-links button.is-active,
+.documentation-tags button:hover,
+.documentation-filter-chip:hover {
+  border-color: var(--brand);
+  background: #e7f7f8;
+}
+
+.documentation-results {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.documentation-result-summary {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  color: #52656c;
+}
+
+.documentation-result-summary strong {
+  color: var(--brand-dark);
+  font-size: 1.4rem;
+}
+
+.documentation-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.documentation-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #fff;
+}
+
+.documentation-card h3 {
+  margin: 2px 0 6px;
+  color: var(--ink);
+  font-size: 1.04rem;
+}
+
+.documentation-card p,
+.documentation-card li {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.documentation-card ul {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 0 18px;
+}
+
+.documentation-card li::marker {
+  color: var(--brand);
+  font-weight: 800;
+}
+
 .sidebar-tools {
   display: grid;
   gap: 14px;
@@ -4420,12 +4552,25 @@ th {
   }
 
   .nav-submenu[data-submenu="administracao"] {
-    grid-template-columns: repeat(3, minmax(86px, 1fr));
+    grid-template-columns: repeat(4, minmax(86px, 1fr));
   }
 
   .help-manual,
   .help-grid {
     grid-template-columns: 1fr;
+  }
+
+  .documentation-layout,
+  .documentation-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .documentation-toolbar {
+    align-items: stretch;
+  }
+
+  .documentation-toolbar button {
+    width: 100%;
   }
 
   .help-flow {
@@ -4516,7 +4661,7 @@ th {
   }
 
   .nav-submenu[data-submenu="administracao"] {
-    grid-template-columns: repeat(3, minmax(66px, 1fr));
+    grid-template-columns: repeat(4, minmax(66px, 1fr));
   }
 }
 
