@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v322";
+const serverVersion = "v323";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -573,6 +573,72 @@ function requestIp(request) {
   return String(request.headers["cf-connecting-ip"] || request.headers["x-forwarded-for"] || request.socket?.remoteAddress || "")
     .split(",")[0]
     .trim();
+}
+
+const rateLimitBuckets = new Map();
+let lastRateLimitCleanup = 0;
+const rateLimitRules = {
+  login: { max: Number(process.env.RATE_LIMIT_LOGIN_MAX || 5), windowMs: Number(process.env.RATE_LIMIT_LOGIN_WINDOW_MS || 10 * 60 * 1000) },
+  forgotPassword: { max: Number(process.env.RATE_LIMIT_PASSWORD_RESET_MAX || 3), windowMs: Number(process.env.RATE_LIMIT_PASSWORD_RESET_WINDOW_MS || 15 * 60 * 1000) },
+  guest: { max: Number(process.env.RATE_LIMIT_GUEST_MAX || 20), windowMs: Number(process.env.RATE_LIMIT_GUEST_WINDOW_MS || 60 * 1000) },
+};
+
+function cleanupRateLimits(now = Date.now()) {
+  if (now - lastRateLimitCleanup < 60_000) return;
+  lastRateLimitCleanup = now;
+  for (const [key, bucket] of rateLimitBuckets.entries()) {
+    if (bucket.resetAt <= now) rateLimitBuckets.delete(key);
+  }
+}
+
+function rateLimitIdentity(value) {
+  return String(value || "-").trim().toLowerCase().slice(0, 160) || "-";
+}
+
+function rateLimitKey(scope, request, identity = "") {
+  return `${scope}:${rateLimitIdentity(requestIp(request) || "unknown")}:${rateLimitIdentity(identity)}`;
+}
+
+function rateLimitStatus(scope, request, identity = "") {
+  const rule = rateLimitRules[scope];
+  if (!rule?.max || !rule?.windowMs) return { limited: false, retryAfterSeconds: 0 };
+  const now = Date.now();
+  cleanupRateLimits(now);
+  const bucket = rateLimitBuckets.get(rateLimitKey(scope, request, identity));
+  if (!bucket || bucket.resetAt <= now) return { limited: false, retryAfterSeconds: 0 };
+  return {
+    limited: bucket.count >= rule.max,
+    retryAfterSeconds: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)),
+  };
+}
+
+function recordRateLimitAttempt(scope, request, identity = "") {
+  const rule = rateLimitRules[scope];
+  if (!rule?.max || !rule?.windowMs) return { limited: false, retryAfterSeconds: 0 };
+  const now = Date.now();
+  cleanupRateLimits(now);
+  const key = rateLimitKey(scope, request, identity);
+  const current = rateLimitBuckets.get(key);
+  const bucket = current && current.resetAt > now
+    ? current
+    : { count: 0, resetAt: now + rule.windowMs };
+  bucket.count += 1;
+  rateLimitBuckets.set(key, bucket);
+  return {
+    limited: bucket.count > rule.max,
+    retryAfterSeconds: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)),
+  };
+}
+
+function clearRateLimit(scope, request, identity = "") {
+  rateLimitBuckets.delete(rateLimitKey(scope, request, identity));
+}
+
+function sendRateLimitResponse(response, check) {
+  sendJson(response, 429, {
+    ok: false,
+    error: "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+  }, { "Retry-After": String(check.retryAfterSeconds || 60) });
 }
 
 function safeAuditDetails(details = {}) {
@@ -2124,9 +2190,17 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/login") {
     try {
       const payload = JSON.parse(await readBody(request));
-      const user = await findUserByLogin(String(payload.usuario || ""));
+      const loginIdentity = String(payload.usuario || "");
+      const loginLimit = rateLimitStatus("login", request, loginIdentity);
+      if (loginLimit.limited) {
+        sendRateLimitResponse(response, loginLimit);
+        return;
+      }
+
+      const user = await findUserByLogin(loginIdentity);
       const active = postgresPool ? user?.ativo === true : Number(user?.ativo || 0) === 1;
       if (!user || !active || !verifyPassword(payload.senha || "", user.senha_hash)) {
+        recordRateLimitAttempt("login", request, loginIdentity);
         await logAudit(request, user, {
           acao: "auth.login.falha",
           modulo: "seguranca",
@@ -2137,6 +2211,8 @@ createServer(async (request, response) => {
         sendJson(response, 401, { ok: false, error: "Usuário ou senha inválidos." });
         return;
       }
+
+      clearRateLimit("login", request, loginIdentity);
 
       if (userMustChangePassword(user)) {
         sendJson(response, 200, {
@@ -2164,6 +2240,12 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/guest") {
     try {
       const guestUser = process.env.GUEST_USER || "convidado";
+      const guestLimit = recordRateLimitAttempt("guest", request, guestUser);
+      if (guestLimit.limited) {
+        sendRateLimitResponse(response, guestLimit);
+        return;
+      }
+
       const user = await findUserByLogin(guestUser);
       const active = postgresPool ? user?.ativo === true : Number(user?.ativo || 0) === 1;
       if (!user || !active || user.perfil !== "CONVIDADO") {
@@ -2287,6 +2369,12 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/forgot-password") {
     try {
       const payload = JSON.parse(await readBody(request));
+      const resetLimit = recordRateLimitAttempt("forgotPassword", request, `${payload.usuario || ""}:${payload.email || ""}`);
+      if (resetLimit.limited) {
+        sendRateLimitResponse(response, resetLimit);
+        return;
+      }
+
       await resetUserPasswordByEmail(payload.usuario, payload.email);
       await logAudit(request, null, {
         acao: "auth.recuperar_senha",
