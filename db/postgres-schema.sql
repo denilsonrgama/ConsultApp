@@ -123,9 +123,11 @@ CREATE TABLE IF NOT EXISTS arquivos (
   mime_type TEXT NOT NULL,
   conteudo BYTEA NOT NULL,
   tamanho BIGINT NOT NULL DEFAULT 0,
+  public_token TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (categoria, nome)
 );
 
 CREATE INDEX IF NOT EXISTS arquivos_categoria_idx ON arquivos(categoria);
+CREATE UNIQUE INDEX IF NOT EXISTS arquivos_public_token_unique_idx ON arquivos(public_token) WHERE public_token <> '';
