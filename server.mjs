@@ -50,7 +50,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v321";
+const serverVersion = "v322";
 
 const postgresConnectionString = databaseConnectionString();
 
@@ -947,8 +947,31 @@ async function currentUser(request) {
 }
 
 function sendJson(response, status, payload, headers = {}) {
-  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", ...headers });
+  writeHead(response, status, { "Content-Type": "application/json; charset=utf-8", ...headers });
   response.end(JSON.stringify(payload));
+}
+
+function securityHeaders(extra = {}) {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    ...extra,
+  };
+}
+
+function writeHead(response, status, headers = {}) {
+  response.writeHead(status, securityHeaders(headers));
+}
+
+function isAllowedStaticPath(requested) {
+  const normalized = requested.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!normalized || normalized === "index.html") return true;
+  if (["manifest.webmanifest", "service-worker.js"].includes(normalized)) return true;
+  if (normalized === "src/app.js" || normalized === "src/styles/app.css" || normalized === "src/data/seed.js") return true;
+  if (normalized.startsWith("assets/")) return !normalized.split("/").some((part) => part.startsWith("."));
+  return false;
 }
 
 async function requireUser(request, response, allowedProfiles = []) {
@@ -2090,6 +2113,13 @@ async function consultCep(cep) {
 
 createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host}`);
+  const originalWriteHead = response.writeHead.bind(response);
+  response.writeHead = (statusCode, statusMessageOrHeaders, headers) => {
+    if (typeof statusMessageOrHeaders === "string") {
+      return originalWriteHead(statusCode, statusMessageOrHeaders, securityHeaders(headers || {}));
+    }
+    return originalWriteHead(statusCode, securityHeaders(statusMessageOrHeaders || {}));
+  };
 
   if (request.method === "POST" && url.pathname === "/api/auth/login") {
     try {
@@ -2921,7 +2951,19 @@ createServer(async (request, response) => {
     return;
   }
 
+  if (!["GET", "HEAD"].includes(request.method)) {
+    response.writeHead(405);
+    response.end("Method not allowed");
+    return;
+  }
+
   const requested = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
+  if (!isAllowedStaticPath(requested)) {
+    response.writeHead(404);
+    response.end("Not found");
+    return;
+  }
+
   let filePath = resolve(join(root, requested || "index.html"));
 
   if (!filePath.startsWith(root)) {

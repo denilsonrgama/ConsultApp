@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v321";
+const APP_FALLBACK_VERSION = "v322";
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
