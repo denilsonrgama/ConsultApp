@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v335";
+const APP_FALLBACK_VERSION = "v336";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -88,7 +88,7 @@ const DOCUMENTATION_RECORDS = [
     summary: "Regras de autenticação, troca de senha temporária, convidado e encerramento de sessão.",
     items: [
       "O acesso é feito pelo e-mail cadastrado.",
-      "O primeiro acesso permite solicitar um usuário preenchendo dados pessoais; o cadastro fica bloqueado até liberação administrativa.",
+      "O primeiro acesso exige e-mail pré-cadastrado pelo administrador; e-mail desconhecido retorna usuário não autorizado.",
       "A recuperação de senha envia senha temporária por SMTP e exige troca antes de liberar o sistema.",
       "O link de convidado entra sem senha, mas opera com permissões somente de consulta.",
       "O sistema gera automaticamente um usuário técnico no formato nome.ultimonome para logs e auditoria.",
@@ -176,8 +176,8 @@ const DOCUMENTATION_RECORDS = [
     tags: ["usuários", "perfis", "superadmin", "permissões"],
     summary: "Modelo de acesso por perfil com ajustes finos por tela e ação.",
     items: [
-      "Primeiro acesso cria uma solicitação pendente com dados pessoais e senha forte.",
-      "Usuário pré-cadastrado pela Administração também deve criar a própria senha pelo Primeiro acesso.",
+      "Primeiro acesso completa um usuário pré-cadastrado pelo administrador com dados pessoais e senha forte.",
+      "E-mail não cadastrado previamente pela Administração é recusado como usuário não autorizado.",
       "O usuário técnico é gerado automaticamente como nome.ultimonome e usado em logs/auditoria.",
       "Cadastros pendentes precisam ser ativados e ter perfil/permissões revisados antes do login.",
       "Senha não é digitada no cadastro administrativo; ADMIN ou SUPERADMIN apenas envia senha temporária para recriação.",
@@ -677,8 +677,8 @@ function renderFirstAccess(message = "", tone = "error") {
       <section class="auth-card auth-card-wide">
         <div>
           <p class="eyebrow">Primeiro acesso</p>
-          <h1>Solicitar acesso ${renderAppVersionBadge()}</h1>
-          <p class="muted">Preencha seus dados. O acesso ficará bloqueado até liberação e definição de perfil pelo administrador.</p>
+          <h1>Primeiro acesso ${renderAppVersionBadge()}</h1>
+          <p class="muted">Use o e-mail previamente cadastrado pelo administrador. E-mails não cadastrados não são autorizados.</p>
         </div>
         <form id="first-access-form" novalidate>
           <div class="auth-form-grid">
@@ -923,7 +923,7 @@ async function handleFirstAccess(event) {
     if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível enviar a solicitação.");
     form.reset();
     messageBox.classList.add("is-success");
-    messageBox.textContent = result.message || "Solicitação enviada com sucesso. Aguarde a liberação do administrador.";
+    messageBox.textContent = result.message || "Dados enviados com sucesso. Aguarde a liberação do administrador.";
   } catch (error) {
     messageBox.textContent = error.message || "Não foi possível enviar a solicitação.";
   }
@@ -2550,6 +2550,7 @@ function renderAjuda() {
           <ol>
             <li>Na tela de login, informe o e-mail cadastrado.</li>
             <li>No primeiro acesso, clique em Primeiro acesso e informe nome, sobrenome, data de nascimento, telefone, e-mail e senha.</li>
+            <li>O e-mail precisa ter sido cadastrado previamente pelo administrador; caso contrário, o sistema informa usuário não autorizado.</li>
             <li>Após o envio, o cadastro fica pendente até liberação por administrador ou usuário com privilégio para usuários.</li>
             <li>O sistema cria automaticamente um usuário técnico para auditoria, no formato nome.ultimonome. Se houver duplicidade, outra parte do nome ou uma numeração será usada.</li>
             <li>Use a opção de recuperação quando esquecer a senha.</li>

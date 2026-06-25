@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v335";
+const serverVersion = "v336";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
@@ -800,58 +800,33 @@ function validateFirstAccessPayload(payload) {
 async function requestFirstAccess(payload) {
   const user = validateFirstAccessPayload(payload);
   const existing = await findUserByLogin(user.email);
-  if (existing) {
-    const existingEmail = safeNormalizeEmail(existing.email || "").toLowerCase();
-    if (existing.ativo === true || existing.cadastro_pendente !== true || existingEmail !== user.email.toLowerCase()) {
-      throw new Error("Já existe um usuário ou solicitação para este e-mail.");
-    }
-    const result = await postgresPool.query(`
-      UPDATE usuarios
-      SET nome = $1,
-          sobrenome = $2,
-          telefone = $3,
-          data_nascimento = $4,
-          senha_hash = $5,
-          deve_trocar_senha = FALSE,
-          senha_alterada_em = CURRENT_TIMESTAMP,
-          senha_politica_versao = $6,
-          ativo = FALSE,
-          cadastro_pendente = TRUE,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
-      RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
-    `, [
-      user.nome,
-      user.sobrenome,
-      user.telefone,
-      user.dataNascimento,
-      passwordHash(user.senha),
-      PASSWORD_POLICY_VERSION,
-      existing.id,
-    ]);
-    return publicUserAdmin(result.rows[0]);
+  const existingEmail = safeNormalizeEmail(existing?.email || "").toLowerCase();
+  if (!existing || existing.ativo === true || existing.cadastro_pendente !== true || existingEmail !== user.email.toLowerCase()) {
+    throw new Error("Usuário não autorizado.");
   }
-  const generatedUsername = await generateUsername(user.nome, user.sobrenome);
-
-  const permissoes = permissionsForProfile("VISUALIZADOR");
   const result = await postgresPool.query(`
-    INSERT INTO usuarios (
-      usuario, nome, sobrenome, email, telefone, data_nascimento,
-      perfil, permissoes, senha_hash, ativo, cadastro_pendente,
-      superadmin_locked, deve_trocar_senha, senha_alterada_em, senha_politica_versao
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, 'VISUALIZADOR', $7::jsonb, $8, FALSE, TRUE, FALSE, FALSE, CURRENT_TIMESTAMP, $9)
+    UPDATE usuarios
+    SET nome = $1,
+        sobrenome = $2,
+        telefone = $3,
+        data_nascimento = $4,
+        senha_hash = $5,
+        deve_trocar_senha = FALSE,
+        senha_alterada_em = CURRENT_TIMESTAMP,
+        senha_politica_versao = $6,
+        ativo = FALSE,
+        cadastro_pendente = TRUE,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $7
     RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
   `, [
-    generatedUsername,
     user.nome,
     user.sobrenome,
-    user.email,
     user.telefone,
     user.dataNascimento,
-    JSON.stringify(permissoes),
     passwordHash(user.senha),
     PASSWORD_POLICY_VERSION,
+    existing.id,
   ]);
 
   return publicUserAdmin(result.rows[0]);
@@ -2650,7 +2625,7 @@ createServer(async (request, response) => {
       }).catch(() => {});
       sendJson(response, 201, {
         ok: true,
-        message: "Solicitação enviada com sucesso. Aguarde a liberação do administrador para acessar o sistema.",
+        message: "Dados enviados com sucesso. Aguarde a liberação do administrador para acessar o sistema.",
       });
     } catch (error) {
       sendJson(response, 400, { ok: false, error: error.message });
