@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v332";
+const serverVersion = "v333";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
@@ -178,9 +178,9 @@ function passwordPolicyError(password, user = {}) {
   if (value.length < PASSWORD_MIN_LENGTH) {
     return `A senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
   }
-  if (!/[A-Z]/.test(value)) return "A senha deve conter pelo menos uma letra maiuscula.";
-  if (!/[a-z]/.test(value)) return "A senha deve conter pelo menos uma letra minuscula.";
-  if (!/[0-9]/.test(value)) return "A senha deve conter pelo menos um numero.";
+  if (!/[A-Z]/.test(value)) return "A senha deve conter pelo menos uma letra maiúscula.";
+  if (!/[a-z]/.test(value)) return "A senha deve conter pelo menos uma letra minúscula.";
+  if (!/[0-9]/.test(value)) return "A senha deve conter pelo menos um número.";
   if (!/[^A-Za-z0-9]/.test(value)) return "A senha deve conter pelo menos um caractere especial.";
   const lower = value.toLowerCase();
   const identifiers = [
@@ -189,7 +189,7 @@ function passwordPolicyError(password, user = {}) {
     String(user.email || "").split("@")[0],
   ].map((item) => String(item || "").trim().toLowerCase()).filter((item) => item.length >= 4);
   if (identifiers.some((item) => lower.includes(item))) {
-    return "A senha nao pode conter o usuario ou e-mail cadastrado.";
+    return "A senha não pode conter o usuário ou e-mail cadastrado.";
   }
   return "";
 }
@@ -302,14 +302,18 @@ const PROFILE_PERMISSION_PRESETS = {
 };
 
 const SUPER_ADMIN_LOGIN = String(process.env.ADMIN_USER || "admin").trim().toLowerCase();
+const SUPER_ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const TECHNICAL_PERMISSION_KEYS = new Set(["auditoria.view", "auditoria.manage"]);
 
 function isSuperAdminUser(user) {
-  return String(user?.usuario || "").trim().toLowerCase() === SUPER_ADMIN_LOGIN;
+  const login = String(user?.usuario || "").trim().toLowerCase();
+  const email = String(user?.email || "").trim().toLowerCase();
+  return login === SUPER_ADMIN_LOGIN || (SUPER_ADMIN_EMAIL && email === SUPER_ADMIN_EMAIL);
 }
 
 function isSuperAdminLogin(usuario) {
-  return String(usuario || "").trim().toLowerCase() === SUPER_ADMIN_LOGIN;
+  const value = String(usuario || "").trim().toLowerCase();
+  return value === SUPER_ADMIN_LOGIN || (SUPER_ADMIN_EMAIL && value === SUPER_ADMIN_EMAIL);
 }
 
 function permissionsForProfile(perfil) {
@@ -349,7 +353,10 @@ function publicUser(user) {
     id: user.id,
     usuario: user.usuario,
     nome: user.nome,
+    sobrenome: user.sobrenome || "",
     email: user.email || "",
+    telefone: user.telefone || "",
+    dataNascimento: user.data_nascimento ? String(user.data_nascimento).slice(0, 10) : "",
     perfil: user.perfil,
     permissoes: effectivePermissions(user),
     superAdmin: isSuperAdminUser(user),
@@ -372,6 +379,10 @@ async function ensureAuthSchema() {
   await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS senha_politica_versao TEXT NOT NULL DEFAULT ''");
   await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permissoes JSONB");
   await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS superadmin_locked BOOLEAN NOT NULL DEFAULT FALSE");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sobrenome TEXT NOT NULL DEFAULT ''");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone TEXT NOT NULL DEFAULT ''");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS data_nascimento DATE");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cadastro_pendente BOOLEAN NOT NULL DEFAULT FALSE");
   await postgresPool.query("ALTER TABLE sessoes ADD COLUMN IF NOT EXISTS csrf_token TEXT NOT NULL DEFAULT ''");
   await postgresPool.query("ALTER TABLE arquivos ADD COLUMN IF NOT EXISTS public_token TEXT NOT NULL DEFAULT ''");
   await postgresPool.query("CREATE UNIQUE INDEX IF NOT EXISTS arquivos_public_token_unique_idx ON arquivos(public_token) WHERE public_token <> ''");
@@ -401,7 +412,7 @@ async function ensureAuthSchema() {
 async function ensureInitialAdminUser() {
   const adminUser = process.env.ADMIN_USER || "admin";
   const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
-  const adminEmail = process.env.ADMIN_EMAIL || "";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@consult.local";
 
   const result = await postgresPool.query("SELECT COUNT(*)::int AS total FROM usuarios");
   if (Number(result.rows[0]?.total || 0) > 0) return;
@@ -437,15 +448,76 @@ async function enforceCurrentPasswordPolicy() {
 
 async function findUserByLogin(usuario) {
   const result = await postgresPool.query(
-    "SELECT id, usuario, nome, email, perfil, permissoes, senha_hash, deve_trocar_senha, senha_alterada_em, senha_politica_versao, ativo, superadmin_locked FROM usuarios WHERE lower(usuario) = lower($1) OR lower(email) = lower($1) LIMIT 1",
+    "SELECT id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, senha_hash, deve_trocar_senha, senha_alterada_em, senha_politica_versao, ativo, superadmin_locked, cadastro_pendente FROM usuarios WHERE lower(usuario) = lower($1) OR lower(email) = lower($1) LIMIT 1",
     [usuario],
   );
   return result.rows[0] || null;
 }
 
+async function usernameExists(usuario, ignoreId = null) {
+  const params = [String(usuario || "").trim().toLowerCase()];
+  let sql = "SELECT 1 FROM usuarios WHERE lower(usuario) = $1";
+  if (ignoreId) {
+    params.push(Number(ignoreId));
+    sql += " AND id <> $2";
+  }
+  sql += " LIMIT 1";
+  const result = await postgresPool.query(sql, params);
+  return result.rowCount > 0;
+}
+
+async function emailExists(email, ignoreId = null) {
+  const normalized = safeNormalizeEmail(email);
+  if (!normalized) return false;
+  const params = [normalized.toLowerCase()];
+  let sql = "SELECT 1 FROM usuarios WHERE lower(email) = $1";
+  if (ignoreId) {
+    params.push(Number(ignoreId));
+    sql += " AND id <> $2";
+  }
+  sql += " LIMIT 1";
+  const result = await postgresPool.query(sql, params);
+  return result.rowCount > 0;
+}
+
+function slugPart(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .replace(/\.+/g, ".");
+}
+
+async function generateUsername(nome, sobrenome = "", ignoreId = null) {
+  const first = slugPart(String(nome || "").split(/\s+/).filter(Boolean)[0] || "");
+  const nameParts = `${nome || ""} ${sobrenome || ""}`.split(/\s+/).map(slugPart).filter(Boolean);
+  const uniqueParts = [...new Set(nameParts)];
+  const lastParts = uniqueParts.slice(1).reverse();
+  const candidates = [];
+
+  lastParts.forEach((part) => {
+    if (first && part && first !== part) candidates.push(`${first}.${part}`);
+  });
+  if (first) candidates.push(first);
+
+  for (const candidate of candidates) {
+    if (!(await usernameExists(candidate, ignoreId))) return candidate;
+  }
+
+  const base = candidates[0] || `usuario.${Date.now()}`;
+  for (let index = 2; index < 10_000; index += 1) {
+    const candidate = `${base}${index}`;
+    if (!(await usernameExists(candidate, ignoreId))) return candidate;
+  }
+
+  throw new Error("Não foi possível gerar um usuário automático.");
+}
+
 async function findUserById(id) {
   const result = await postgresPool.query(
-    "SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked FROM usuarios WHERE id = $1 LIMIT 1",
+    "SELECT id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente FROM usuarios WHERE id = $1 LIMIT 1",
     [Number(id)],
   );
   return result.rows[0] || null;
@@ -461,7 +533,7 @@ function isSuperAdminLocked(user) {
 
 async function listUsers(actor) {
   const result = await postgresPool.query(`
-    SELECT id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked
+    SELECT id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
     FROM usuarios
     ORDER BY nome, usuario
   `);
@@ -473,10 +545,14 @@ function publicUserAdmin(user) {
     id: Number(user.id),
     usuario: user.usuario,
     nome: user.nome,
+    sobrenome: user.sobrenome || "",
     email: user.email || "",
+    telefone: user.telefone || "",
+    dataNascimento: user.data_nascimento ? String(user.data_nascimento).slice(0, 10) : "",
     perfil: user.perfil,
     permissoes: effectivePermissions(user),
     ativo: user.ativo === true,
+    cadastroPendente: user.cadastro_pendente === true,
     superAdmin: isSuperAdminUser(user),
     superadminLocked: isSuperAdminLocked(user),
   };
@@ -494,6 +570,7 @@ const rateLimitRules = {
   login: { max: Number(process.env.RATE_LIMIT_LOGIN_MAX || 5), windowMs: Number(process.env.RATE_LIMIT_LOGIN_WINDOW_MS || 10 * 60 * 1000) },
   forgotPassword: { max: Number(process.env.RATE_LIMIT_PASSWORD_RESET_MAX || 3), windowMs: Number(process.env.RATE_LIMIT_PASSWORD_RESET_WINDOW_MS || 15 * 60 * 1000) },
   guest: { max: Number(process.env.RATE_LIMIT_GUEST_MAX || 20), windowMs: Number(process.env.RATE_LIMIT_GUEST_WINDOW_MS || 60 * 1000) },
+  firstAccess: { max: Number(process.env.RATE_LIMIT_FIRST_ACCESS_MAX || 3), windowMs: Number(process.env.RATE_LIMIT_FIRST_ACCESS_WINDOW_MS || 30 * 60 * 1000) },
 };
 
 function cleanupRateLimits(now = Date.now()) {
@@ -655,16 +732,18 @@ async function maintainAuditLogs({ olderThanDays = 365, deleteOld = false } = {}
 }
 
 function validateUserPayload(payload, isUpdate = false, targetUser = null) {
-  const usuario = String(payload.usuario || "").trim();
-  const nome = String(payload.nome || "").trim();
   const email = safeNormalizeEmail(payload.email);
+  const usuario = String(targetUser?.usuario || payload.usuario || "").trim();
+  const nome = String(payload.nome || "").trim();
+  const sobrenome = String(payload.sobrenome || "").trim();
+  const telefone = String(payload.telefone || "").trim();
+  const dataNascimento = normalizeDateOnly(payload.dataNascimento || payload.data_nascimento || "");
   const perfil = String(payload.perfil || "").trim().toUpperCase();
   const senha = String(payload.senha || "");
   const allowedProfiles = new Set(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"]);
 
-  if (!usuario) throw new Error("Informe o usuário.");
-  if (!nome) throw new Error("Informe o nome.");
   if (!email) throw new Error("Informe um e-mail válido.");
+  if (!nome) throw new Error("Informe o nome.");
   if (!allowedProfiles.has(perfil)) throw new Error("Perfil inválido.");
   if (!isUpdate && !senha) throw new Error("Informe a senha.");
   if (!isUpdate || senha) assertStrongPassword(senha, { usuario, nome, email });
@@ -672,26 +751,96 @@ function validateUserPayload(payload, isUpdate = false, targetUser = null) {
   return {
     usuario,
     nome,
+    sobrenome,
     email,
+    telefone,
+    dataNascimento,
     perfil,
     senha,
     ativo: payload.ativo !== false,
+    cadastroPendente: payload.ativo === true ? false : payload.cadastroPendente === true,
     permissoes: normalizePermissions(payload.permissoes || {}, perfil, { ...targetUser, usuario, perfil }),
   };
 }
 
+function normalizeDateOnly(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw new Error("Data de nascimento inválida.");
+  const date = new Date(`${text}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text) {
+    throw new Error("Data de nascimento inválida.");
+  }
+  return text;
+}
+
+function validateFirstAccessPayload(payload) {
+  const nome = String(payload.nome || "").trim();
+  const sobrenome = String(payload.sobrenome || "").trim();
+  const email = safeNormalizeEmail(payload.email);
+  const telefone = String(payload.telefone || "").trim();
+  const dataNascimento = normalizeDateOnly(payload.dataNascimento || "");
+  const senha = String(payload.senha || "");
+
+  if (!nome) throw new Error("Informe o nome.");
+  if (!sobrenome) throw new Error("Informe o sobrenome.");
+  if (!email) throw new Error("Informe um e-mail válido.");
+  if (!dataNascimento) throw new Error("Informe a data de nascimento.");
+  if (!telefone) throw new Error("Informe o telefone.");
+  if (!senha) throw new Error("Informe a senha.");
+  assertStrongPassword(senha, { usuario: email, nome, email });
+
+  return { usuario: email, nome, sobrenome, email, telefone, dataNascimento, senha };
+}
+
+async function requestFirstAccess(payload) {
+  const user = validateFirstAccessPayload(payload);
+  const existing = await findUserByLogin(user.email);
+  if (existing) {
+    throw new Error("Já existe um usuário ou solicitação para este e-mail.");
+  }
+  const generatedUsername = await generateUsername(user.nome, user.sobrenome);
+
+  const permissoes = permissionsForProfile("VISUALIZADOR");
+  const result = await postgresPool.query(`
+    INSERT INTO usuarios (
+      usuario, nome, sobrenome, email, telefone, data_nascimento,
+      perfil, permissoes, senha_hash, ativo, cadastro_pendente,
+      superadmin_locked, deve_trocar_senha, senha_alterada_em, senha_politica_versao
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, 'VISUALIZADOR', $7::jsonb, $8, FALSE, TRUE, FALSE, FALSE, CURRENT_TIMESTAMP, $9)
+    RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
+  `, [
+    generatedUsername,
+    user.nome,
+    user.sobrenome,
+    user.email,
+    user.telefone,
+    user.dataNascimento,
+    JSON.stringify(permissoes),
+    passwordHash(user.senha),
+    PASSWORD_POLICY_VERSION,
+  ]);
+
+  return publicUserAdmin(result.rows[0]);
+}
+
 async function createUser(payload, authUser) {
-  const user = validateUserPayload(payload, false, { usuario: payload.usuario });
+  const user = validateUserPayload(payload, false, { usuario: payload.email });
+  if (await emailExists(user.email)) {
+    throw new Error("Já existe um usuário ou solicitação para este e-mail.");
+  }
+  user.usuario = await generateUsername(user.nome, user.sobrenome);
   if (isSuperAdminLogin(user.usuario) && !isSuperAdminUser(authUser)) {
     throw new Error("Somente o superusuario pode cadastrar o login tecnico.");
   }
   const superadminLocked = isSuperAdminUser(authUser) && !isSuperAdminLogin(user.usuario);
   const forcePasswordChange = user.perfil !== "CONVIDADO";
   const result = await postgresPool.query(`
-    INSERT INTO usuarios (usuario, nome, email, perfil, permissoes, senha_hash, ativo, superadmin_locked, deve_trocar_senha, senha_politica_versao)
-    VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
-    RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked
-  `, [user.usuario, user.nome, user.email, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo, superadminLocked, forcePasswordChange, PASSWORD_POLICY_VERSION]);
+    INSERT INTO usuarios (usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, senha_hash, ativo, cadastro_pendente, superadmin_locked, deve_trocar_senha, senha_politica_versao)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, FALSE, $11, $12, $13)
+    RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
+  `, [user.usuario, user.nome, user.sobrenome, user.email, user.telefone, user.dataNascimento, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo, superadminLocked, forcePasswordChange, PASSWORD_POLICY_VERSION]);
   return publicUserAdmin(result.rows[0]);
 }
 
@@ -702,6 +851,9 @@ async function updateUser(id, payload, authUser) {
     throw new Error("Usuario protegido pelo superusuario.");
   }
   const user = validateUserPayload(payload, true, existing);
+  if (await emailExists(user.email, id)) {
+    throw new Error("Já existe outro usuário com este e-mail.");
+  }
   if (isSuperAdminUser(existing) && !isSuperAdminLogin(user.usuario)) {
     throw new Error("O login tecnico do superusuario nao pode ser alterado.");
   }
@@ -711,25 +863,35 @@ async function updateUser(id, payload, authUser) {
   if (Number(id) === Number(authUser?.id) && !user.ativo) {
     throw new Error("Você não pode inativar o próprio usuário.");
   }
+  if (!isSuperAdminUser(existing)) {
+    user.usuario = await generateUsername(user.nome, user.sobrenome, id);
+  }
+  if (isSuperAdminLogin(user.usuario) && !isSuperAdminUser(authUser)) {
+    throw new Error("Somente o superusuario pode usar este identificador tecnico.");
+  }
 
   const superadminLocked = isSuperAdminUser(authUser) && !isSuperAdminLogin(user.usuario)
     ? true
     : isSuperAdminLocked(existing);
 
-  const params = [user.usuario, user.nome, user.email, user.perfil, user.ativo, Number(id), JSON.stringify(user.permissoes), superadminLocked];
+  const cadastroPendente = user.ativo ? false : (existing.cadastro_pendente === true || user.cadastroPendente === true);
+  const params = [user.usuario, user.nome, user.email, user.perfil, user.ativo, Number(id), JSON.stringify(user.permissoes), superadminLocked, user.sobrenome, user.telefone, user.dataNascimento, cadastroPendente];
   let sql = `
     UPDATE usuarios
-    SET usuario = $1, nome = $2, email = $3, perfil = $4, ativo = $5, permissoes = $7::jsonb, superadmin_locked = $8, updated_at = CURRENT_TIMESTAMP
+    SET usuario = $1, nome = $2, email = $3, perfil = $4, ativo = $5,
+        permissoes = $7::jsonb, superadmin_locked = $8,
+        sobrenome = $9, telefone = $10, data_nascimento = $11, cadastro_pendente = $12,
+        updated_at = CURRENT_TIMESTAMP
   `;
   if (user.senha) {
     params.push(passwordHash(user.senha));
-    sql += `, senha_hash = $9`;
+    sql += `, senha_hash = $13`;
     params.push(user.perfil !== "CONVIDADO");
-    sql += `, deve_trocar_senha = $10`;
+    sql += `, deve_trocar_senha = $14`;
     params.push(PASSWORD_POLICY_VERSION);
-    sql += `, senha_politica_versao = $11, senha_alterada_em = NULL`;
+    sql += `, senha_politica_versao = $15, senha_alterada_em = NULL`;
   }
-  sql += ` WHERE id = $6 RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked`;
+  sql += ` WHERE id = $6 RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente`;
   const result = await postgresPool.query(sql, params);
   if (!result.rowCount) throw new Error("Usuário não encontrado.");
   return publicUserAdmin(result.rows[0]);
@@ -745,12 +907,11 @@ function safeNormalizeEmail(value) {
 }
 
 async function resetUserPasswordByEmail(usuario, email) {
-  const login = String(usuario || "").trim();
-  const targetEmail = safeNormalizeEmail(email);
-  if (!login || !targetEmail) return false;
-  const user = await findUserByLogin(login);
+  const targetEmail = safeNormalizeEmail(email || usuario).toLowerCase();
+  if (!targetEmail) return false;
+  const user = await findUserByLogin(targetEmail);
   const active = user?.ativo === true;
-  if (!user || !active || normalizeEmail(user.email || "") !== targetEmail) return false;
+  if (!user || !active || normalizeEmail(user.email || "").toLowerCase() !== targetEmail) return false;
 
   const newPassword = temporaryPassword();
   await postgresPool.query(
@@ -761,11 +922,12 @@ async function resetUserPasswordByEmail(usuario, email) {
   await sendSmtpMail({
     to: targetEmail,
     subject: "ConsultApp - Recuperação de senha",
-    text: `Olá, ${user.nome}.\r\n\r\nFoi solicitada a recuperação de acesso ao ConsultApp.\r\n\r\nUsuário: ${user.usuario}\r\nSenha temporária: ${newPassword}\r\n\r\nApós entrar no sistema, você deverá criar uma nova senha antes de continuar.\r\n\r\nSe você não solicitou esta recuperação, informe o administrador do sistema.`,
+    text: `Olá, ${user.nome}.\r\n\r\nFoi solicitada a recuperação de acesso ao ConsultApp.\r\n\r\nE-mail de acesso: ${user.email}\r\nUsuário técnico: ${user.usuario}\r\nSenha temporária: ${newPassword}\r\n\r\nApós entrar no sistema, você deverá criar uma nova senha antes de continuar.\r\n\r\nSe você não solicitou esta recuperação, informe o administrador do sistema.`,
     html: `
       <p>Olá, ${escapeHtmlEmail(user.nome)}.</p>
       <p>Foi solicitada a recuperação de acesso ao ConsultApp.</p>
-      <p><strong>Usuário:</strong> ${escapeHtmlEmail(user.usuario)}<br>
+      <p><strong>E-mail de acesso:</strong> ${escapeHtmlEmail(user.email)}<br>
+      <strong>Usuário técnico:</strong> ${escapeHtmlEmail(user.usuario)}<br>
       <strong>Senha temporária:</strong> ${escapeHtmlEmail(newPassword)}</p>
       <p>Após entrar no sistema, você deverá criar uma nova senha antes de continuar.</p>
       <p>Se você não solicitou esta recuperação, informe o administrador do sistema.</p>
@@ -829,7 +991,7 @@ async function currentUser(request) {
   const tokenHash = hashToken(token);
 
   const result = await postgresPool.query(`
-    SELECT u.id, u.usuario, u.nome, u.email, u.perfil, u.permissoes, u.superadmin_locked
+    SELECT u.id, u.usuario, u.nome, u.sobrenome, u.email, u.telefone, u.data_nascimento, u.perfil, u.permissoes, u.superadmin_locked
     FROM sessoes s
     JOIN usuarios u ON u.id = s.usuario_id
     WHERE s.token_hash = $1
@@ -925,6 +1087,7 @@ function requiresCsrfToken(request, url) {
     "/api/auth/close",
     "/api/auth/forgot-password",
     "/api/auth/change-temporary-password",
+    "/api/auth/first-access",
   ].includes(url.pathname);
 }
 
@@ -2284,7 +2447,11 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/login") {
     try {
       const payload = JSON.parse(await readBody(request));
-      const loginIdentity = String(payload.usuario || "");
+      const loginIdentity = safeNormalizeEmail(payload.usuario || payload.email);
+      if (!loginIdentity) {
+        sendJson(response, 400, { ok: false, error: "Informe um e-mail válido." });
+        return;
+      }
       const loginLimit = rateLimitStatus("login", request, loginIdentity);
       if (loginLimit.limited) {
         sendRateLimitResponse(response, loginLimit);
@@ -2292,8 +2459,21 @@ createServer(async (request, response) => {
       }
 
       const user = await findUserByLogin(loginIdentity);
+      const passwordMatches = user ? verifyPassword(payload.senha || "", user.senha_hash) : false;
+      if (user?.cadastro_pendente === true && passwordMatches) {
+        recordRateLimitAttempt("login", request, loginIdentity);
+        await logAudit(request, user, {
+          acao: "auth.login.pendente",
+          modulo: "seguranca",
+          entidadeTipo: "usuario",
+          entidadeId: user.usuario,
+          detalhes: { motivo: "cadastro_aguardando_liberacao" },
+        }).catch(() => {});
+        sendJson(response, 403, { ok: false, error: "Cadastro aguardando liberação administrativa." });
+        return;
+      }
       const active = user?.ativo === true;
-      if (!user || !active || !verifyPassword(payload.senha || "", user.senha_hash)) {
+      if (!user || !active || !passwordMatches) {
         recordRateLimitAttempt("login", request, loginIdentity);
         await logAudit(request, user, {
           acao: "auth.login.falha",
@@ -2327,6 +2507,38 @@ createServer(async (request, response) => {
       sendJson(response, 200, { ok: true, user: publicUser(user), csrfToken: session.csrfToken }, { "Set-Cookie": sessionCookie(session.token, 60 * 60 * 12) });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/first-access") {
+    try {
+      const payload = JSON.parse(await readBody(request));
+      const email = safeNormalizeEmail(payload.email);
+      const requestLimit = recordRateLimitAttempt("firstAccess", request, email || requestIp(request));
+      if (requestLimit.limited) {
+        sendRateLimitResponse(response, requestLimit);
+        return;
+      }
+
+      const usuario = await requestFirstAccess(payload);
+      await logAudit(request, usuario, {
+        acao: "auth.primeiro_acesso.solicitado",
+        modulo: "seguranca",
+        entidadeTipo: "usuario",
+        entidadeId: usuario.usuario,
+        detalhes: {
+          email: usuario.email,
+          nome: usuario.nome,
+          sobrenome: usuario.sobrenome,
+        },
+      }).catch(() => {});
+      sendJson(response, 201, {
+        ok: true,
+        message: "Solicitação enviada com sucesso. Aguarde a liberação do administrador para acessar o sistema.",
+      });
+    } catch (error) {
+      sendJson(response, 400, { ok: false, error: error.message });
     }
     return;
   }
@@ -2463,19 +2675,20 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/forgot-password") {
     try {
       const payload = JSON.parse(await readBody(request));
-      const resetLimit = recordRateLimitAttempt("forgotPassword", request, `${payload.usuario || ""}:${payload.email || ""}`);
+      const recoveryEmail = safeNormalizeEmail(payload.email || payload.usuario);
+      const resetLimit = recordRateLimitAttempt("forgotPassword", request, recoveryEmail);
       if (resetLimit.limited) {
         sendRateLimitResponse(response, resetLimit);
         return;
       }
 
-      await resetUserPasswordByEmail(payload.usuario, payload.email);
+      await resetUserPasswordByEmail(recoveryEmail, recoveryEmail);
       await logAudit(request, null, {
         acao: "auth.recuperar_senha",
         modulo: "seguranca",
         entidadeTipo: "usuario",
-        entidadeId: String(payload.usuario || ""),
-        detalhes: { email: safeNormalizeEmail(payload.email) },
+        entidadeId: recoveryEmail,
+        detalhes: { email: recoveryEmail },
       }).catch(() => {});
       sendJson(response, 200, { ok: true, message: "Se os dados estiverem corretos, enviaremos uma senha temporária para o e-mail cadastrado." });
     } catch (error) {
@@ -2487,12 +2700,14 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/change-temporary-password") {
     try {
       const payload = JSON.parse(await readBody(request));
-      await changeTemporaryPassword(payload.usuario, payload.senhaTemporaria, payload.novaSenha);
+      const recoveryEmail = safeNormalizeEmail(payload.email || payload.usuario);
+      if (!recoveryEmail) throw new Error("Informe um e-mail válido.");
+      await changeTemporaryPassword(recoveryEmail, payload.senhaTemporaria, payload.novaSenha);
       await logAudit(request, null, {
         acao: "auth.trocar_senha_temporaria",
         modulo: "seguranca",
         entidadeTipo: "usuario",
-        entidadeId: String(payload.usuario || ""),
+        entidadeId: recoveryEmail,
       }).catch(() => {});
       sendJson(response, 200, { ok: true, message: "Senha alterada com sucesso. Faça login novamente com a nova senha." });
     } catch (error) {

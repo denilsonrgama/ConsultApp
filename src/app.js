@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v332";
+const APP_FALLBACK_VERSION = "v333";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -87,9 +87,12 @@ const DOCUMENTATION_RECORDS = [
     tags: ["segurança", "login", "senha", "sessão"],
     summary: "Regras de autenticação, troca de senha temporária, convidado e encerramento de sessão.",
     items: [
-      "O acesso aceita usuário ou e-mail cadastrado.",
+      "O acesso é feito pelo e-mail cadastrado.",
+      "O primeiro acesso permite solicitar um usuário preenchendo dados pessoais; o cadastro fica bloqueado até liberação administrativa.",
       "A recuperação de senha envia senha temporária por SMTP e exige troca antes de liberar o sistema.",
       "O link de convidado entra sem senha, mas opera com permissões somente de consulta.",
+      "O sistema gera automaticamente um usuário técnico no formato nome.ultimonome para logs e auditoria.",
+      "Em caso de duplicidade, o sistema tenta outra parte do nome e, se necessário, aplica numeração automática.",
       "Sessões são encerradas no logout e notificadas ao fechar/atualizar a página quando o navegador permite.",
       "Cookies seguros, proteção por origem/CSRF e limitação de tentativas protegem rotas sensíveis.",
     ],
@@ -173,6 +176,9 @@ const DOCUMENTATION_RECORDS = [
     tags: ["usuários", "perfis", "superadmin", "permissões"],
     summary: "Modelo de acesso por perfil com ajustes finos por tela e ação.",
     items: [
+      "Primeiro acesso cria uma solicitação pendente com dados pessoais e senha forte.",
+      "O usuário técnico é gerado automaticamente como nome.ultimonome e usado em logs/auditoria.",
+      "Cadastros pendentes precisam ser ativados e ter perfil/permissões revisados antes do login.",
       "ADMIN administra cadastros e rotinas, mas não acessa Auditoria técnica.",
       "OPERADOR usa clientes, serviços e orçamentos sem financeiro sensível.",
       "FINANCEIRO acessa financeiro, relatórios e consulta de orçamentos.",
@@ -603,9 +609,10 @@ function renderLogin(message = "") {
           <h1>ConsultApp ${renderAppVersionBadge()}</h1>
         </div>
         <form id="login-form">
-          <label>Usuário ou e-mail<input name="usuario" autocomplete="username" required></label>
+          <label>E-mail<input name="email" type="email" autocomplete="username" required></label>
           <label>Senha<input name="senha" type="password" autocomplete="current-password" required></label>
           <button class="primary-button" type="submit">Entrar</button>
+          <button class="link-button" type="button" id="first-access">Primeiro acesso</button>
           <button class="link-button" type="button" id="guest-login">Acessar como convidado</button>
           <button class="link-button" type="button" id="forgot-password">Esqueci minha senha</button>
           <p class="auth-error" id="login-error">${escapeHtml(message)}</p>
@@ -614,9 +621,10 @@ function renderLogin(message = "") {
     </main>
   `;
   document.getElementById("login-form").addEventListener("submit", handleLogin);
+  document.getElementById("first-access").addEventListener("click", () => renderFirstAccess());
   document.getElementById("guest-login").addEventListener("click", handleGuestLogin);
   document.getElementById("forgot-password").addEventListener("click", () => renderForgotPassword());
-  document.querySelector('#login-form [name="usuario"]')?.focus();
+  document.querySelector('#login-form [name="email"]')?.focus();
 }
 
 function renderForgotPassword(message = "") {
@@ -628,7 +636,6 @@ function renderForgotPassword(message = "") {
           <h1>ConsultApp ${renderAppVersionBadge()}</h1>
         </div>
         <form id="forgot-form">
-          <label>Usuário ou e-mail<input name="usuario" autocomplete="username" required></label>
           <label>E-mail cadastrado<input name="email" type="email" autocomplete="email" required></label>
           <button class="primary-button" type="submit">Enviar senha temporária</button>
           <button class="link-button" type="button" id="back-login">Voltar ao login</button>
@@ -639,7 +646,39 @@ function renderForgotPassword(message = "") {
   `;
   document.getElementById("forgot-form").addEventListener("submit", handleForgotPassword);
   document.getElementById("back-login").addEventListener("click", () => renderLogin());
-  document.querySelector('#forgot-form [name="usuario"]')?.focus();
+  document.querySelector('#forgot-form [name="email"]')?.focus();
+}
+
+function renderFirstAccess(message = "", tone = "error") {
+  document.body.innerHTML = `
+    <main class="auth-screen">
+      <section class="auth-card auth-card-wide">
+        <div>
+          <p class="eyebrow">Primeiro acesso</p>
+          <h1>Solicitar acesso ${renderAppVersionBadge()}</h1>
+          <p class="muted">Preencha seus dados. O acesso ficará bloqueado até liberação e definição de perfil pelo administrador.</p>
+        </div>
+        <form id="first-access-form">
+          <div class="auth-form-grid">
+            <label>Nome<input name="nome" autocomplete="given-name" required></label>
+            <label>Sobrenome<input name="sobrenome" autocomplete="family-name" required></label>
+            <label>Data de nascimento<input name="dataNascimento" type="date" required></label>
+            <label>Telefone<input name="telefone" autocomplete="tel" required></label>
+          </div>
+          <label>E-mail<input name="email" type="email" autocomplete="username email" required></label>
+          <label>Senha<input name="senha" type="password" minlength="${PASSWORD_MIN_LENGTH}" autocomplete="new-password" required></label>
+          <p class="muted password-policy-hint">Use no mínimo ${PASSWORD_MIN_LENGTH} caracteres, com letra maiúscula, letra minúscula, número e caractere especial.</p>
+          <label>Confirmar senha<input name="confirmarSenha" type="password" minlength="${PASSWORD_MIN_LENGTH}" autocomplete="new-password" required></label>
+          <button class="primary-button" type="submit">Enviar solicitação</button>
+          <button class="link-button" type="button" id="back-login">Voltar ao login</button>
+          <p class="auth-error ${tone === "success" ? "is-success" : ""}" id="first-access-message">${escapeHtml(message)}</p>
+        </form>
+      </section>
+    </main>
+  `;
+  document.getElementById("first-access-form").addEventListener("submit", handleFirstAccess);
+  document.getElementById("back-login").addEventListener("click", () => renderLogin());
+  document.querySelector('#first-access-form [name="nome"]')?.focus();
 }
 
 async function handleLogin(event) {
@@ -647,7 +686,7 @@ async function handleLogin(event) {
   const form = event.currentTarget;
   const errorBox = document.getElementById("login-error");
   const payload = {
-    usuario: form.elements.usuario.value.trim(),
+    usuario: form.elements.email.value.trim(),
     senha: form.elements.senha.value,
   };
 
@@ -693,7 +732,7 @@ function validateStrongPasswordClient(password, usuario = "") {
   if (!/[0-9]/.test(value)) return "A senha deve conter pelo menos um número.";
   if (!/[^A-Za-z0-9]/.test(value)) return "A senha deve conter pelo menos um caractere especial.";
   const identity = String(usuario || "").trim().toLowerCase();
-  if (identity.length >= 4 && value.toLowerCase().includes(identity)) return "A senha não pode conter o usuário.";
+  if (identity.length >= 4 && value.toLowerCase().includes(identity)) return "A senha não pode conter o e-mail.";
   return "";
 }
 
@@ -759,7 +798,6 @@ async function handleForgotPassword(event) {
   const form = event.currentTarget;
   const messageBox = document.getElementById("forgot-message");
   const payload = {
-    usuario: form.elements.usuario.value.trim(),
     email: form.elements.email.value.trim(),
   };
 
@@ -775,6 +813,47 @@ async function handleForgotPassword(event) {
     form.reset();
   } catch (error) {
     messageBox.textContent = error.message || "Não foi possível enviar a recuperação.";
+  }
+}
+
+async function handleFirstAccess(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const messageBox = document.getElementById("first-access-message");
+  const payload = {
+    nome: form.elements.nome.value.trim(),
+    sobrenome: form.elements.sobrenome.value.trim(),
+    dataNascimento: form.elements.dataNascimento.value,
+    telefone: form.elements.telefone.value.trim(),
+    email: form.elements.email.value.trim(),
+    senha: form.elements.senha.value,
+  };
+  const confirmarSenha = form.elements.confirmarSenha.value;
+  const policyError = validateStrongPasswordClient(payload.senha, payload.email);
+
+  messageBox.classList.remove("is-success");
+  if (payload.senha !== confirmarSenha) {
+    messageBox.textContent = "A confirmação da senha não confere.";
+    return;
+  }
+  if (policyError) {
+    messageBox.textContent = policyError;
+    return;
+  }
+
+  try {
+    const response = await csrfFetch("/api/auth/first-access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível enviar a solicitação.");
+    form.reset();
+    messageBox.classList.add("is-success");
+    messageBox.textContent = result.message || "Solicitação enviada com sucesso. Aguarde a liberação do administrador.";
+  } catch (error) {
+    messageBox.textContent = error.message || "Não foi possível enviar a solicitação.";
   }
 }
 
@@ -2049,10 +2128,10 @@ function renderUsuarios() {
   const visibleUsuarios = usuarios.filter((usuario) => isSuperAdminUser() || (!usuario.superAdmin && !usuario.superadminLocked));
   const sortedUsuarios = applyTableSort("usuarios", visibleUsuarios.slice(), {
     usuario: (usuario) => usuario.usuario || "",
-    nome: (usuario) => usuario.nome || "",
+    nome: (usuario) => [usuario.nome, usuario.sobrenome].filter(Boolean).join(" "),
     email: (usuario) => usuario.email || "",
     perfil: (usuario) => userProfileLabel(usuario),
-    status: (usuario) => usuario.ativo ? "ATIVO" : "INATIVO",
+    status: (usuario) => usuarioStatusLabel(usuario),
   });
 
   view.innerHTML = `
@@ -2077,10 +2156,10 @@ function renderUsuarios() {
               ${sortedUsuarios.map((usuario) => `
                 <tr class="clickable-row ${Number(editingUsuarioId) === Number(usuario.id) ? "is-selected" : ""}" data-open-usuario="${escapeHtml(usuario.id)}">
                   <td><strong>${escapeHtml(usuario.usuario)}</strong></td>
-                  <td>${escapeHtml(usuario.nome)}</td>
+                  <td>${escapeHtml([usuario.nome, usuario.sobrenome].filter(Boolean).join(" "))}</td>
                   <td>${escapeHtml(usuario.email)}</td>
                   <td>${escapeHtml(userProfileLabel(usuario))}</td>
-                  <td><span class="badge ${usuario.ativo ? "" : "danger"}">${usuario.ativo ? "ATIVO" : "INATIVO"}</span></td>
+                  <td><span class="badge ${usuarioStatusClass(usuario)}">${escapeHtml(usuarioStatusLabel(usuario))}</span></td>
                   <td>${editable && canEditUsuarioRecord(usuario) ? `<div class="row-actions"><button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button></div>` : ""}</td>
                 </tr>
               `).join("")}
@@ -2091,13 +2170,16 @@ function renderUsuarios() {
       ${renderUsuarioForm ? `<section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
         <h2>${editingUsuarioId ? "Alterar usuário" : "Novo usuário"}</h2>
         <form class="usuario-form-grid" id="usuario-form">
-          <label>Usuário<input name="usuario" required value="${fieldValue(editingUsuario.usuario)}"></label>
+          <label>Usuário automático<input name="usuario" readonly value="${fieldValue(editingUsuario.usuario || "Gerado ao salvar")}"></label>
           <label>Nome<input name="nome" required value="${fieldValue(editingUsuario.nome)}"></label>
+          <label>Sobrenome<input name="sobrenome" value="${fieldValue(editingUsuario.sobrenome)}"></label>
           <label>E-mail<input name="email" type="email" required value="${fieldValue(editingUsuario.email)}"></label>
+          <label>Data nascimento<input name="dataNascimento" type="date" value="${fieldValue(editingUsuario.dataNascimento)}"></label>
+          <label>Telefone<input name="telefone" value="${fieldValue(editingUsuario.telefone)}"></label>
           <label>Perfil<select name="perfil" required><option value="">Selecione</option>${options(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"], editingUsuario.perfil)}</select></label>
           <label>Senha<input name="senha" type="password" minlength="${PASSWORD_MIN_LENGTH}" ${editingUsuarioId ? 'placeholder="Deixe em branco para manter"' : "required"} autocomplete="new-password"></label>
           <p class="muted password-policy-hint">Mínimo de ${PASSWORD_MIN_LENGTH} caracteres, com maiúscula, minúscula, número e caractere especial.</p>
-          <label class="checkbox-line"><input name="ativo" type="checkbox" ${editingUsuario.ativo === false ? "" : "checked"}> Usuário ativo</label>
+          <label class="checkbox-line"><input name="ativo" type="checkbox" ${editingUsuario.ativo === false ? "" : "checked"}> ${editingUsuario.cadastroPendente ? "Liberar acesso" : "Usuário ativo"}</label>
           <div class="permissions-panel">
             <div class="toolbar">
               <div>
@@ -2260,15 +2342,18 @@ async function saveUsuario(event) {
   }
   const form = event.currentTarget;
   const payload = {
-    usuario: form.elements.usuario.value.trim(),
+    usuario: editingUsuarioId ? form.elements.usuario.value.trim() : "",
     nome: form.elements.nome.value.trim(),
+    sobrenome: form.elements.sobrenome.value.trim(),
     email: form.elements.email.value.trim(),
+    dataNascimento: form.elements.dataNascimento.value,
+    telefone: form.elements.telefone.value.trim(),
     perfil: form.elements.perfil.value,
     senha: form.elements.senha.value,
     ativo: form.elements.ativo.checked,
     permissoes: collectPermissionFormValues(form),
   };
-  const passwordError = payload.senha ? validateStrongPasswordClient(payload.senha, payload.usuario) : "";
+  const passwordError = payload.senha ? validateStrongPasswordClient(payload.senha, payload.email) : "";
   if (!editingUsuarioId && !payload.senha) {
     showFloatingMessage("Informe a senha inicial do usuário.");
     return;
@@ -2335,7 +2420,10 @@ function renderAjuda() {
         <article class="help-section">
           <h3>2. Acesso e senha</h3>
           <ol>
-            <li>Na tela de login, informe o usuário ou o e-mail cadastrado.</li>
+            <li>Na tela de login, informe o e-mail cadastrado.</li>
+            <li>No primeiro acesso, clique em Primeiro acesso e informe nome, sobrenome, data de nascimento, telefone, e-mail e senha.</li>
+            <li>Após o envio, o cadastro fica pendente até liberação por administrador ou usuário com privilégio para usuários.</li>
+            <li>O sistema cria automaticamente um usuário técnico para auditoria, no formato nome.ultimonome. Se houver duplicidade, outra parte do nome ou uma numeração será usada.</li>
             <li>Use a opção de recuperação quando esquecer a senha.</li>
             <li>Ao receber senha temporária, acesse o sistema e altere a senha antes de continuar.</li>
             <li>As senhas precisam ter no mínimo 8 caracteres, com letra maiúscula, letra minúscula, número e caractere especial.</li>
@@ -2457,6 +2545,9 @@ function renderAjuda() {
         <article class="help-section">
           <h3>12. Usuários e perfis</h3>
           <ol>
+            <li>Solicitações de primeiro acesso entram como PENDENTE e não permitem login até serem liberadas.</li>
+            <li>Ao liberar um usuário, revise dados pessoais, marque o acesso como ativo, escolha o perfil e personalize permissões quando necessário.</li>
+            <li>O campo Usuário é gerado automaticamente pelo sistema e usado para rastreabilidade em logs e auditoria.</li>
             <li>ADMIN: administra cadastros e rotinas do sistema, sem acesso à Auditoria técnica.</li>
             <li>OPERADOR: usa clientes, serviços e orçamentos.</li>
             <li>FINANCEIRO: acessa financeiro, relatórios e consulta de orçamentos.</li>
@@ -2488,6 +2579,16 @@ function renderAjuda() {
       </div>
     </section>
   `;
+}
+
+function usuarioStatusLabel(usuario = {}) {
+  if (usuario.cadastroPendente) return "PENDENTE";
+  return usuario.ativo ? "ATIVO" : "INATIVO";
+}
+
+function usuarioStatusClass(usuario = {}) {
+  if (usuario.cadastroPendente) return "warning";
+  return usuario.ativo ? "" : "danger";
 }
 
 function renderDocumentacao() {
@@ -4930,7 +5031,7 @@ function askAdminAuthorization(title, message) {
       <div class="choice-dialog" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
         <h2 id="password-confirm-title">${escapeHtml(title)}</h2>
         <p>${escapeHtml(message)}</p>
-        <label>Login ou e-mail do administrador
+        <label>Usuário técnico ou e-mail do administrador
           <input id="admin-confirm-user" autocomplete="username" required>
         </label>
         <label>Senha do administrador
