@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v329";
+const APP_FALLBACK_VERSION = "v330";
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
@@ -201,8 +201,9 @@ const DOCUMENTATION_RECORDS = [
     items: [
       "A aplicação em produção usa PostgreSQL como banco único.",
       "A versão exibida no cabeçalho acompanha o backend e ajuda a confirmar publicação/cache.",
-      "Backups geram banco, arquivos e configurações sensíveis com envio para Cloudflare R2.",
+      "Backups geram banco, arquivos e configurações sensíveis no SSD da VPS Contabo.",
       "O timer de backup está previsto para sexta-feira às 23:30.",
+      "O envio para Cloudflare R2 fica desligado por padrão e só é reativado com R2_ENABLED=true.",
       "Restauração em produção deve ser feita com serviço parado, backup validado e conferência das tabelas.",
     ],
   },

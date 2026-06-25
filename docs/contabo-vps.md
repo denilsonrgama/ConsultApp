@@ -272,16 +272,23 @@ systemctl restart consultapp
 - Link de WhatsApp.
 - App Android abrindo pelo novo dominio.
 
-## 13. Backup automatico em Cloudflare R2
+## 13. Backup automatico local na VPS Contabo
 
-Depois da validacao, configure as credenciais R2 no `.env` e instale a rotina de backup diario:
+Depois da validacao, instale a rotina de backup local:
 
 ```bash
 cd /opt/consultapp/consult-web-app
 git pull
-sudo apt install -y awscli
 sudo install -m 755 scripts/backup_contabo.sh /usr/local/bin/consultapp-backup
 sudo /usr/local/bin/consultapp-backup
 ```
 
-O roteiro completo, incluindo criacao do bucket, timer diario e restore, esta em `docs/backup-contabo.md`.
+No `.env`, mantenha:
+
+```env
+BACKUP_DIR=/var/backups/consultapp
+RETENTION_DAYS=90
+R2_ENABLED=false
+```
+
+O roteiro completo, incluindo timer semanal, restore local e reativacao futura do R2, esta em `docs/backup-contabo.md`.

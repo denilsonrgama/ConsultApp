@@ -1,8 +1,10 @@
-# Backup automatico do ConsultApp na Contabo com Cloudflare R2
+# Backup automatico do ConsultApp na VPS Contabo
 
-Este roteiro cria uma rotina diaria de backup na VPS.
+Este roteiro cria e mantem backups locais no SSD da VPS Contabo.
 
-Ela salva:
+Por enquanto, enquanto o contrato da Consult ainda nao estiver fechado, o backup externo em Cloudflare R2 pode ficar desligado para reduzir custo. O script continua preparado para enviar ao R2 futuramente, mas somente quando `R2_ENABLED=true` estiver configurado de forma explicita no `.env`.
+
+O backup salva:
 
 - banco PostgreSQL `consultappdb` em formato custom do `pg_dump`;
 - `.env` e `smtp-config.json`;
@@ -10,89 +12,57 @@ Ela salva:
 - configuracao Nginx;
 - pastas locais `Orcamentos` e `Relatorios`, caso tenham arquivos.
 
-Os backups sao gerados localmente e enviados para Cloudflare R2. A pasta local fica como area de preparo e retencao curta:
+Destino local:
 
 ```text
 /var/backups/consultapp
 ```
 
-Por padrao, a retencao e de 30 dias.
-
-Para o R2, configure tambem uma regra de lifecycle no bucket se quiser apagar backups antigos automaticamente na nuvem, por exemplo depois de 90 ou 180 dias.
-
-## 1. Criar bucket e chave no Cloudflare R2
-
-No painel Cloudflare:
-
-1. Acesse **R2 Object Storage**.
-2. Crie um bucket privado, por exemplo:
+Links sempre atualizados:
 
 ```text
-consultapp-backups
+/var/backups/consultapp/latest-db.backup
+/var/backups/consultapp/latest-config.tar.gz
+/var/backups/consultapp/latest-files.tar.gz
 ```
 
-3. Crie uma chave de API R2 com permissao de leitura/escrita no bucket.
-4. Anote:
-
-```text
-Account ID
-Access Key ID
-Secret Access Key
-Bucket
-```
-
-Esses dados entram somente no `.env` da VPS. Nao coloque essas chaves no GitHub.
-
-## 2. Atualizar projeto na VPS
+## 1. Atualizar projeto na VPS
 
 ```bash
 cd /opt/consultapp/consult-web-app
 git pull
 ```
 
-## 3. Instalar dependencias e script
+## 2. Instalar script local
 
 ```bash
-sudo apt update
-sudo apt install -y awscli
 sudo install -m 755 scripts/backup_contabo.sh /usr/local/bin/consultapp-backup
 sudo mkdir -p /var/backups/consultapp
 sudo chmod 750 /var/backups/consultapp
 ```
 
-## 4. Configurar R2 no `.env`
+Nao e necessario instalar `awscli` enquanto o R2 estiver desligado.
+
+## 3. Configurar `.env`
 
 Edite:
 
 ```bash
 cd /opt/consultapp/consult-web-app
-nano .env
+sudo nano .env
 ```
 
-Adicione ou ajuste:
+Garanta estas linhas:
 
 ```env
-R2_ENABLED=true
-R2_ACCOUNT_ID=seu_account_id_cloudflare
-R2_BUCKET=consultapp-backups
-R2_ACCESS_KEY_ID=sua_access_key_id
-R2_SECRET_ACCESS_KEY=sua_secret_access_key
-R2_PREFIX=consultapp/producao
+BACKUP_DIR=/var/backups/consultapp
+RETENTION_DAYS=90
+R2_ENABLED=false
 ```
 
-Se quiser usar outro endpoint S3 compativel:
+Se existirem credenciais R2 no `.env`, elas podem ficar guardadas, mas o envio nao sera feito enquanto `R2_ENABLED=false`.
 
-```env
-R2_ENDPOINT=https://seu_endpoint
-```
-
-Se `R2_ENDPOINT` ficar vazio, o script usa:
-
-```text
-https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com
-```
-
-## 5. Testar manualmente
+## 4. Testar manualmente
 
 ```bash
 sudo /usr/local/bin/consultapp-backup
@@ -100,16 +70,14 @@ sudo ls -lh /var/backups/consultapp/db
 sudo tail -n 80 /var/log/consultapp-backup.log
 ```
 
-Se aparecer `Envio para R2 concluido`, o backup foi enviado ao bucket.
-
-Tambem confira no painel do R2 se existem objetos como:
+O log esperado deve conter:
 
 ```text
-consultapp/producao/db/consultapp-consultappdb-YYYYMMDD-HHMMSS.backup
-consultapp/producao/latest/latest-db.backup
+Backup externo R2 desativado. O backup ficara apenas na VPS.
+Backup finalizado com sucesso
 ```
 
-## 6. Criar servico systemd
+## 5. Criar servico systemd
 
 ```bash
 sudo nano /etc/systemd/system/consultapp-backup.service
@@ -127,7 +95,7 @@ Type=oneshot
 ExecStart=/usr/local/bin/consultapp-backup
 ```
 
-## 7. Criar timer diario
+## 6. Criar timer semanal
 
 ```bash
 sudo nano /etc/systemd/system/consultapp-backup.timer
@@ -137,87 +105,89 @@ Conteudo:
 
 ```ini
 [Unit]
-Description=Executa backup diario do ConsultApp
+Description=Executa backup semanal do ConsultApp
 
 [Timer]
-OnCalendar=*-*-* 02:30:00
+OnCalendar=Fri 23:30:00
 Persistent=true
 
 [Install]
 WantedBy=timers.target
 ```
 
-Ativar:
+Ativar ou recarregar:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now consultapp-backup.timer
-sudo systemctl list-timers --all | grep consultapp
+sudo systemctl restart consultapp-backup.timer
+systemctl list-timers --all | grep consultapp
 ```
 
-## 8. Rodar um backup sob demanda
+## 7. Rodar backup sob demanda
 
 ```bash
 sudo systemctl start consultapp-backup.service
 sudo journalctl -u consultapp-backup.service -n 80 --no-pager
+sudo tail -n 80 /var/log/consultapp-backup.log
 ```
 
-## 9. Conferir ultimos backups locais
+## 8. Conferir backups locais
 
 ```bash
 sudo find /var/backups/consultapp -maxdepth 2 -type f -printf '%TY-%Tm-%Td %TH:%TM %p %k KB\n' | sort
+sudo du -sh /var/backups/consultapp
 ```
 
-Links uteis:
-
-```text
-/var/backups/consultapp/latest-db.backup
-/var/backups/consultapp/latest-config.tar.gz
-/var/backups/consultapp/latest-files.tar.gz
-```
-
-## 10. Baixar backup do R2 para restaurar
-
-Se precisar restaurar a partir do R2, primeiro configure temporariamente as variaveis no terminal ou use o `.env`:
+Conferir integridade:
 
 ```bash
-cd /opt/consultapp/consult-web-app
-set -a
-. ./.env
-set +a
+cd /var/backups/consultapp
+sudo sha256sum -c db/*.sha256
+sudo sha256sum -c config/*.sha256
+sudo sha256sum -c files/*.sha256
 ```
 
-Baixe o ultimo backup para `/tmp`:
+Se quiser validar se o backup do banco abre:
 
 ```bash
-AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
-  AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
-  AWS_DEFAULT_REGION=auto \
-  aws s3 cp "s3://$R2_BUCKET/$R2_PREFIX/latest/latest-db.backup" \
-  /tmp/consultapp-r2-latest-db.backup \
-  --endpoint-url "${R2_ENDPOINT:-https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com}"
+sudo -u postgres pg_restore -l /var/backups/consultapp/latest-db.backup >/dev/null
 ```
 
-## 11. Restaurar um backup do banco
+## 9. Restaurar backup local do banco
 
 Atencao: este procedimento substitui o banco atual.
 
 ```bash
 sudo systemctl stop consultapp
 
+sudo -u postgres pg_dump -Fc --no-owner --no-privileges \
+  -d consultappdb \
+  -f /tmp/consultappdb-before-restore.backup
+
 sudo -u postgres dropdb --if-exists consultappdb
 sudo -u postgres createdb -O consultapp consultappdb
 
-sudo install -m 600 -o postgres -g postgres /tmp/consultapp-r2-latest-db.backup /tmp/consultapp-restore.backup
-sudo -u postgres pg_restore --no-owner --no-privileges --role=consultapp -d consultappdb /tmp/consultapp-restore.backup
-sudo rm -f /tmp/consultapp-restore.backup /tmp/consultapp-r2-latest-db.backup
+sudo install -m 600 -o postgres -g postgres \
+  /var/backups/consultapp/latest-db.backup \
+  /tmp/consultapp-restore.backup
 
+sudo -u postgres pg_restore \
+  --no-owner \
+  --no-privileges \
+  --role=consultapp \
+  -d consultappdb \
+  /tmp/consultapp-restore.backup
+
+sudo rm -f /tmp/consultapp-restore.backup
 sudo systemctl start consultapp
 ```
 
 Conferir:
 
 ```bash
+curl https://gamadeveloper.com.br/api/status
+
 sudo -u postgres psql -d consultappdb -c "
 select 'clientes' as tabela, count(*) from clientes
 union all select 'servicos', count(*) from servicos
@@ -225,11 +195,13 @@ union all select 'orcamentos', count(*) from orcamentos
 union all select 'orcamento_itens', count(*) from orcamento_itens
 union all select 'usuarios', count(*) from usuarios
 union all select 'arquivos', count(*) from arquivos
-union all select 'app_state', count(*) from app_state;
+union all select 'auditoria_logs', count(*) from auditoria_logs;
 "
 ```
 
-## 12. Copiar backup para o computador local
+O arquivo `/tmp/consultappdb-before-restore.backup` fica como plano de volta caso o backup restaurado nao seja o desejado.
+
+## 10. Copiar backup para o computador local
 
 No PowerShell do Windows:
 
@@ -249,3 +221,32 @@ E no Windows:
 ```powershell
 scp deploy@161.97.146.92:/tmp/consultapp-latest-db.backup C:\Backups\ConsultApp\
 ```
+
+## 11. Reativar envio para Cloudflare R2 futuramente
+
+Quando o contrato estiver fechado e voce quiser voltar a ter backup externo, instale o `awscli` e configure o R2:
+
+```bash
+sudo apt update
+sudo apt install -y awscli
+```
+
+No `.env`:
+
+```env
+R2_ENABLED=true
+R2_ACCOUNT_ID=seu_account_id_cloudflare
+R2_BUCKET=consultapp-backups
+R2_ACCESS_KEY_ID=sua_access_key_id
+R2_SECRET_ACCESS_KEY=sua_secret_access_key
+R2_PREFIX=consultapp/producao
+```
+
+Teste:
+
+```bash
+sudo /usr/local/bin/consultapp-backup
+sudo tail -n 100 /var/log/consultapp-backup.log
+```
+
+Se aparecer `Envio para R2 concluido`, o backup local tambem foi enviado ao bucket.

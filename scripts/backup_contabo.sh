@@ -68,14 +68,11 @@ R2_PREFIX="${R2_PREFIX:-consultapp}"
 R2_PREFIX="${R2_PREFIX#/}"
 R2_PREFIX="${R2_PREFIX%/}"
 
-if [[ -z "$R2_ENABLED" ]]; then
-  if [[ -n "$R2_BUCKET" && -n "$R2_ACCESS_KEY_ID" && -n "$R2_SECRET_ACCESS_KEY" && ( -n "$R2_ACCOUNT_ID" || -n "$R2_ENDPOINT" ) ]]; then
-    R2_ENABLED="true"
-  else
-    R2_ENABLED="false"
-  fi
-fi
 R2_ENABLED="$(printf '%s' "$R2_ENABLED" | tr '[:upper:]' '[:lower:]')"
+case "$R2_ENABLED" in
+  true|1|yes|sim) R2_ENABLED="true" ;;
+  *) R2_ENABLED="false" ;;
+esac
 
 if [[ "$R2_ENABLED" == "true" ]]; then
   [[ -n "$R2_BUCKET" ]] || fail "R2_BUCKET nao configurado no .env"
@@ -144,7 +141,7 @@ log "Destino: $BACKUP_DIR"
 if [[ "$R2_ENABLED" == "true" ]]; then
   log "Destino R2: s3://$R2_BUCKET/$R2_PREFIX"
 else
-  log "R2 desativado. O backup ficara apenas na VPS."
+  log "Backup externo R2 desativado. O backup ficara apenas na VPS."
 fi
 
 log "Gerando backup PostgreSQL: $db_file"
