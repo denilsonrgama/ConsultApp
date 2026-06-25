@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v337";
+const APP_FALLBACK_VERSION = "v338";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -373,6 +373,10 @@ function canExportReports() {
 
 function canManageUsers() {
   return hasPermission("usuarios.view");
+}
+
+function canCreateUsuarioRecord() {
+  return hasPermission("usuarios.create") || isSuperAdminUser() || userProfile().toUpperCase() === "ADMIN";
 }
 
 function canEditUsuarioRecord(usuario) {
@@ -2192,8 +2196,8 @@ function auditTable(logs) {
 function renderUsuarios() {
   const editingUsuario = usuarios.find((usuario) => Number(usuario.id) === Number(editingUsuarioId)) || {};
   const usuarioPermissoes = permissionsForUser(editingUsuario);
-  const editable = hasPermission("usuarios.create") || hasPermission("usuarios.edit") || hasPermission("usuarios.delete");
-  const canCreateUsuario = hasPermission("usuarios.create");
+  const canCreateUsuario = canCreateUsuarioRecord();
+  const editable = canCreateUsuario || hasPermission("usuarios.edit") || hasPermission("usuarios.delete");
   const canEditUsuarios = hasPermission("usuarios.edit");
   const renderUsuarioForm = Boolean(editingUsuarioId || blankNewUsuario);
   const view = document.getElementById("usuarios-view");
@@ -2452,7 +2456,7 @@ function scrollUsuarioListIntoView() {
 
 async function saveUsuario(event) {
   event.preventDefault();
-  const canSave = editingUsuarioId ? hasPermission("usuarios.edit") : hasPermission("usuarios.create");
+  const canSave = editingUsuarioId ? hasPermission("usuarios.edit") : canCreateUsuarioRecord();
   if (!canSave) {
     showNoPermissionMessage();
     return;
