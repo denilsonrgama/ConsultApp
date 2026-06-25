@@ -48,7 +48,10 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v330";
+const serverVersion = "v331";
+const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
+const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
+const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
 
 const postgresConnectionString = databaseConnectionString();
 const postgresPool = await createPostgresPool();
@@ -56,6 +59,7 @@ const postgresPool = await createPostgresPool();
 await ensureAuthSchema();
 await ensureInitialAdminUser();
 await ensureGuestUser();
+await enforceCurrentPasswordPolicy();
 
 const types = {
   ".css": "text/css; charset=utf-8",
@@ -163,6 +167,36 @@ function verifyPassword(password, storedHash) {
   const actual = pbkdf2Sync(String(password), salt, Number(iterationsText), 32, "sha256");
   const expectedBuffer = Buffer.from(expected, "hex");
   return actual.length === expectedBuffer.length && timingSafeEqual(actual, expectedBuffer);
+}
+
+function isGuestUser(user) {
+  return String(user?.perfil || "").toUpperCase() === "CONVIDADO";
+}
+
+function passwordPolicyError(password, user = {}) {
+  const value = String(password || "");
+  if (value.length < PASSWORD_MIN_LENGTH) {
+    return `A senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
+  }
+  if (!/[A-Z]/.test(value)) return "A senha deve conter pelo menos uma letra maiuscula.";
+  if (!/[a-z]/.test(value)) return "A senha deve conter pelo menos uma letra minuscula.";
+  if (!/[0-9]/.test(value)) return "A senha deve conter pelo menos um numero.";
+  if (!/[^A-Za-z0-9]/.test(value)) return "A senha deve conter pelo menos um caractere especial.";
+  const lower = value.toLowerCase();
+  const identifiers = [
+    user.usuario,
+    user.email,
+    String(user.email || "").split("@")[0],
+  ].map((item) => String(item || "").trim().toLowerCase()).filter((item) => item.length >= 4);
+  if (identifiers.some((item) => lower.includes(item))) {
+    return "A senha nao pode conter o usuario ou e-mail cadastrado.";
+  }
+  return "";
+}
+
+function assertStrongPassword(password, user = {}) {
+  const error = passwordPolicyError(password, user);
+  if (error) throw new Error(error);
 }
 
 function hashToken(token) {
@@ -334,6 +368,8 @@ async function ensureAuthSchema() {
   `);
   await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''");
   await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_trocar_senha BOOLEAN NOT NULL DEFAULT FALSE");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS senha_alterada_em TIMESTAMPTZ");
+  await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS senha_politica_versao TEXT NOT NULL DEFAULT ''");
   await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permissoes JSONB");
   await postgresPool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS superadmin_locked BOOLEAN NOT NULL DEFAULT FALSE");
   await postgresPool.query("ALTER TABLE sessoes ADD COLUMN IF NOT EXISTS csrf_token TEXT NOT NULL DEFAULT ''");
@@ -388,9 +424,20 @@ async function ensureGuestUser() {
   );
 }
 
+async function enforceCurrentPasswordPolicy() {
+  await postgresPool.query(`
+    UPDATE usuarios
+    SET deve_trocar_senha = TRUE,
+        senha_politica_versao = $1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE COALESCE(senha_politica_versao, '') <> $1
+      AND UPPER(COALESCE(perfil, '')) <> 'CONVIDADO'
+  `, [PASSWORD_POLICY_VERSION]);
+}
+
 async function findUserByLogin(usuario) {
   const result = await postgresPool.query(
-    "SELECT id, usuario, nome, email, perfil, permissoes, senha_hash, deve_trocar_senha, ativo, superadmin_locked FROM usuarios WHERE lower(usuario) = lower($1) OR lower(email) = lower($1) LIMIT 1",
+    "SELECT id, usuario, nome, email, perfil, permissoes, senha_hash, deve_trocar_senha, senha_alterada_em, senha_politica_versao, ativo, superadmin_locked FROM usuarios WHERE lower(usuario) = lower($1) OR lower(email) = lower($1) LIMIT 1",
     [usuario],
   );
   return result.rows[0] || null;
@@ -619,8 +666,8 @@ function validateUserPayload(payload, isUpdate = false, targetUser = null) {
   if (!nome) throw new Error("Informe o nome.");
   if (!email) throw new Error("Informe um e-mail vÃ¡lido.");
   if (!allowedProfiles.has(perfil)) throw new Error("Perfil invÃ¡lido.");
-  if (!isUpdate && senha.length < 6) throw new Error("A senha deve ter pelo menos 6 caracteres.");
-  if (isUpdate && senha && senha.length < 6) throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
+  if (!isUpdate && !senha) throw new Error("Informe a senha.");
+  if (!isUpdate || senha) assertStrongPassword(senha, { usuario, nome, email });
 
   return {
     usuario,
@@ -639,11 +686,12 @@ async function createUser(payload, authUser) {
     throw new Error("Somente o superusuario pode cadastrar o login tecnico.");
   }
   const superadminLocked = isSuperAdminUser(authUser) && !isSuperAdminLogin(user.usuario);
+  const forcePasswordChange = user.perfil !== "CONVIDADO";
   const result = await postgresPool.query(`
-    INSERT INTO usuarios (usuario, nome, email, perfil, permissoes, senha_hash, ativo, superadmin_locked)
-    VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+    INSERT INTO usuarios (usuario, nome, email, perfil, permissoes, senha_hash, ativo, superadmin_locked, deve_trocar_senha, senha_politica_versao)
+    VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)
     RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked
-  `, [user.usuario, user.nome, user.email, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo, superadminLocked]);
+  `, [user.usuario, user.nome, user.email, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo, superadminLocked, forcePasswordChange, PASSWORD_POLICY_VERSION]);
   return publicUserAdmin(result.rows[0]);
 }
 
@@ -676,6 +724,10 @@ async function updateUser(id, payload, authUser) {
   if (user.senha) {
     params.push(passwordHash(user.senha));
     sql += `, senha_hash = $9`;
+    params.push(user.perfil !== "CONVIDADO");
+    sql += `, deve_trocar_senha = $10`;
+    params.push(PASSWORD_POLICY_VERSION);
+    sql += `, senha_politica_versao = $11, senha_alterada_em = NULL`;
   }
   sql += ` WHERE id = $6 RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked`;
   const result = await postgresPool.query(sql, params);
@@ -702,20 +754,20 @@ async function resetUserPasswordByEmail(usuario, email) {
 
   const newPassword = temporaryPassword();
   await postgresPool.query(
-    "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-    [passwordHash(newPassword), user.id],
+    "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = TRUE, senha_alterada_em = NULL, senha_politica_versao = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+    [passwordHash(newPassword), PASSWORD_POLICY_VERSION, user.id],
   );
 
   await sendSmtpMail({
     to: targetEmail,
     subject: "ConsultApp - RecuperaÃ§Ã£o de senha",
-    text: `OlÃ¡, ${user.nome}.\r\n\r\nFoi solicitada a recuperaÃ§Ã£o de acesso ao ConsultApp.\r\n\r\nUsuÃ¡rio: ${user.usuario}\r\nSenha temporÃ¡ria: ${newPassword}\r\n\r\nApÃ³s entrar no sistema, altere sua senha com o administrador.\r\n\r\nSe vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, informe o administrador do sistema.`,
+    text: `OlÃ¡, ${user.nome}.\r\n\r\nFoi solicitada a recuperaÃ§Ã£o de acesso ao ConsultApp.\r\n\r\nUsuÃ¡rio: ${user.usuario}\r\nSenha temporÃ¡ria: ${newPassword}\r\n\r\nApÃ³s entrar no sistema, vocÃª deverÃ¡ criar uma nova senha antes de continuar.\r\n\r\nSe vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, informe o administrador do sistema.`,
     html: `
       <p>OlÃ¡, ${escapeHtmlEmail(user.nome)}.</p>
       <p>Foi solicitada a recuperaÃ§Ã£o de acesso ao ConsultApp.</p>
       <p><strong>UsuÃ¡rio:</strong> ${escapeHtmlEmail(user.usuario)}<br>
       <strong>Senha temporÃ¡ria:</strong> ${escapeHtmlEmail(newPassword)}</p>
-      <p>ApÃ³s entrar no sistema, altere sua senha com o administrador.</p>
+      <p>ApÃ³s entrar no sistema, vocÃª deverÃ¡ criar uma nova senha antes de continuar.</p>
       <p>Se vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, informe o administrador do sistema.</p>
     `,
   });
@@ -724,25 +776,29 @@ async function resetUserPasswordByEmail(usuario, email) {
 }
 
 function userMustChangePassword(user) {
-  return user?.deve_trocar_senha === true;
+  if (!user || isGuestUser(user)) return false;
+  if (user.deve_trocar_senha === true) return true;
+  if (String(user.senha_politica_versao || "") !== PASSWORD_POLICY_VERSION) return true;
+  if (!user.senha_alterada_em) return true;
+  const changedAt = new Date(user.senha_alterada_em).getTime();
+  if (!Number.isFinite(changedAt)) return true;
+  return Date.now() - changedAt >= PASSWORD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
 }
 
 async function changeTemporaryPassword(usuario, senhaTemporaria, novaSenha) {
   const user = await findUserByLogin(String(usuario || ""));
   const active = user?.ativo === true;
   if (!user || !active || !userMustChangePassword(user) || !verifyPassword(senhaTemporaria || "", user.senha_hash)) {
-    throw new Error("UsuÃ¡rio ou senha temporÃ¡ria invÃ¡lidos.");
+    throw new Error("UsuÃ¡rio ou senha atual invÃ¡lidos.");
   }
-  if (String(novaSenha || "").length < 6) {
-    throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
-  }
+  assertStrongPassword(novaSenha, user);
   if (String(novaSenha) === String(senhaTemporaria || "")) {
-    throw new Error("A nova senha deve ser diferente da senha temporÃ¡ria.");
+    throw new Error("A nova senha deve ser diferente da senha atual.");
   }
 
   await postgresPool.query(
-    "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-    [passwordHash(novaSenha), user.id],
+    "UPDATE usuarios SET senha_hash = $1, deve_trocar_senha = FALSE, senha_alterada_em = CURRENT_TIMESTAMP, senha_politica_versao = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+    [passwordHash(novaSenha), PASSWORD_POLICY_VERSION, user.id],
   );
 }
 

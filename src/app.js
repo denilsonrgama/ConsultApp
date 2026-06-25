@@ -1,7 +1,8 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v330";
+const APP_FALLBACK_VERSION = "v331";
+const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
 let state = loadState();
@@ -684,6 +685,18 @@ async function handleGuestLogin() {
   }
 }
 
+function validateStrongPasswordClient(password, usuario = "") {
+  const value = String(password || "");
+  if (value.length < PASSWORD_MIN_LENGTH) return `A senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
+  if (!/[A-Z]/.test(value)) return "A senha deve conter pelo menos uma letra maiúscula.";
+  if (!/[a-z]/.test(value)) return "A senha deve conter pelo menos uma letra minúscula.";
+  if (!/[0-9]/.test(value)) return "A senha deve conter pelo menos um número.";
+  if (!/[^A-Za-z0-9]/.test(value)) return "A senha deve conter pelo menos um caractere especial.";
+  const identity = String(usuario || "").trim().toLowerCase();
+  if (identity.length >= 4 && value.toLowerCase().includes(identity)) return "A senha não pode conter o usuário.";
+  return "";
+}
+
 function renderTemporaryPasswordChange(usuario, senhaTemporaria, nome = "") {
   document.body.innerHTML = `
     <main class="auth-screen">
@@ -691,11 +704,12 @@ function renderTemporaryPasswordChange(usuario, senhaTemporaria, nome = "") {
         <div>
           <p class="eyebrow">Troca obrigatória</p>
           <h1>Alterar senha</h1>
-          <p class="muted">Olá, ${escapeHtml(nome)}. Antes de acessar o sistema, cadastre uma nova senha.</p>
+          <p class="muted">Olá, ${escapeHtml(nome)}. Antes de acessar o sistema, cadastre uma nova senha forte.</p>
         </div>
         <form id="temporary-password-form">
-          <label>Nova senha<input name="novaSenha" type="password" autocomplete="new-password" minlength="6" required></label>
-          <label>Confirmar nova senha<input name="confirmarSenha" type="password" autocomplete="new-password" minlength="6" required></label>
+          <label>Nova senha<input name="novaSenha" type="password" autocomplete="new-password" minlength="${PASSWORD_MIN_LENGTH}" required></label>
+          <p class="muted password-policy-hint">Use no mínimo ${PASSWORD_MIN_LENGTH} caracteres, com letra maiúscula, letra minúscula, número e caractere especial.</p>
+          <label>Confirmar nova senha<input name="confirmarSenha" type="password" autocomplete="new-password" minlength="${PASSWORD_MIN_LENGTH}" required></label>
           <button class="primary-button" type="submit">Alterar senha</button>
           <button class="link-button" type="button" id="back-login">Voltar ao login</button>
           <p class="auth-error" id="temporary-password-message"></p>
@@ -715,9 +729,14 @@ async function handleTemporaryPasswordChange(event, usuario, senhaTemporaria) {
   const messageBox = document.getElementById("temporary-password-message");
   const novaSenha = form.elements.novaSenha.value;
   const confirmarSenha = form.elements.confirmarSenha.value;
+  const policyError = validateStrongPasswordClient(novaSenha, usuario);
 
   if (novaSenha !== confirmarSenha) {
     messageBox.textContent = "A confirmação da senha não confere.";
+    return;
+  }
+  if (policyError) {
+    messageBox.textContent = policyError;
     return;
   }
 
@@ -2076,7 +2095,8 @@ function renderUsuarios() {
           <label>Nome<input name="nome" required value="${fieldValue(editingUsuario.nome)}"></label>
           <label>E-mail<input name="email" type="email" required value="${fieldValue(editingUsuario.email)}"></label>
           <label>Perfil<select name="perfil" required><option value="">Selecione</option>${options(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"], editingUsuario.perfil)}</select></label>
-          <label>Senha<input name="senha" type="password" ${editingUsuarioId ? 'placeholder="Deixe em branco para manter"' : "required"} autocomplete="new-password"></label>
+          <label>Senha<input name="senha" type="password" minlength="${PASSWORD_MIN_LENGTH}" ${editingUsuarioId ? 'placeholder="Deixe em branco para manter"' : "required"} autocomplete="new-password"></label>
+          <p class="muted password-policy-hint">Mínimo de ${PASSWORD_MIN_LENGTH} caracteres, com maiúscula, minúscula, número e caractere especial.</p>
           <label class="checkbox-line"><input name="ativo" type="checkbox" ${editingUsuario.ativo === false ? "" : "checked"}> Usuário ativo</label>
           <div class="permissions-panel">
             <div class="toolbar">
@@ -2248,6 +2268,15 @@ async function saveUsuario(event) {
     ativo: form.elements.ativo.checked,
     permissoes: collectPermissionFormValues(form),
   };
+  const passwordError = payload.senha ? validateStrongPasswordClient(payload.senha, payload.usuario) : "";
+  if (!editingUsuarioId && !payload.senha) {
+    showFloatingMessage("Informe a senha inicial do usuário.");
+    return;
+  }
+  if (passwordError) {
+    showFloatingMessage(passwordError);
+    return;
+  }
 
   try {
     const response = await csrfFetch(editingUsuarioId ? `/api/usuarios/${editingUsuarioId}` : "/api/usuarios", {
@@ -2309,6 +2338,8 @@ function renderAjuda() {
             <li>Na tela de login, informe o usuário ou o e-mail cadastrado.</li>
             <li>Use a opção de recuperação quando esquecer a senha.</li>
             <li>Ao receber senha temporária, acesse o sistema e altere a senha antes de continuar.</li>
+            <li>As senhas precisam ter no mínimo 8 caracteres, com letra maiúscula, letra minúscula, número e caractere especial.</li>
+            <li>A troca de senha é obrigatória a cada 30 dias. Após esta atualização, os usuários atuais serão convidados a trocar a senha no próximo acesso.</li>
             <li>Finalize o uso pelo botão Sair para encerrar a sessão com segurança.</li>
           </ol>
           <p class="help-note">As telas disponíveis dependem do perfil e das permissões do usuário.</p>

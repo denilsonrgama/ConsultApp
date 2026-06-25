@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   permissoes JSONB,
   senha_hash TEXT NOT NULL,
   deve_trocar_senha BOOLEAN NOT NULL DEFAULT FALSE,
+  senha_alterada_em TIMESTAMPTZ,
+  senha_politica_versao TEXT NOT NULL DEFAULT '',
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   superadmin_locked BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
