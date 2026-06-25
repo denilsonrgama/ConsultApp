@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v344";
+const serverVersion = "v345";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
@@ -543,10 +543,17 @@ async function listUsers(actor) {
     FROM usuarios
     ORDER BY nome, usuario
   `);
-  return result.rows.filter((user) => canSeeManagedUser(actor, user)).map(publicUserAdmin);
+  const visibleUsers = result.rows.filter((user) => canSeeManagedUser(actor, user));
+  const usersWithLinks = await Promise.all(visibleUsers.map(async (user) => ({
+    user,
+    vinculos: await userBusinessRecordCounts(user),
+  })));
+  return usersWithLinks.map(({ user, vinculos }) => publicUserAdmin(user, { vinculos }));
 }
 
-function publicUserAdmin(user) {
+function publicUserAdmin(user, options = {}) {
+  const vinculos = options.vinculos || { clientes: 0, servicos: 0, orcamentos: 0, arquivos: 0 };
+  const totalVinculos = Object.values(vinculos).reduce((sum, value) => sum + Number(value || 0), 0);
   return {
     id: Number(user.id),
     usuario: user.usuario,
@@ -561,6 +568,8 @@ function publicUserAdmin(user) {
     cadastroPendente: user.cadastro_pendente === true,
     superAdmin: isSuperAdminUser(user),
     superadminLocked: isSuperAdminLocked(user),
+    vinculos,
+    totalVinculos,
   };
 }
 

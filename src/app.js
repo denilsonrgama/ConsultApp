@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v344";
+const APP_FALLBACK_VERSION = "v345";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -386,10 +386,12 @@ function canEditUsuarioRecord(usuario) {
 }
 
 function canDeleteUsuarioRecord(usuario) {
+  const inactiveWithLinks = usuario?.ativo === false && Number(usuario?.totalVinculos || 0) > 0;
   return hasPermission("usuarios.delete")
     && Number(usuario?.id) !== Number(currentUser?.id)
     && !usuario?.superAdmin
     && !usuario?.superadminLocked
+    && !inactiveWithLinks
     && (isSuperAdminUser() || hasPermission("usuarios.delete"));
 }
 
