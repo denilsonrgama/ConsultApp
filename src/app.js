@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v341";
+const APP_FALLBACK_VERSION = "v342";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -2204,7 +2204,6 @@ function renderUsuarios() {
   const renderUsuarioForm = Boolean(editingUsuarioId || blankNewUsuario);
   const view = document.getElementById("usuarios-view");
   if (!view || !canManageUsers()) return;
-  const showNewUsuarioButton = !renderUsuarioForm;
   const visibleUsuarios = usuarios.filter((usuario) => isSuperAdminUser() || (!usuario.superAdmin && !usuario.superadminLocked));
   const sortedUsuarios = applyTableSort("usuarios", visibleUsuarios.slice(), {
     usuario: (usuario) => usuario.usuario || "",
@@ -2221,7 +2220,7 @@ function renderUsuarios() {
         <div class="toolbar">
           <h2>Usuários cadastrados</h2>
         </div>
-        ${showNewUsuarioButton ? '<div class="usuario-list-actions"><button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button></div>' : ""}
+        <div class="usuario-list-actions"><button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button></div>
         <div class="table-wrap users-table-wrap">
           <table>
             <thead><tr>
