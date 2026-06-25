@@ -1295,7 +1295,26 @@ a.small-button {
 .orcamento-list-new-button,
 .usuario-list-new-button,
 .files-list-refresh-button {
-  display: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 110px;
+  width: auto;
+}
+
+.usuario-list-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0 10px;
+}
+
+.usuario-list-actions .usuario-new-action-button {
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  justify-content: center;
+  margin-left: 0;
+  min-width: 136px;
+  width: auto;
 }
 
 .files-row-actions {
@@ -2089,21 +2108,67 @@ th {
 .permission-group {
   border: 1px solid #dbe6e9;
   border-radius: 6px;
+  display: block;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.permission-group summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 42px;
+  padding: 9px 12px;
+  user-select: none;
+}
+
+.permission-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.permission-group summary span {
+  color: #165a72;
+  font-weight: 800;
+}
+
+.permission-group summary small {
+  background: #eaf7f4;
+  border-radius: 999px;
+  color: #0c6f5b;
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 3px 8px;
+}
+
+.permission-group summary::after {
+  color: #60737a;
+  content: "+";
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.permission-group[open] summary {
+  border-bottom: 1px solid #dbe6e9;
+}
+
+.permission-group[open] summary::after {
+  content: "-";
+}
+
+.permission-group-body {
   display: grid;
   gap: 6px;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  margin: 0;
   padding: 10px;
 }
 
 .permission-group-actions {
   grid-column: 1 / -1;
-}
-
-.permission-group legend {
-  color: #165a72;
-  font-weight: 800;
-  padding: 0 6px;
 }
 
 .auditoria-panel {
@@ -2897,6 +2962,10 @@ th {
   }
 
   .permission-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .permission-group-body {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -3986,6 +4055,10 @@ th {
   }
 
   .permission-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .permission-group-body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

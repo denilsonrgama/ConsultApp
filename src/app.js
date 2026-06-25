@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v342";
+const APP_FALLBACK_VERSION = "v343";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -2220,7 +2220,7 @@ function renderUsuarios() {
         <div class="toolbar">
           <h2>Usuários cadastrados</h2>
         </div>
-        <div class="usuario-list-actions"><button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button></div>
+        <div class="usuario-list-actions"><button class="success-button usuario-new-action-button" type="button" id="show-usuario-form">Novo usuário</button></div>
         <div class="table-wrap users-table-wrap">
           <table>
             <thead><tr>
