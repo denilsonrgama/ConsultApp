@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v346";
+const APP_FALLBACK_VERSION = "v347";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -181,13 +181,16 @@ const DOCUMENTATION_RECORDS = [
       "O usuário técnico é gerado automaticamente como nome.ultimonome e usado em logs/auditoria.",
       "Cadastros pendentes precisam ser ativados e ter perfil/permissões revisados antes do login.",
       "Senha não é digitada no cadastro administrativo; ADMIN ou SUPERADMIN apenas envia senha temporária para recriação.",
-      "Exclusão de usuário com histórico de clientes, serviços, orçamentos ou PDFs salvos vira inativação para preservar rastreabilidade.",
+      "O botão Novo usuário fica na listagem de Usuários e abre o formulário de cadastro administrativo.",
+      "Permissões são agrupadas por módulo em sanfona, com ações para marcar ou limpar permissões do módulo.",
+      "Exclusão de usuário ativo sem vínculos remove o cadastro; se houver clientes, serviços, orçamentos ou PDFs vinculados, o sistema inativa para preservar rastreabilidade.",
+      "Usuário inativo com vínculos importantes não exibe Excluir; o botão retorna quando os vínculos importantes deixam de existir.",
       "ADMIN administra cadastros e rotinas, mas não acessa Auditoria técnica.",
       "OPERADOR usa clientes, serviços e orçamentos sem financeiro sensível.",
       "FINANCEIRO acessa financeiro, relatórios e consulta de orçamentos.",
       "VISUALIZADOR e CONVIDADO operam apenas em consulta.",
       "SUPERADMIN é o login técnico reservado para auditoria, documentação e manutenção.",
-      "Perfis alterados pelo superadmin ficam protegidos contra reversão por administradores comuns.",
+      "Usuários criados ou alterados pelo SUPERADMIN ficam protegidos contra reversão por administradores comuns, mas o próprio SUPERADMIN pode administrá-los.",
       "Permissões podem bloquear tela inteira ou ações específicas dentro da tela.",
     ],
   },
@@ -2701,11 +2704,15 @@ function renderAjuda() {
           <h3>12. Usuários e perfis</h3>
           <ol>
             <li>Solicitações de primeiro acesso entram como PENDENTE e não permitem login até serem liberadas.</li>
+            <li>Use Novo usuário, na linha do título da listagem, para iniciar um cadastro administrativo.</li>
             <li>Ao cadastrar um usuário pela Administração, informe dados e perfil; a senha será criada pelo próprio usuário no Primeiro acesso.</li>
             <li>Ao liberar um usuário, revise dados pessoais, marque o acesso como ativo, escolha o perfil e personalize permissões quando necessário.</li>
+            <li>As permissões ficam agrupadas por módulo em sanfona. Abra o módulo desejado e use Marcar módulo ou Limpar módulo quando precisar ajustar várias ações de uma vez.</li>
             <li>O campo Usuário é gerado automaticamente pelo sistema e usado para rastreabilidade em logs e auditoria.</li>
             <li>Senha não é alterada manualmente no cadastro. ADMIN ou SUPERADMIN pode enviar senha temporária para o usuário recriar o acesso.</li>
-            <li>Ao excluir um usuário, se houver clientes, serviços, orçamentos ou PDFs salvos vinculados ao histórico dele, o sistema inativa o cadastro em vez de apagar.</li>
+            <li>Ao excluir um usuário ativo, se houver clientes, serviços, orçamentos ou PDFs salvos vinculados ao histórico dele, o sistema inativa o cadastro em vez de apagar.</li>
+            <li>Usuário inativo com vínculos importantes não mostra o botão Excluir; o botão retorna quando não houver mais esses vínculos.</li>
+            <li>Usuários criados ou alterados pelo SUPERADMIN ficam protegidos contra alteração por ADMIN comum, mas continuam administráveis pelo próprio SUPERADMIN.</li>
             <li>ADMIN: administra cadastros e rotinas do sistema, sem acesso à Auditoria técnica.</li>
             <li>OPERADOR: usa clientes, serviços e orçamentos.</li>
             <li>FINANCEIRO: acessa financeiro, relatórios e consulta de orçamentos.</li>
