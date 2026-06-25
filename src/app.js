@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v340";
+const APP_FALLBACK_VERSION = "v341";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -268,7 +268,9 @@ const SUPER_ADMIN_LOGIN = "admin";
 const TECHNICAL_PERMISSION_KEYS = new Set(["auditoria.view", "auditoria.manage"]);
 
 function isSuperAdminUser(user = currentUser) {
-  return Boolean(user?.superAdmin) || String(user?.usuario || "").trim().toLowerCase() === SUPER_ADMIN_LOGIN;
+  return Boolean(user?.superAdmin)
+    || String(user?.usuario || "").trim().toLowerCase() === SUPER_ADMIN_LOGIN
+    || String(user?.perfil || "").trim().toUpperCase() === "SUPERADMIN";
 }
 
 function canManagePermissionKey(key) {
@@ -2218,8 +2220,8 @@ function renderUsuarios() {
       <section class="panel usuarios-list-panel">
         <div class="toolbar">
           <h2>Usuários cadastrados</h2>
-          ${showNewUsuarioButton ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
         </div>
+        ${showNewUsuarioButton ? '<div class="usuario-list-actions"><button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo usuário</button></div>' : ""}
         <div class="table-wrap users-table-wrap">
           <table>
             <thead><tr>

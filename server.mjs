@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v340";
+const serverVersion = "v341";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
@@ -309,7 +309,8 @@ const TECHNICAL_PERMISSION_KEYS = new Set(["auditoria.view", "auditoria.manage"]
 function isSuperAdminUser(user) {
   const login = String(user?.usuario || "").trim().toLowerCase();
   const email = String(user?.email || "").trim().toLowerCase();
-  return login === SUPER_ADMIN_LOGIN || (SUPER_ADMIN_EMAIL && email === SUPER_ADMIN_EMAIL);
+  const perfil = String(user?.perfil || "").trim().toUpperCase();
+  return perfil === "SUPERADMIN" || login === SUPER_ADMIN_LOGIN || (SUPER_ADMIN_EMAIL && email === SUPER_ADMIN_EMAIL);
 }
 
 function isSuperAdminLogin(usuario) {
