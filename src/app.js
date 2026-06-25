@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v339";
+const APP_FALLBACK_VERSION = "v340";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -2202,6 +2202,7 @@ function renderUsuarios() {
   const renderUsuarioForm = Boolean(editingUsuarioId || blankNewUsuario);
   const view = document.getElementById("usuarios-view");
   if (!view || !canManageUsers()) return;
+  const showNewUsuarioButton = !renderUsuarioForm;
   const visibleUsuarios = usuarios.filter((usuario) => isSuperAdminUser() || (!usuario.superAdmin && !usuario.superadminLocked));
   const sortedUsuarios = applyTableSort("usuarios", visibleUsuarios.slice(), {
     usuario: (usuario) => usuario.usuario || "",
@@ -2217,7 +2218,7 @@ function renderUsuarios() {
       <section class="panel usuarios-list-panel">
         <div class="toolbar">
           <h2>Usuários cadastrados</h2>
-          ${canCreateUsuario && !blankNewUsuario ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
+          ${showNewUsuarioButton ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
         </div>
         <div class="table-wrap users-table-wrap">
           <table>
@@ -2293,9 +2294,9 @@ function renderUsuarios() {
 
   const usuarioForm = document.getElementById("usuario-form");
   usuarioForm?.addEventListener("submit", saveUsuario);
+  document.getElementById("show-usuario-form")?.addEventListener("click", newUsuario);
   if (editable) {
     document.getElementById("new-usuario")?.addEventListener("click", newUsuario);
-    document.getElementById("show-usuario-form")?.addEventListener("click", newUsuario);
     document.getElementById("cancel-usuario-edit")?.addEventListener("click", cancelUsuario);
     document.getElementById("reset-usuario-password")?.addEventListener("click", () => resetUsuarioPassword(editingUsuarioId));
     document.getElementById("apply-profile-permissions")?.addEventListener("click", applyProfilePermissionsToForm);
