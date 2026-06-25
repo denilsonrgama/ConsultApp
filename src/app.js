@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v333";
+const APP_FALLBACK_VERSION = "v334";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -608,7 +608,7 @@ function renderLogin(message = "") {
           <p class="eyebrow">Acesso seguro</p>
           <h1>ConsultApp ${renderAppVersionBadge()}</h1>
         </div>
-        <form id="login-form">
+        <form id="login-form" novalidate>
           <label>E-mail<input name="email" type="email" autocomplete="username" required></label>
           <label>Senha<input name="senha" type="password" autocomplete="current-password" required></label>
           <button class="primary-button" type="submit">Entrar</button>
@@ -635,7 +635,7 @@ function renderForgotPassword(message = "") {
           <p class="eyebrow">Recuperação de acesso</p>
           <h1>ConsultApp ${renderAppVersionBadge()}</h1>
         </div>
-        <form id="forgot-form">
+        <form id="forgot-form" novalidate>
           <label>E-mail cadastrado<input name="email" type="email" autocomplete="email" required></label>
           <button class="primary-button" type="submit">Enviar senha temporária</button>
           <button class="link-button" type="button" id="back-login">Voltar ao login</button>
@@ -658,7 +658,7 @@ function renderFirstAccess(message = "", tone = "error") {
           <h1>Solicitar acesso ${renderAppVersionBadge()}</h1>
           <p class="muted">Preencha seus dados. O acesso ficará bloqueado até liberação e definição de perfil pelo administrador.</p>
         </div>
-        <form id="first-access-form">
+        <form id="first-access-form" novalidate>
           <div class="auth-form-grid">
             <label>Nome<input name="nome" autocomplete="given-name" required></label>
             <label>Sobrenome<input name="sobrenome" autocomplete="family-name" required></label>
@@ -689,6 +689,11 @@ async function handleLogin(event) {
     usuario: form.elements.email.value.trim(),
     senha: form.elements.senha.value,
   };
+  const validationError = validateLoginPayload(payload);
+  if (validationError) {
+    errorBox.textContent = validationError;
+    return;
+  }
 
   try {
     const response = await csrfFetch("/api/auth/login", {
@@ -724,6 +729,17 @@ async function handleGuestLogin() {
   }
 }
 
+function isValidEmailClient(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function validateLoginPayload(payload) {
+  if (!payload.usuario) return "Informe o e-mail.";
+  if (!isValidEmailClient(payload.usuario)) return "Informe um e-mail válido.";
+  if (!payload.senha) return "Informe a senha.";
+  return "";
+}
+
 function validateStrongPasswordClient(password, usuario = "") {
   const value = String(password || "");
   if (value.length < PASSWORD_MIN_LENGTH) return `A senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`;
@@ -745,7 +761,7 @@ function renderTemporaryPasswordChange(usuario, senhaTemporaria, nome = "") {
           <h1>Alterar senha</h1>
           <p class="muted">Olá, ${escapeHtml(nome)}. Antes de acessar o sistema, cadastre uma nova senha forte.</p>
         </div>
-        <form id="temporary-password-form">
+        <form id="temporary-password-form" novalidate>
           <label>Nova senha<input name="novaSenha" type="password" autocomplete="new-password" minlength="${PASSWORD_MIN_LENGTH}" required></label>
           <p class="muted password-policy-hint">Use no mínimo ${PASSWORD_MIN_LENGTH} caracteres, com letra maiúscula, letra minúscula, número e caractere especial.</p>
           <label>Confirmar nova senha<input name="confirmarSenha" type="password" autocomplete="new-password" minlength="${PASSWORD_MIN_LENGTH}" required></label>
@@ -770,6 +786,14 @@ async function handleTemporaryPasswordChange(event, usuario, senhaTemporaria) {
   const confirmarSenha = form.elements.confirmarSenha.value;
   const policyError = validateStrongPasswordClient(novaSenha, usuario);
 
+  if (!novaSenha) {
+    messageBox.textContent = "Informe a nova senha.";
+    return;
+  }
+  if (!confirmarSenha) {
+    messageBox.textContent = "Confirme a nova senha.";
+    return;
+  }
   if (novaSenha !== confirmarSenha) {
     messageBox.textContent = "A confirmação da senha não confere.";
     return;
@@ -800,6 +824,14 @@ async function handleForgotPassword(event) {
   const payload = {
     email: form.elements.email.value.trim(),
   };
+  if (!payload.email) {
+    messageBox.textContent = "Informe o e-mail cadastrado.";
+    return;
+  }
+  if (!isValidEmailClient(payload.email)) {
+    messageBox.textContent = "Informe um e-mail válido.";
+    return;
+  }
 
   try {
     const response = await csrfFetch("/api/auth/forgot-password", {
@@ -829,9 +861,27 @@ async function handleFirstAccess(event) {
     senha: form.elements.senha.value,
   };
   const confirmarSenha = form.elements.confirmarSenha.value;
+  const requiredFields = [
+    [payload.nome, "Informe o nome."],
+    [payload.sobrenome, "Informe o sobrenome."],
+    [payload.dataNascimento, "Informe a data de nascimento."],
+    [payload.telefone, "Informe o telefone."],
+    [payload.email, "Informe o e-mail."],
+    [payload.senha, "Informe a senha."],
+    [confirmarSenha, "Confirme a senha."],
+  ];
+  const missingField = requiredFields.find(([value]) => !value);
   const policyError = validateStrongPasswordClient(payload.senha, payload.email);
 
   messageBox.classList.remove("is-success");
+  if (missingField) {
+    messageBox.textContent = missingField[1];
+    return;
+  }
+  if (!isValidEmailClient(payload.email)) {
+    messageBox.textContent = "Informe um e-mail válido.";
+    return;
+  }
   if (payload.senha !== confirmarSenha) {
     messageBox.textContent = "A confirmação da senha não confere.";
     return;
