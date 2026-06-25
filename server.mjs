@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v336";
+const serverVersion = "v337";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));

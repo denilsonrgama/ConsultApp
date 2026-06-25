@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v336";
+const APP_FALLBACK_VERSION = "v337";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -2195,8 +2195,7 @@ function renderUsuarios() {
   const editable = hasPermission("usuarios.create") || hasPermission("usuarios.edit") || hasPermission("usuarios.delete");
   const canCreateUsuario = hasPermission("usuarios.create");
   const canEditUsuarios = hasPermission("usuarios.edit");
-  const showUsuarioFormOnMobile = Boolean(editingUsuarioId || blankNewUsuario);
-  const renderUsuarioForm = !isCompactLayout() || showUsuarioFormOnMobile;
+  const renderUsuarioForm = Boolean(editingUsuarioId || blankNewUsuario);
   const view = document.getElementById("usuarios-view");
   if (!view || !canManageUsers()) return;
   const visibleUsuarios = usuarios.filter((usuario) => isSuperAdminUser() || (!usuario.superAdmin && !usuario.superadminLocked));
@@ -2214,7 +2213,7 @@ function renderUsuarios() {
       <section class="panel usuarios-list-panel">
         <div class="toolbar">
           <h2>Usuários cadastrados</h2>
-          ${canCreateUsuario && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
+          ${canCreateUsuario && !blankNewUsuario ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
         </div>
         <div class="table-wrap users-table-wrap">
           <table>
@@ -2244,7 +2243,7 @@ function renderUsuarios() {
           </table>
         </div>
       </section>
-      ${renderUsuarioForm ? `<section class="panel usuario-form-panel${showUsuarioFormOnMobile ? "" : " is-mobile-hidden"}">
+      ${renderUsuarioForm ? `<section class="panel usuario-form-panel">
         <h2>${editingUsuarioId ? "Alterar usuário" : "Novo usuário"}</h2>
         <form class="usuario-form-grid" id="usuario-form">
           <label>Usuário automático<input name="usuario" readonly value="${fieldValue(editingUsuario.usuario || "Gerado ao salvar")}"></label>
@@ -2280,7 +2279,6 @@ function renderUsuarios() {
             <div class="form-actions budget-form-actions">
               <button class="primary-button" type="submit">${editingUsuarioId ? "Salvar alteração" : "Salvar usuário"}</button>
               ${editingUsuarioId && canResetUsuarioPassword(editingUsuario) ? '<button class="ghost-button" type="button" id="reset-usuario-password">Redefinir senha</button>' : ""}
-              ${editingUsuarioId ? '<button class="success-button" type="button" id="new-usuario">Novo usuário</button>' : ""}
               <button class="danger-button" type="button" id="cancel-usuario-edit">Cancelar</button>
             </div>
           ` : '<p class="muted">Acesso somente leitura.</p>'}
@@ -2301,35 +2299,70 @@ function renderUsuarios() {
     document.getElementById("clear-all-permissions")?.addEventListener("click", () => setAllPermissions(false));
     usuarioForm?.addEventListener("click", handlePermissionGroupAction);
     usuarioForm?.querySelector('[name="perfil"]')?.addEventListener("change", applyProfilePermissionsToForm);
+    setupPermissionAccordion(usuarioForm);
   } else if (usuarioForm) {
     setFormReadOnly(usuarioForm);
+    setupPermissionAccordion(usuarioForm);
   }
 }
 
 function permissionCheckboxes(permissoes = {}) {
   const visiblePermissions = PERMISSIONS.filter((permission) => canManagePermissionKey(permission.key));
   const groups = [...new Set(visiblePermissions.map((permission) => permission.group))];
-  return groups.map((group) => `
-    <fieldset class="permission-group">
-      <legend>${escapeHtml(group)}</legend>
-      <div class="permission-group-actions">
-        <button type="button" class="small-button" data-permission-group-action="check" data-permission-group="${escapeHtml(group)}">Marcar módulo</button>
-        <button type="button" class="small-button danger-text" data-permission-group-action="clear" data-permission-group="${escapeHtml(group)}">Limpar módulo</button>
+  return groups.map((group, index) => {
+    const permissions = visiblePermissions.filter((permission) => permission.group === group);
+    const checkedCount = permissions.filter((permission) => permissoes[permission.key]).length;
+    return `
+    <details class="permission-group" ${index === 0 ? "open" : ""}>
+      <summary>
+        <span>${escapeHtml(group)}</span>
+        <small>${checkedCount}/${permissions.length}</small>
+      </summary>
+      <div class="permission-group-body">
+        <div class="permission-group-actions">
+          <button type="button" class="small-button" data-permission-group-action="check" data-permission-group="${escapeHtml(group)}">Marcar módulo</button>
+          <button type="button" class="small-button danger-text" data-permission-group-action="clear" data-permission-group="${escapeHtml(group)}">Limpar módulo</button>
+        </div>
+        ${permissions.map((permission) => `
+          <label class="checkbox-line">
+            <input type="checkbox" name="permissao" value="${escapeHtml(permission.key)}" ${permissoes[permission.key] ? "checked" : ""}>
+            ${escapeHtml(permission.label)}
+          </label>
+        `).join("")}
       </div>
-      ${visiblePermissions.filter((permission) => permission.group === group).map((permission) => `
-        <label class="checkbox-line">
-          <input type="checkbox" name="permissao" value="${escapeHtml(permission.key)}" ${permissoes[permission.key] ? "checked" : ""}>
-          ${escapeHtml(permission.label)}
-        </label>
-      `).join("")}
-    </fieldset>
-  `).join("");
+    </details>
+  `; }).join("");
+}
+
+function setupPermissionAccordion(form) {
+  form?.querySelectorAll(".permission-group").forEach((group) => {
+    group.addEventListener("toggle", () => {
+      if (!group.open) return;
+      form.querySelectorAll(".permission-group").forEach((otherGroup) => {
+        if (otherGroup !== group) otherGroup.open = false;
+      });
+    });
+  });
+  form?.addEventListener("change", (event) => {
+    if (event.target?.matches('input[name="permissao"]')) syncPermissionGroupCounters(form);
+  });
+  syncPermissionGroupCounters(form);
+}
+
+function syncPermissionGroupCounters(form = document.getElementById("usuario-form")) {
+  form?.querySelectorAll(".permission-group").forEach((group) => {
+    const inputs = [...group.querySelectorAll('input[name="permissao"]')];
+    const checked = inputs.filter((input) => input.checked).length;
+    const counter = group.querySelector("summary small");
+    if (counter) counter.textContent = `${checked}/${inputs.length}`;
+  });
 }
 
 function setAllPermissions(checked) {
   document.querySelectorAll('#usuario-form input[name="permissao"]').forEach((input) => {
     input.checked = checked;
   });
+  syncPermissionGroupCounters();
 }
 
 function handlePermissionGroupAction(event) {
@@ -2341,6 +2374,7 @@ function handlePermissionGroupAction(event) {
   document.querySelectorAll('#usuario-form input[name="permissao"]').forEach((input) => {
     if (keys.includes(input.value)) input.checked = checked;
   });
+  syncPermissionGroupCounters();
 }
 
 function collectPermissionFormValues(form) {
@@ -2364,6 +2398,7 @@ function applyProfilePermissionsToForm(event) {
   form.querySelectorAll('input[name="permissao"]').forEach((input) => {
     input.checked = Boolean(permissoes[input.value]);
   });
+  syncPermissionGroupCounters(form);
   showFloatingMessage(`Modelo ${perfil} aplicado. Clique em Salvar para gravar.`, "success");
 }
 
