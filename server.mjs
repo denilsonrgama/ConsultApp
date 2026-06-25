@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v345";
+const serverVersion = "v346";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
@@ -942,7 +942,7 @@ async function deleteOrInactivateUser(id, authUser) {
   if (Number(id) === Number(authUser?.id)) {
     throw new Error("Você não pode excluir ou inativar o próprio usuário.");
   }
-  if (isSuperAdminUser(existing) || isSuperAdminLocked(existing)) {
+  if (isSuperAdminUser(existing) || (isSuperAdminLocked(existing) && !isSuperAdminUser(authUser))) {
     throw new Error("Usuário protegido pelo superusuário.");
   }
 
