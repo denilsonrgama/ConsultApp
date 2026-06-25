@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v334";
+const APP_FALLBACK_VERSION = "v335";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -177,8 +177,11 @@ const DOCUMENTATION_RECORDS = [
     summary: "Modelo de acesso por perfil com ajustes finos por tela e ação.",
     items: [
       "Primeiro acesso cria uma solicitação pendente com dados pessoais e senha forte.",
+      "Usuário pré-cadastrado pela Administração também deve criar a própria senha pelo Primeiro acesso.",
       "O usuário técnico é gerado automaticamente como nome.ultimonome e usado em logs/auditoria.",
       "Cadastros pendentes precisam ser ativados e ter perfil/permissões revisados antes do login.",
+      "Senha não é digitada no cadastro administrativo; ADMIN ou SUPERADMIN apenas envia senha temporária para recriação.",
+      "Exclusão de usuário com histórico de clientes, serviços, orçamentos ou PDFs salvos vira inativação para preservar rastreabilidade.",
       "ADMIN administra cadastros e rotinas, mas não acessa Auditoria técnica.",
       "OPERADOR usa clientes, serviços e orçamentos sem financeiro sensível.",
       "FINANCEIRO acessa financeiro, relatórios e consulta de orçamentos.",
@@ -255,6 +258,7 @@ const PERMISSIONS = [
   { key: "usuarios.view", label: "Ver usuários", group: "Usuários" },
   { key: "usuarios.create", label: "Criar usuários", group: "Usuários" },
   { key: "usuarios.edit", label: "Alterar usuários", group: "Usuários" },
+  { key: "usuarios.delete", label: "Excluir ou inativar usuários", group: "Usuários" },
   { key: "auditoria.view", label: "Ver auditoria", group: "Auditoria" },
   { key: "auditoria.manage", label: "Limpar logs antigos", group: "Auditoria" },
   { key: "data.write", label: "Gravar alterações no banco", group: "Sistema" },
@@ -373,6 +377,24 @@ function canManageUsers() {
 
 function canEditUsuarioRecord(usuario) {
   return hasPermission("usuarios.edit") && (isSuperAdminUser() || (!usuario?.superAdmin && !usuario?.superadminLocked));
+}
+
+function canDeleteUsuarioRecord(usuario) {
+  return hasPermission("usuarios.delete")
+    && Number(usuario?.id) !== Number(currentUser?.id)
+    && !usuario?.superAdmin
+    && !usuario?.superadminLocked
+    && (isSuperAdminUser() || hasPermission("usuarios.delete"));
+}
+
+function canResetUsuarioPassword(usuario) {
+  const adminPasswordManager = isSuperAdminUser() || userProfile().toUpperCase() === "ADMIN";
+  return adminPasswordManager
+    && hasPermission("usuarios.edit")
+    && Boolean(usuario?.id)
+    && usuario.ativo === true
+    && usuario.cadastroPendente !== true
+    && (isSuperAdminUser() || (!usuario?.superAdmin && !usuario?.superadminLocked));
 }
 
 function showNoPermissionMessage() {
@@ -2170,7 +2192,9 @@ function auditTable(logs) {
 function renderUsuarios() {
   const editingUsuario = usuarios.find((usuario) => Number(usuario.id) === Number(editingUsuarioId)) || {};
   const usuarioPermissoes = permissionsForUser(editingUsuario);
-  const editable = hasPermission("usuarios.create") || hasPermission("usuarios.edit");
+  const editable = hasPermission("usuarios.create") || hasPermission("usuarios.edit") || hasPermission("usuarios.delete");
+  const canCreateUsuario = hasPermission("usuarios.create");
+  const canEditUsuarios = hasPermission("usuarios.edit");
   const showUsuarioFormOnMobile = Boolean(editingUsuarioId || blankNewUsuario);
   const renderUsuarioForm = !isCompactLayout() || showUsuarioFormOnMobile;
   const view = document.getElementById("usuarios-view");
@@ -2190,7 +2214,7 @@ function renderUsuarios() {
       <section class="panel usuarios-list-panel">
         <div class="toolbar">
           <h2>Usuários cadastrados</h2>
-          ${editable && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
+          ${canCreateUsuario && !showUsuarioFormOnMobile ? '<button class="success-button usuario-list-new-button" type="button" id="show-usuario-form">Novo</button>' : ""}
         </div>
         <div class="table-wrap users-table-wrap">
           <table>
@@ -2210,7 +2234,10 @@ function renderUsuarios() {
                   <td>${escapeHtml(usuario.email)}</td>
                   <td>${escapeHtml(userProfileLabel(usuario))}</td>
                   <td><span class="badge ${usuarioStatusClass(usuario)}">${escapeHtml(usuarioStatusLabel(usuario))}</span></td>
-                  <td>${editable && canEditUsuarioRecord(usuario) ? `<div class="row-actions"><button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button></div>` : ""}</td>
+                  <td>${(canEditUsuarioRecord(usuario) || canDeleteUsuarioRecord(usuario)) ? `<div class="row-actions">
+                    ${canEditUsuarioRecord(usuario) ? `<button class="small-button" data-edit-usuario="${escapeHtml(usuario.id)}">Alterar</button>` : ""}
+                    ${canDeleteUsuarioRecord(usuario) ? `<button class="small-button danger-text" data-delete-usuario="${escapeHtml(usuario.id)}">Excluir</button>` : ""}
+                  </div>` : ""}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -2227,9 +2254,12 @@ function renderUsuarios() {
           <label>Data nascimento<input name="dataNascimento" type="date" value="${fieldValue(editingUsuario.dataNascimento)}"></label>
           <label>Telefone<input name="telefone" value="${fieldValue(editingUsuario.telefone)}"></label>
           <label>Perfil<select name="perfil" required><option value="">Selecione</option>${options(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"], editingUsuario.perfil)}</select></label>
-          <label>Senha<input name="senha" type="password" minlength="${PASSWORD_MIN_LENGTH}" ${editingUsuarioId ? 'placeholder="Deixe em branco para manter"' : "required"} autocomplete="new-password"></label>
-          <p class="muted password-policy-hint">Mínimo de ${PASSWORD_MIN_LENGTH} caracteres, com maiúscula, minúscula, número e caractere especial.</p>
-          <label class="checkbox-line"><input name="ativo" type="checkbox" ${editingUsuario.ativo === false ? "" : "checked"}> ${editingUsuario.cadastroPendente ? "Liberar acesso" : "Usuário ativo"}</label>
+          ${editingUsuarioId ? `
+            <label class="checkbox-line"><input name="ativo" type="checkbox" ${editingUsuario.ativo === false ? "" : "checked"}> ${editingUsuario.cadastroPendente ? "Liberar acesso" : "Usuário ativo"}</label>
+            <p class="muted password-policy-hint usuario-first-access-note">Senha não é alterada manualmente. ADMIN ou superusuário pode enviar senha temporária para o usuário recriar o acesso.</p>
+          ` : `
+            <p class="muted password-policy-hint usuario-first-access-note">A senha será criada pelo próprio usuário no link Primeiro acesso. O cadastro ficará pendente até a liberação administrativa.</p>
+          `}
           <div class="permissions-panel">
             <div class="toolbar">
               <div>
@@ -2246,9 +2276,10 @@ function renderUsuarios() {
             </div>
             ${permissionCheckboxes(usuarioPermissoes)}
           </div>
-          ${editable ? `
+          ${(editingUsuarioId ? canEditUsuarios : canCreateUsuario) ? `
             <div class="form-actions budget-form-actions">
               <button class="primary-button" type="submit">${editingUsuarioId ? "Salvar alteração" : "Salvar usuário"}</button>
+              ${editingUsuarioId && canResetUsuarioPassword(editingUsuario) ? '<button class="ghost-button" type="button" id="reset-usuario-password">Redefinir senha</button>' : ""}
               ${editingUsuarioId ? '<button class="success-button" type="button" id="new-usuario">Novo usuário</button>' : ""}
               <button class="danger-button" type="button" id="cancel-usuario-edit">Cancelar</button>
             </div>
@@ -2264,6 +2295,7 @@ function renderUsuarios() {
     document.getElementById("new-usuario")?.addEventListener("click", newUsuario);
     document.getElementById("show-usuario-form")?.addEventListener("click", newUsuario);
     document.getElementById("cancel-usuario-edit")?.addEventListener("click", cancelUsuario);
+    document.getElementById("reset-usuario-password")?.addEventListener("click", () => resetUsuarioPassword(editingUsuarioId));
     document.getElementById("apply-profile-permissions")?.addEventListener("click", applyProfilePermissionsToForm);
     document.getElementById("check-all-permissions")?.addEventListener("click", () => setAllPermissions(true));
     document.getElementById("clear-all-permissions")?.addEventListener("click", () => setAllPermissions(false));
@@ -2399,19 +2431,9 @@ async function saveUsuario(event) {
     dataNascimento: form.elements.dataNascimento.value,
     telefone: form.elements.telefone.value.trim(),
     perfil: form.elements.perfil.value,
-    senha: form.elements.senha.value,
-    ativo: form.elements.ativo.checked,
+    ativo: editingUsuarioId ? form.elements.ativo.checked : false,
     permissoes: collectPermissionFormValues(form),
   };
-  const passwordError = payload.senha ? validateStrongPasswordClient(payload.senha, payload.email) : "";
-  if (!editingUsuarioId && !payload.senha) {
-    showFloatingMessage("Informe a senha inicial do usuário.");
-    return;
-  }
-  if (passwordError) {
-    showFloatingMessage(passwordError);
-    return;
-  }
 
   try {
     const response = await csrfFetch(editingUsuarioId ? `/api/usuarios/${editingUsuarioId}` : "/api/usuarios", {
@@ -2427,6 +2449,62 @@ async function saveUsuario(event) {
     showFloatingMessage("Usuário salvo com sucesso.");
   } catch (error) {
     showFloatingMessage(error.message || "Não foi possível salvar usuário.");
+  }
+}
+
+async function deleteUsuario(id) {
+  const target = usuarios.find((usuario) => Number(usuario.id) === Number(id));
+  if (!target || !canDeleteUsuarioRecord(target)) {
+    showNoPermissionMessage();
+    return;
+  }
+
+  const confirmed = await askConfirmChoice(
+    "Excluir usuário",
+    "Se este usuário tiver criado clientes, serviços, orçamentos ou PDFs salvos, ele será apenas inativado para preservar o histórico.",
+    "Excluir/Inativar",
+  );
+  if (!confirmed) return;
+
+  try {
+    const response = await csrfFetch(`/api/usuarios/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível excluir usuário.");
+    editingUsuarioId = null;
+    blankNewUsuario = false;
+    await refreshUsuariosView();
+    showFloatingMessage(
+      result.action === "deleted"
+        ? "Usuário excluído com sucesso."
+        : "Usuário possui registros vinculados e foi inativado.",
+      "success",
+    );
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível excluir usuário.", "error");
+  }
+}
+
+async function resetUsuarioPassword(id) {
+  const target = usuarios.find((usuario) => Number(usuario.id) === Number(id));
+  if (!target || !canResetUsuarioPassword(target)) {
+    showNoPermissionMessage();
+    return;
+  }
+
+  const confirmed = await askConfirmChoice(
+    "Redefinir senha",
+    `Enviar uma senha temporária para ${target.email}? O usuário deverá criar uma nova senha no próximo acesso.`,
+    "Enviar senha",
+  );
+  if (!confirmed) return;
+
+  try {
+    const response = await csrfFetch(`/api/usuarios/${encodeURIComponent(id)}/reset-password`, { method: "POST" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Não foi possível redefinir a senha.");
+    showFloatingMessage(result.message || "Senha temporária enviada para o e-mail do usuário.", "success");
+  } catch (error) {
+    showFloatingMessage(error.message || "Não foi possível redefinir a senha.", "error");
   }
 }
 
@@ -2596,8 +2674,11 @@ function renderAjuda() {
           <h3>12. Usuários e perfis</h3>
           <ol>
             <li>Solicitações de primeiro acesso entram como PENDENTE e não permitem login até serem liberadas.</li>
+            <li>Ao cadastrar um usuário pela Administração, informe dados e perfil; a senha será criada pelo próprio usuário no Primeiro acesso.</li>
             <li>Ao liberar um usuário, revise dados pessoais, marque o acesso como ativo, escolha o perfil e personalize permissões quando necessário.</li>
             <li>O campo Usuário é gerado automaticamente pelo sistema e usado para rastreabilidade em logs e auditoria.</li>
+            <li>Senha não é alterada manualmente no cadastro. ADMIN ou SUPERADMIN pode enviar senha temporária para o usuário recriar o acesso.</li>
+            <li>Ao excluir um usuário, se houver clientes, serviços, orçamentos ou PDFs salvos vinculados ao histórico dele, o sistema inativa o cadastro em vez de apagar.</li>
             <li>ADMIN: administra cadastros e rotinas do sistema, sem acesso à Auditoria técnica.</li>
             <li>OPERADOR: usa clientes, serviços e orçamentos.</li>
             <li>FINANCEIRO: acessa financeiro, relatórios e consulta de orçamentos.</li>
@@ -6345,6 +6426,14 @@ document.body.addEventListener("click", (event) => {
   const editUsuarioButton = event.target.closest("[data-edit-usuario]");
   if (editUsuarioButton) {
     editUsuario(editUsuarioButton.dataset.editUsuario);
+    return;
+  }
+
+  const deleteUsuarioButton = event.target.closest("[data-delete-usuario]");
+  if (deleteUsuarioButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteUsuario(deleteUsuarioButton.dataset.deleteUsuario);
     return;
   }
 

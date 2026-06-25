@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v334";
+const serverVersion = "v335";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
@@ -251,6 +251,7 @@ const PERMISSION_KEYS = [
   "usuarios.view",
   "usuarios.create",
   "usuarios.edit",
+  "usuarios.delete",
   "auditoria.view",
   "auditoria.manage",
   "data.write",
@@ -346,6 +347,10 @@ function effectivePermissions(user) {
 function hasPermission(user, key) {
   if (!key) return true;
   return Boolean(effectivePermissions(user)[key]);
+}
+
+function canManageUserPasswords(user) {
+  return isSuperAdminUser(user) || String(user?.perfil || "").trim().toUpperCase() === "ADMIN";
 }
 
 function publicUser(user) {
@@ -745,8 +750,7 @@ function validateUserPayload(payload, isUpdate = false, targetUser = null) {
   if (!email) throw new Error("Informe um e-mail válido.");
   if (!nome) throw new Error("Informe o nome.");
   if (!allowedProfiles.has(perfil)) throw new Error("Perfil inválido.");
-  if (!isUpdate && !senha) throw new Error("Informe a senha.");
-  if (!isUpdate || senha) assertStrongPassword(senha, { usuario, nome, email });
+  if (senha) assertStrongPassword(senha, { usuario, nome, email });
 
   return {
     usuario,
@@ -797,7 +801,35 @@ async function requestFirstAccess(payload) {
   const user = validateFirstAccessPayload(payload);
   const existing = await findUserByLogin(user.email);
   if (existing) {
-    throw new Error("Já existe um usuário ou solicitação para este e-mail.");
+    const existingEmail = safeNormalizeEmail(existing.email || "").toLowerCase();
+    if (existing.ativo === true || existing.cadastro_pendente !== true || existingEmail !== user.email.toLowerCase()) {
+      throw new Error("Já existe um usuário ou solicitação para este e-mail.");
+    }
+    const result = await postgresPool.query(`
+      UPDATE usuarios
+      SET nome = $1,
+          sobrenome = $2,
+          telefone = $3,
+          data_nascimento = $4,
+          senha_hash = $5,
+          deve_trocar_senha = FALSE,
+          senha_alterada_em = CURRENT_TIMESTAMP,
+          senha_politica_versao = $6,
+          ativo = FALSE,
+          cadastro_pendente = TRUE,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
+    `, [
+      user.nome,
+      user.sobrenome,
+      user.telefone,
+      user.dataNascimento,
+      passwordHash(user.senha),
+      PASSWORD_POLICY_VERSION,
+      existing.id,
+    ]);
+    return publicUserAdmin(result.rows[0]);
   }
   const generatedUsername = await generateUsername(user.nome, user.sobrenome);
 
@@ -835,12 +867,14 @@ async function createUser(payload, authUser) {
     throw new Error("Somente o superusuario pode cadastrar o login tecnico.");
   }
   const superadminLocked = isSuperAdminUser(authUser) && !isSuperAdminLogin(user.usuario);
-  const forcePasswordChange = user.perfil !== "CONVIDADO";
+  const active = false;
+  const cadastroPendente = true;
+  const forcePasswordChange = false;
   const result = await postgresPool.query(`
     INSERT INTO usuarios (usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, senha_hash, ativo, cadastro_pendente, superadmin_locked, deve_trocar_senha, senha_politica_versao)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, FALSE, $11, $12, $13)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14)
     RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
-  `, [user.usuario, user.nome, user.sobrenome, user.email, user.telefone, user.dataNascimento, user.perfil, JSON.stringify(user.permissoes), passwordHash(user.senha), user.ativo, superadminLocked, forcePasswordChange, PASSWORD_POLICY_VERSION]);
+  `, [user.usuario, user.nome, user.sobrenome, user.email, user.telefone, user.dataNascimento, user.perfil, JSON.stringify(user.permissoes), passwordHash(temporaryPassword()), active, cadastroPendente, superadminLocked, forcePasswordChange, PASSWORD_POLICY_VERSION]);
   return publicUserAdmin(result.rows[0]);
 }
 
@@ -853,6 +887,9 @@ async function updateUser(id, payload, authUser) {
   const user = validateUserPayload(payload, true, existing);
   if (await emailExists(user.email, id)) {
     throw new Error("Já existe outro usuário com este e-mail.");
+  }
+  if (user.senha) {
+    throw new Error("Use a rotina de redefinição de senha.");
   }
   if (isSuperAdminUser(existing) && !isSuperAdminLogin(user.usuario)) {
     throw new Error("O login tecnico do superusuario nao pode ser alterado.");
@@ -883,18 +920,66 @@ async function updateUser(id, payload, authUser) {
         sobrenome = $9, telefone = $10, data_nascimento = $11, cadastro_pendente = $12,
         updated_at = CURRENT_TIMESTAMP
   `;
-  if (user.senha) {
-    params.push(passwordHash(user.senha));
-    sql += `, senha_hash = $13`;
-    params.push(user.perfil !== "CONVIDADO");
-    sql += `, deve_trocar_senha = $14`;
-    params.push(PASSWORD_POLICY_VERSION);
-    sql += `, senha_politica_versao = $15, senha_alterada_em = NULL`;
-  }
   sql += ` WHERE id = $6 RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente`;
   const result = await postgresPool.query(sql, params);
   if (!result.rowCount) throw new Error("Usuário não encontrado.");
   return publicUserAdmin(result.rows[0]);
+}
+
+async function userBusinessRecordCounts(user) {
+  const result = await postgresPool.query(`
+    SELECT
+      COUNT(*) FILTER (WHERE acao = 'cliente.criar')::int AS clientes,
+      COUNT(*) FILTER (WHERE acao = 'servico.criar')::int AS servicos,
+      COUNT(*) FILTER (WHERE acao = 'orcamento.criar')::int AS orcamentos,
+      COUNT(*) FILTER (
+        WHERE acao IN ('orcamento.gerar_pdf', 'relatorio.gerar_pdf')
+          AND lower(COALESCE(detalhes->>'armazenamento', '')) = 'banco'
+      )::int AS arquivos
+    FROM auditoria_logs
+    WHERE usuario_id = $1 OR lower(usuario) = lower($2)
+  `, [Number(user.id), String(user.usuario || "")]);
+  const row = result.rows[0] || {};
+  return {
+    clientes: Number(row.clientes || 0),
+    servicos: Number(row.servicos || 0),
+    orcamentos: Number(row.orcamentos || 0),
+    arquivos: Number(row.arquivos || 0),
+  };
+}
+
+async function deleteOrInactivateUser(id, authUser) {
+  const existing = await findUserById(id);
+  if (!existing) throw new Error("Usuário não encontrado.");
+  if (!canSeeManagedUser(authUser, existing)) {
+    throw new Error("Usuário protegido pelo superusuário.");
+  }
+  if (Number(id) === Number(authUser?.id)) {
+    throw new Error("Você não pode excluir ou inativar o próprio usuário.");
+  }
+  if (isSuperAdminUser(existing) || isSuperAdminLocked(existing)) {
+    throw new Error("Usuário protegido pelo superusuário.");
+  }
+
+  const vinculos = await userBusinessRecordCounts(existing);
+  const totalVinculos = Object.values(vinculos).reduce((sum, value) => sum + Number(value || 0), 0);
+
+  if (totalVinculos > 0) {
+    const result = await postgresPool.query(`
+      UPDATE usuarios
+      SET ativo = FALSE,
+          cadastro_pendente = FALSE,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, usuario, nome, sobrenome, email, telefone, data_nascimento, perfil, permissoes, ativo, superadmin_locked, cadastro_pendente
+    `, [Number(id)]);
+    await postgresPool.query("DELETE FROM sessoes WHERE usuario_id = $1", [Number(id)]);
+    return { action: "inactivated", usuario: publicUserAdmin(result.rows[0]), vinculos };
+  }
+
+  await postgresPool.query("DELETE FROM sessoes WHERE usuario_id = $1", [Number(id)]);
+  await postgresPool.query("DELETE FROM usuarios WHERE id = $1", [Number(id)]);
+  return { action: "deleted", usuario: publicUserAdmin(existing), vinculos };
 }
 
 function temporaryPassword() {
@@ -935,6 +1020,36 @@ async function resetUserPasswordByEmail(usuario, email) {
   });
 
   return true;
+}
+
+async function resetUserPasswordById(id, authUser) {
+  if (!canManageUserPasswords(authUser)) {
+    throw new Error("Somente ADMIN ou superusuário pode redefinir senha.");
+  }
+  const target = await findUserById(id);
+  if (!target) throw new Error("Usuário não encontrado.");
+  if (!canSeeManagedUser(authUser, target)) {
+    throw new Error("Usuário protegido pelo superusuário.");
+  }
+  if (isSuperAdminUser(target) && !isSuperAdminUser(authUser)) {
+    throw new Error("Somente o superusuário pode redefinir esta senha.");
+  }
+  if (isSuperAdminLocked(target) && !isSuperAdminUser(authUser)) {
+    throw new Error("Usuário protegido pelo superusuário.");
+  }
+  if (target.cadastro_pendente === true) {
+    throw new Error("Usuário pendente deve concluir o Primeiro acesso.");
+  }
+  if (target.ativo !== true) {
+    throw new Error("Ative o usuário antes de redefinir a senha.");
+  }
+  if (!safeNormalizeEmail(target.email)) {
+    throw new Error("Usuário sem e-mail válido cadastrado.");
+  }
+
+  const sent = await resetUserPasswordByEmail("", target.email);
+  if (!sent) throw new Error("Não foi possível enviar a senha temporária.");
+  return publicUserAdmin(target);
 }
 
 function userMustChangePassword(user) {
@@ -2871,6 +2986,26 @@ createServer(async (request, response) => {
     return;
   }
 
+  const userPasswordResetMatch = url.pathname.match(/^\/api\/usuarios\/(\d+)\/reset-password$/);
+  if (request.method === "POST" && userPasswordResetMatch) {
+    const authUser = await requirePermission(request, response, "usuarios.edit");
+    if (!authUser) return;
+    try {
+      const usuario = await resetUserPasswordById(userPasswordResetMatch[1], authUser);
+      await logAudit(request, authUser, {
+        acao: "usuario.redefinir_senha",
+        modulo: "usuarios",
+        entidadeTipo: "usuario",
+        entidadeId: usuario.usuario,
+        detalhes: { id: usuario.id, email: usuario.email },
+      }).catch(() => {});
+      sendJson(response, 200, { ok: true, usuario, message: "Senha temporária enviada para o e-mail do usuário." });
+    } catch (error) {
+      sendJson(response, 400, { ok: false, error: error.message });
+    }
+    return;
+  }
+
   const userMatch = url.pathname.match(/^\/api\/usuarios\/(\d+)$/);
   if ((request.method === "PUT" || request.method === "PATCH") && userMatch) {
     const authUser = await requirePermission(request, response, "usuarios.edit");
@@ -2889,6 +3024,25 @@ createServer(async (request, response) => {
     } catch (error) {
       const duplicate = String(error.message || "").includes("duplicate") || String(error.message || "").includes("UNIQUE");
       sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "Usuário já cadastrado." : error.message });
+    }
+    return;
+  }
+
+  if (request.method === "DELETE" && userMatch) {
+    const authUser = await requirePermission(request, response, "usuarios.delete");
+    if (!authUser) return;
+    try {
+      const result = await deleteOrInactivateUser(userMatch[1], authUser);
+      await logAudit(request, authUser, {
+        acao: result.action === "deleted" ? "usuario.excluir" : "usuario.inativar_por_vinculo",
+        modulo: "usuarios",
+        entidadeTipo: "usuario",
+        entidadeId: result.usuario.usuario,
+        detalhes: { id: result.usuario.id, perfil: result.usuario.perfil, vinculos: result.vinculos },
+      }).catch(() => {});
+      sendJson(response, 200, { ok: true, ...result });
+    } catch (error) {
+      sendJson(response, 400, { ok: false, error: error.message });
     }
     return;
   }
