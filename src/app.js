@@ -1,7 +1,7 @@
 ﻿const STORAGE_KEY = "consultapp.v1";
 const SESSION_RELOAD_SKIP_KEY = "consultapp.skipReloadSessionClose";
 const LOGIN_WELCOME_KEY = "consultapp.showWelcomeAfterLogin";
-const APP_FALLBACK_VERSION = "v343";
+const APP_FALLBACK_VERSION = "v344";
 const PASSWORD_MIN_LENGTH = 8;
 const seed = window.CONSULT_SEED || {};
 
@@ -2217,10 +2217,10 @@ function renderUsuarios() {
     ${pageBanner()}
     <div class="usuarios-layout">
       <section class="panel usuarios-list-panel">
-        <div class="toolbar">
+        <div class="toolbar usuarios-list-toolbar">
           <h2>Usuários cadastrados</h2>
+          <button class="success-button usuario-new-action-button" type="button" id="show-usuario-form">Novo usuário</button>
         </div>
-        <div class="usuario-list-actions"><button class="success-button usuario-new-action-button" type="button" id="show-usuario-form">Novo usuário</button></div>
         <div class="table-wrap users-table-wrap">
           <table>
             <thead><tr>
@@ -2317,12 +2317,10 @@ function permissionCheckboxes(permissoes = {}) {
   const groups = [...new Set(visiblePermissions.map((permission) => permission.group))];
   return groups.map((group, index) => {
     const permissions = visiblePermissions.filter((permission) => permission.group === group);
-    const checkedCount = permissions.filter((permission) => permissoes[permission.key]).length;
     return `
     <details class="permission-group" ${index === 0 ? "open" : ""}>
       <summary>
         <span>${escapeHtml(group)}</span>
-        <small>${checkedCount}/${permissions.length}</small>
       </summary>
       <div class="permission-group-body">
         <div class="permission-group-actions">
@@ -2349,26 +2347,12 @@ function setupPermissionAccordion(form) {
       });
     });
   });
-  form?.addEventListener("change", (event) => {
-    if (event.target?.matches('input[name="permissao"]')) syncPermissionGroupCounters(form);
-  });
-  syncPermissionGroupCounters(form);
-}
-
-function syncPermissionGroupCounters(form = document.getElementById("usuario-form")) {
-  form?.querySelectorAll(".permission-group").forEach((group) => {
-    const inputs = [...group.querySelectorAll('input[name="permissao"]')];
-    const checked = inputs.filter((input) => input.checked).length;
-    const counter = group.querySelector("summary small");
-    if (counter) counter.textContent = `${checked}/${inputs.length}`;
-  });
 }
 
 function setAllPermissions(checked) {
   document.querySelectorAll('#usuario-form input[name="permissao"]').forEach((input) => {
     input.checked = checked;
   });
-  syncPermissionGroupCounters();
 }
 
 function handlePermissionGroupAction(event) {
@@ -2380,7 +2364,6 @@ function handlePermissionGroupAction(event) {
   document.querySelectorAll('#usuario-form input[name="permissao"]').forEach((input) => {
     if (keys.includes(input.value)) input.checked = checked;
   });
-  syncPermissionGroupCounters();
 }
 
 function collectPermissionFormValues(form) {
@@ -2404,7 +2387,6 @@ function applyProfilePermissionsToForm(event) {
   form.querySelectorAll('input[name="permissao"]').forEach((input) => {
     input.checked = Boolean(permissoes[input.value]);
   });
-  syncPermissionGroupCounters(form);
   showFloatingMessage(`Modelo ${perfil} aplicado. Clique em Salvar para gravar.`, "success");
 }
 
