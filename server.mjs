@@ -11,7 +11,7 @@ import PDFDocument from "pdfkit";
 
 /*
 ========================================
-CORREÃ‡ÃƒO RENDER / LINUX
+CORREÇÃO RENDER / LINUX
 ========================================
 */
 
@@ -23,7 +23,7 @@ process.env.PUPPETEER_CACHE_DIR ||= puppeteerCacheDir;
 
 /*
 ========================================
-CONFIGURAÃ‡Ã•ES
+CONFIGURAÇÕES
 ========================================
 */
 
@@ -48,7 +48,7 @@ const pythonExe =
 const port = Number(process.env.PORT || 5173);
 const host = process.env.HOST || "0.0.0.0";
 
-const serverVersion = "v331";
+const serverVersion = "v332";
 const PASSWORD_POLICY_VERSION = "strong-password-v1-20260625";
 const PASSWORD_MIN_LENGTH = Math.max(8, Number(process.env.PASSWORD_MIN_LENGTH || 8));
 const PASSWORD_MAX_AGE_DAYS = Math.max(1, Number(process.env.PASSWORD_MAX_AGE_DAYS || 30));
@@ -115,7 +115,7 @@ async function createPostgresPool() {
   try {
     ({ Pool } = await import("pg"));
   } catch {
-    throw new Error("DependÃƒÂªncia pg nÃƒÂ£o instalada. Rode npm install antes de usar PostgreSQL.");
+    throw new Error("Dependência pg não instalada. Rode npm install antes de usar PostgreSQL.");
   }
 
   const pool = new Pool({
@@ -662,10 +662,10 @@ function validateUserPayload(payload, isUpdate = false, targetUser = null) {
   const senha = String(payload.senha || "");
   const allowedProfiles = new Set(["ADMIN", "OPERADOR", "FINANCEIRO", "VISUALIZADOR", "CONVIDADO"]);
 
-  if (!usuario) throw new Error("Informe o usuÃ¡rio.");
+  if (!usuario) throw new Error("Informe o usuário.");
   if (!nome) throw new Error("Informe o nome.");
-  if (!email) throw new Error("Informe um e-mail vÃ¡lido.");
-  if (!allowedProfiles.has(perfil)) throw new Error("Perfil invÃ¡lido.");
+  if (!email) throw new Error("Informe um e-mail válido.");
+  if (!allowedProfiles.has(perfil)) throw new Error("Perfil inválido.");
   if (!isUpdate && !senha) throw new Error("Informe a senha.");
   if (!isUpdate || senha) assertStrongPassword(senha, { usuario, nome, email });
 
@@ -709,7 +709,7 @@ async function updateUser(id, payload, authUser) {
     throw new Error("Somente o superusuario pode alterar o login tecnico.");
   }
   if (Number(id) === Number(authUser?.id) && !user.ativo) {
-    throw new Error("VocÃª nÃ£o pode inativar o prÃ³prio usuÃ¡rio.");
+    throw new Error("Você não pode inativar o próprio usuário.");
   }
 
   const superadminLocked = isSuperAdminUser(authUser) && !isSuperAdminLogin(user.usuario)
@@ -731,7 +731,7 @@ async function updateUser(id, payload, authUser) {
   }
   sql += ` WHERE id = $6 RETURNING id, usuario, nome, email, perfil, permissoes, ativo, superadmin_locked`;
   const result = await postgresPool.query(sql, params);
-  if (!result.rowCount) throw new Error("UsuÃ¡rio nÃ£o encontrado.");
+  if (!result.rowCount) throw new Error("Usuário não encontrado.");
   return publicUserAdmin(result.rows[0]);
 }
 
@@ -760,15 +760,15 @@ async function resetUserPasswordByEmail(usuario, email) {
 
   await sendSmtpMail({
     to: targetEmail,
-    subject: "ConsultApp - RecuperaÃ§Ã£o de senha",
-    text: `OlÃ¡, ${user.nome}.\r\n\r\nFoi solicitada a recuperaÃ§Ã£o de acesso ao ConsultApp.\r\n\r\nUsuÃ¡rio: ${user.usuario}\r\nSenha temporÃ¡ria: ${newPassword}\r\n\r\nApÃ³s entrar no sistema, vocÃª deverÃ¡ criar uma nova senha antes de continuar.\r\n\r\nSe vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, informe o administrador do sistema.`,
+    subject: "ConsultApp - Recuperação de senha",
+    text: `Olá, ${user.nome}.\r\n\r\nFoi solicitada a recuperação de acesso ao ConsultApp.\r\n\r\nUsuário: ${user.usuario}\r\nSenha temporária: ${newPassword}\r\n\r\nApós entrar no sistema, você deverá criar uma nova senha antes de continuar.\r\n\r\nSe você não solicitou esta recuperação, informe o administrador do sistema.`,
     html: `
-      <p>OlÃ¡, ${escapeHtmlEmail(user.nome)}.</p>
-      <p>Foi solicitada a recuperaÃ§Ã£o de acesso ao ConsultApp.</p>
-      <p><strong>UsuÃ¡rio:</strong> ${escapeHtmlEmail(user.usuario)}<br>
-      <strong>Senha temporÃ¡ria:</strong> ${escapeHtmlEmail(newPassword)}</p>
-      <p>ApÃ³s entrar no sistema, vocÃª deverÃ¡ criar uma nova senha antes de continuar.</p>
-      <p>Se vocÃª nÃ£o solicitou esta recuperaÃ§Ã£o, informe o administrador do sistema.</p>
+      <p>Olá, ${escapeHtmlEmail(user.nome)}.</p>
+      <p>Foi solicitada a recuperação de acesso ao ConsultApp.</p>
+      <p><strong>Usuário:</strong> ${escapeHtmlEmail(user.usuario)}<br>
+      <strong>Senha temporária:</strong> ${escapeHtmlEmail(newPassword)}</p>
+      <p>Após entrar no sistema, você deverá criar uma nova senha antes de continuar.</p>
+      <p>Se você não solicitou esta recuperação, informe o administrador do sistema.</p>
     `,
   });
 
@@ -789,7 +789,7 @@ async function changeTemporaryPassword(usuario, senhaTemporaria, novaSenha) {
   const user = await findUserByLogin(String(usuario || ""));
   const active = user?.ativo === true;
   if (!user || !active || !userMustChangePassword(user) || !verifyPassword(senhaTemporaria || "", user.senha_hash)) {
-    throw new Error("UsuÃ¡rio ou senha atual invÃ¡lidos.");
+    throw new Error("Usuário ou senha atual inválidos.");
   }
   assertStrongPassword(novaSenha, user);
   if (String(novaSenha) === String(senhaTemporaria || "")) {
@@ -965,11 +965,11 @@ function isAllowedStaticPath(requested) {
 async function requireUser(request, response, allowedProfiles = []) {
   const user = await currentUser(request);
   if (!user) {
-    sendJson(response, 401, { ok: false, error: "UsuÃ¡rio nÃ£o autenticado." });
+    sendJson(response, 401, { ok: false, error: "Usuário não autenticado." });
     return null;
   }
   if (allowedProfiles.length && !allowedProfiles.includes(user.perfil)) {
-    sendJson(response, 403, { ok: false, error: "UsuÃ¡rio sem permissÃ£o para esta aÃ§Ã£o." });
+    sendJson(response, 403, { ok: false, error: "Usuário sem permissão para esta ação." });
     return null;
   }
   return user;
@@ -986,7 +986,7 @@ async function requirePermission(request, response, permission) {
       entidadeId: permission,
       detalhes: { metodo: request.method, rota: request.url },
     }).catch(() => {});
-    sendJson(response, 403, { ok: false, error: "UsuÃƒÂ¡rio sem permissÃƒÂ£o para esta aÃƒÂ§ÃƒÂ£o." });
+    sendJson(response, 403, { ok: false, error: "Usuário sem permissão para esta ação." });
     return null;
   }
   return user;
@@ -1027,7 +1027,7 @@ function validateUniqueBudgetServices(state) {
       const code = String(item.servicoCodigo || "").trim();
       if (!code) continue;
       if (seen.has(code)) {
-        throw new Error(`O serviÃ§o ${code} estÃ¡ duplicado no orÃ§amento ${orcamento.numero}.`);
+        throw new Error(`O serviço ${code} está duplicado no orçamento ${orcamento.numero}.`);
       }
       seen.add(code);
     }
@@ -1189,7 +1189,7 @@ async function writeRelationalAppState(state) {
         Number(orcamento.numero),
         requiredText(orcamento.clienteDocumento, "cliente do orcamento"),
         requiredText(orcamento.data, "data do orcamento"),
-        dbText(orcamento.status || "EM ANÃLISE"),
+        dbText(orcamento.status || "EM ANÁLISE"),
         dbText(orcamento.observacoes),
       ]);
 
@@ -1436,7 +1436,7 @@ async function ensureStoredFileToken(categoria, nome, currentToken = "") {
     }
   }
 
-  throw new Error("NÃ£o foi possÃ­vel gerar link seguro para o arquivo.");
+  throw new Error("Não foi possível gerar link seguro para o arquivo.");
 }
 
 async function saveStoredFile({ categoria, nome, mimeType, conteudo }) {
@@ -1549,7 +1549,7 @@ function loadSmtpConfig() {
   };
 
   if (!config.host || !config.user || !config.pass || !config.from) {
-    throw new Error("SMTP nÃ£o configurado. Preencha o arquivo smtp-config.json.");
+    throw new Error("SMTP não configurado. Preencha o arquivo smtp-config.json.");
   }
   return config;
 }
@@ -1561,7 +1561,7 @@ function encodeHeader(value) {
 function normalizeEmail(value) {
   const text = String(value || "").trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
-    throw new Error("E-mail de destino invÃ¡lido.");
+    throw new Error("E-mail de destino inválido.");
   }
   return text;
 }
@@ -1577,9 +1577,9 @@ function escapeHtmlEmail(value) {
 function friendlySmtpError(error) {
   const message = String(error?.message || error || "");
   if (message.includes("535") || message.toLowerCase().includes("badcredentials")) {
-    return "Falha de autenticaÃ§Ã£o no Gmail. Use uma senha de app do Google no campo pass do smtp-config.json, nÃ£o a senha normal da conta.";
+    return "Falha de autenticação no Gmail. Use uma senha de app do Google no campo pass do smtp-config.json, não a senha normal da conta.";
   }
-  if (message.toLowerCase().includes("smtp nÃ£o configurado")) return message;
+  if (message.toLowerCase().includes("smtp não configurado")) return message;
   return message || "Falha ao enviar e-mail.";
 }
 
@@ -1748,7 +1748,7 @@ function chromiumPath() {
 function printHtmlToPdf(html, target) {
   const browserExe = chromiumPath();
   if (!browserExe) {
-    throw new Error("Chrome ou Edge nÃƒÂ£o encontrado para gerar o PDF.");
+    throw new Error("Chrome ou Edge não encontrado para gerar o PDF.");
   }
 
   const tempDir = mkdtempSync(join(root, ".pdf-temp-"));
@@ -1767,7 +1767,7 @@ function printHtmlToPdf(html, target) {
     ], { encoding: "utf-8" });
 
     if (result.status !== 0 || !existsSync(target)) {
-      throw new Error(result.stderr || "Falha ao converter o orÃƒÂ§amento para PDF.");
+      throw new Error(result.stderr || "Falha ao converter o orçamento para PDF.");
     }
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
@@ -1848,7 +1848,7 @@ async function printHtmlToPdfPortable(html, target, documentTitle = "ConsultApp"
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 300));
     await page.pdf({ path: target, printBackground: true, preferCSSPageSize: true, timeout: 120000 });
     if (!existsSync(target) || statSync(target).size < 1024) {
-      throw new Error("PDF gerado vazio ou invÃ¡lido.");
+      throw new Error("PDF gerado vazio ou inválido.");
     }
   } catch (error) {
     throw new Error(`Falha ao gerar o PDF no servidor. Detalhe: ${error.message}`);
@@ -1975,11 +1975,11 @@ function createReportXlsx(report) {
   const columns = Array.isArray(report?.columns) ? report.columns : [];
   const summary = Array.isArray(report?.summary) ? report.summary : [];
   const rows = Array.isArray(report?.rows) ? report.rows : [];
-  if (!columns.length) throw new Error("RelatÃ³rio invÃ¡lido.");
+  if (!columns.length) throw new Error("Relatório inválido.");
 
   const width = Math.max(columns.length, 2);
   const sheetRows = [
-    [report.title || "RelatÃ³rio"],
+    [report.title || "Relatório"],
     [report.subtitle || ""],
     [],
     ...summary.map((item) => [item.label || "", item.value || ""]),
@@ -2026,7 +2026,7 @@ function createReportXlsx(report) {
       name: "xl/workbook.xml",
       data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets><sheet name="RelatÃ³rio" sheetId="1" r:id="rId1"/></sheets>
+  <sheets><sheet name="Relatório" sheetId="1" r:id="rId1"/></sheets>
 </workbook>`,
     },
     {
@@ -2054,7 +2054,7 @@ function createReportXlsx(report) {
       name: "docProps/core.xml",
       data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>${xmlEscape(report.title || "RelatÃ³rio")}</dc:title>
+  <dc:title>${xmlEscape(report.title || "Relatório")}</dc:title>
   <dc:creator>ConsultApp</dc:creator>
   <dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
 </cp:coreProperties>`,
@@ -2238,7 +2238,7 @@ async function consultCnpj(cnpj) {
     };
   }
 
-  const message = brasilApi.data.message || brasilApi.data.type || cnpjWs.data?.detalhes || cnpjWs.data?.message || "CNPJ nÃ£o encontrado.";
+  const message = brasilApi.data.message || brasilApi.data.type || cnpjWs.data?.detalhes || cnpjWs.data?.message || "CNPJ não encontrado.";
   const error = new Error(message);
   error.status = brasilApi.apiResponse.status || cnpjWs.apiResponse.status || 404;
   throw error;
@@ -2247,7 +2247,7 @@ async function consultCnpj(cnpj) {
 async function consultCep(cep) {
   const viaCep = await fetchJson(`https://viacep.com.br/ws/${cep}/json/`);
   if (!viaCep.apiResponse.ok || viaCep.data.erro) {
-    const error = new Error("CEP nÃ£o encontrado.");
+    const error = new Error("CEP não encontrado.");
     error.status = viaCep.apiResponse.status || 404;
     throw error;
   }
@@ -2272,12 +2272,12 @@ createServer(async (request, response) => {
   };
 
   if (isStateChangingApiRequest(request, url) && !isAllowedRequestOrigin(request)) {
-    sendJson(response, 403, { ok: false, error: "Origem da solicitaÃ§Ã£o nÃ£o autorizada." });
+    sendJson(response, 403, { ok: false, error: "Origem da solicitação não autorizada." });
     return;
   }
 
   if (requiresCsrfToken(request, url) && !(await validateCsrfToken(request))) {
-    sendJson(response, 403, { ok: false, error: "SessÃ£o expirada ou solicitaÃ§Ã£o invÃ¡lida. Recarregue a pÃ¡gina e tente novamente." });
+    sendJson(response, 403, { ok: false, error: "Sessão expirada ou solicitação inválida. Recarregue a página e tente novamente." });
     return;
   }
 
@@ -2302,7 +2302,7 @@ createServer(async (request, response) => {
           entidadeId: String(payload.usuario || ""),
           detalhes: { motivo: "credenciais_invalidas" },
         }).catch(() => {});
-        sendJson(response, 401, { ok: false, error: "UsuÃ¡rio ou senha invÃ¡lidos." });
+        sendJson(response, 401, { ok: false, error: "Usuário ou senha inválidos." });
         return;
       }
 
@@ -2343,7 +2343,7 @@ createServer(async (request, response) => {
       const user = await findUserByLogin(guestUser);
       const active = user?.ativo === true;
       if (!user || !active || user.perfil !== "CONVIDADO") {
-        sendJson(response, 403, { ok: false, error: "Acesso de convidado indisponÃ­vel." });
+        sendJson(response, 403, { ok: false, error: "Acesso de convidado indisponível." });
         return;
       }
 
@@ -2390,7 +2390,7 @@ createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/auth/confirm-password") {
     const user = await currentUser(request);
     if (!user) {
-      sendJson(response, 401, { ok: false, error: "UsuÃƒÂ¡rio nÃƒÂ£o autenticado." });
+      sendJson(response, 401, { ok: false, error: "Usuário não autenticado." });
       return;
     }
     try {
@@ -2411,7 +2411,7 @@ createServer(async (request, response) => {
           entidadeId: user.usuario,
           detalhes: { permissao: permission, autorizador: String(payload.usuario || "") },
         }).catch(() => {});
-        sendJson(response, 401, { ok: false, error: "Credenciais invÃƒÂ¡lidas." });
+        sendJson(response, 401, { ok: false, error: "Credenciais inválidas." });
         return;
       }
 
@@ -2423,7 +2423,7 @@ createServer(async (request, response) => {
           entidadeId: user.usuario,
           detalhes: { permissao: permission, autorizador: authorizer.usuario, motivo: "autorizador_nao_admin" },
         }).catch(() => {});
-        sendJson(response, 403, { ok: false, error: "Somente um administrador pode autorizar esta alteraÃƒÂ§ÃƒÂ£o." });
+        sendJson(response, 403, { ok: false, error: "Somente um administrador pode autorizar esta alteração." });
         return;
       }
 
@@ -2435,7 +2435,7 @@ createServer(async (request, response) => {
           entidadeId: user.usuario,
           detalhes: { permissao: permission, autorizador: authorizer.usuario, motivo: "sem_permissao" },
         }).catch(() => {});
-        sendJson(response, 403, { ok: false, error: "Administrador sem permissÃƒÂ£o para esta confirmaÃƒÂ§ÃƒÂ£o." });
+        sendJson(response, 403, { ok: false, error: "Administrador sem permissão para esta confirmação." });
         return;
       }
 
@@ -2477,7 +2477,7 @@ createServer(async (request, response) => {
         entidadeId: String(payload.usuario || ""),
         detalhes: { email: safeNormalizeEmail(payload.email) },
       }).catch(() => {});
-      sendJson(response, 200, { ok: true, message: "Se os dados estiverem corretos, enviaremos uma senha temporÃ¡ria para o e-mail cadastrado." });
+      sendJson(response, 200, { ok: true, message: "Se os dados estiverem corretos, enviaremos uma senha temporária para o e-mail cadastrado." });
     } catch (error) {
       sendJson(response, 500, { ok: false, error: friendlySmtpError(error) });
     }
@@ -2494,7 +2494,7 @@ createServer(async (request, response) => {
         entidadeTipo: "usuario",
         entidadeId: String(payload.usuario || ""),
       }).catch(() => {});
-      sendJson(response, 200, { ok: true, message: "Senha alterada com sucesso. FaÃ§a login novamente com a nova senha." });
+      sendJson(response, 200, { ok: true, message: "Senha alterada com sucesso. Faça login novamente com a nova senha." });
     } catch (error) {
       sendJson(response, 400, { ok: false, error: error.message });
     }
@@ -2603,7 +2603,7 @@ createServer(async (request, response) => {
       const allowedCategories = new Set(["orcamentos", "relatorios"]);
 
       if (!allowedCategories.has(categoria) || !nome) {
-        sendJson(response, 400, { ok: false, error: "Arquivo invÃ¡lido." });
+        sendJson(response, 400, { ok: false, error: "Arquivo inválido." });
         return;
       }
 
@@ -2651,7 +2651,7 @@ createServer(async (request, response) => {
       sendJson(response, 200, { ok: true, usuario });
     } catch (error) {
       const duplicate = String(error.message || "").includes("duplicate") || String(error.message || "").includes("UNIQUE");
-      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "UsuÃ¡rio jÃ¡ cadastrado." : error.message });
+      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "Usuário já cadastrado." : error.message });
     }
     return;
   }
@@ -2673,7 +2673,7 @@ createServer(async (request, response) => {
       sendJson(response, 200, { ok: true, usuario });
     } catch (error) {
       const duplicate = String(error.message || "").includes("duplicate") || String(error.message || "").includes("UNIQUE");
-      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "UsuÃ¡rio jÃ¡ cadastrado." : error.message });
+      sendJson(response, duplicate ? 409 : 400, { ok: false, error: duplicate ? "Usuário já cadastrado." : error.message });
     }
     return;
   }
@@ -2725,7 +2725,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".html" || !html) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Arquivo invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Arquivo inválido." }));
         return;
       }
 
@@ -2733,7 +2733,7 @@ createServer(async (request, response) => {
       const target = resolve(budgetsDir, fileName);
       if (!target.startsWith(budgetsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho inválido." }));
         return;
       }
 
@@ -2774,7 +2774,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".pdf") {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Arquivo invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Arquivo inválido." }));
         return;
       }
 
@@ -2802,7 +2802,7 @@ createServer(async (request, response) => {
       const target = resolve(budgetsDir, fileName);
       if (!target.startsWith(budgetsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho inválido." }));
         return;
       }
 
@@ -2873,7 +2873,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".pdf" || (!html && !report)) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "RelatÃƒÂ³rio invÃƒÂ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Relatório inválido." }));
         return;
       }
 
@@ -2881,7 +2881,7 @@ createServer(async (request, response) => {
       const target = resolve(reportsDir, fileName);
       if (!target.startsWith(reportsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho invÃƒÂ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho inválido." }));
         return;
       }
 
@@ -2931,7 +2931,7 @@ createServer(async (request, response) => {
 
       if (!fileName || fileName === ".xlsx") {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "RelatÃƒÆ’Ã‚Â³rio invÃƒÆ’Ã‚Â¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Relatório inválido." }));
         return;
       }
 
@@ -2939,7 +2939,7 @@ createServer(async (request, response) => {
       const target = resolve(reportsDir, fileName);
       if (!target.startsWith(reportsDir)) {
         response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "Caminho invÃƒÆ’Ã‚Â¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "Caminho inválido." }));
         return;
       }
 
@@ -2977,7 +2977,7 @@ createServer(async (request, response) => {
       const hasLocalAttachment = attachmentPath.startsWith(budgetsDir) && existsSync(attachmentPath);
       if (!storedAttachment && !hasLocalAttachment) {
         response.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "PDF do orÃ§amento nÃ£o encontrado. Salve o orÃ§amento novamente." }));
+        response.end(JSON.stringify({ ok: false, error: "PDF do orçamento não encontrado. Salve o orçamento novamente." }));
         return;
       }
 
@@ -2986,16 +2986,16 @@ createServer(async (request, response) => {
         publicPdfTitle({ categoria: "orcamentos" }),
       );
       const clientName = String(payload.cliente || "cliente");
-      const text = `Prezado cliente: ${clientName}\r\n\r\nConforme solicitado, enviamos o orÃ§amento referente aos serviÃ§os de Medicina e SeguranÃ§a do Trabalho.\r\n\r\nEm caso de dÃºvidas, estamos Ã  disposiÃ§Ã£o.`;
+      const text = `Prezado cliente: ${clientName}\r\n\r\nConforme solicitado, enviamos o orçamento referente aos serviços de Medicina e Segurança do Trabalho.\r\n\r\nEm caso de dúvidas, estamos à disposição.`;
       const html = `
         <p>Prezado cliente: ${escapeHtmlEmail(clientName)}</p>
-        <p>Conforme solicitado, enviamos o orÃ§amento referente aos serviÃ§os de Medicina e SeguranÃ§a do Trabalho.</p>
-        <p>Em caso de dÃºvidas, estamos Ã  disposiÃ§Ã£o.</p>
+        <p>Conforme solicitado, enviamos o orçamento referente aos serviços de Medicina e Segurança do Trabalho.</p>
+        <p>Em caso de dúvidas, estamos à disposição.</p>
         `;
 
       await sendSmtpMail({
         to: payload.to,
-        subject: String(payload.subject || "OrÃ§amento"),
+        subject: String(payload.subject || "Orçamento"),
         text,
         html,
         attachmentPath: "",
@@ -3033,7 +3033,7 @@ createServer(async (request, response) => {
       const cnpj = onlyDigits(decodeURIComponent(url.pathname.replace("/api/cnpj/", "")));
       if (cnpj.length !== 14) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "CNPJ invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "CNPJ inválido." }));
         return;
       }
 
@@ -3075,7 +3075,7 @@ createServer(async (request, response) => {
       const cep = onlyDigits(decodeURIComponent(url.pathname.replace("/api/cep/", "")));
       if (cep.length !== 8) {
         response.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ ok: false, error: "CEP invÃ¡lido." }));
+        response.end(JSON.stringify({ ok: false, error: "CEP inválido." }));
         return;
       }
 
